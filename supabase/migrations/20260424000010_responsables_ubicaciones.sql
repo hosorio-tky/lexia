@@ -79,8 +79,17 @@ CREATE POLICY "admin_delete_ubicaciones" ON ubicaciones
   );
 
 -- ─── Nuevos campos en permisos ────────────────────────────────
+-- responsable_id ya existe como columna sin FK (creada en 002),
+-- aquí agregamos la FK ahora que responsables existe.
+-- ubicacion_id se agrega como columna nueva.
+DO $$ BEGIN
+  ALTER TABLE permisos
+    ADD CONSTRAINT permisos_responsable_id_fkey
+    FOREIGN KEY (responsable_id) REFERENCES responsables(id) ON DELETE SET NULL;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
 ALTER TABLE permisos
-  ADD COLUMN IF NOT EXISTS responsable_id          UUID    REFERENCES responsables(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS ubicacion_id            UUID    REFERENCES ubicaciones(id)  ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS valor_tramite           NUMERIC(15,2),
   ADD COLUMN IF NOT EXISTS moneda                  TEXT    DEFAULT 'USD',

@@ -52,7 +52,7 @@ create table permisos (
   fecha_vencimiento     date,
 
   -- Responsable
-  responsable_id        uuid references responsables(id) on delete set null,
+  responsable_id        uuid,  -- FK agregada en 20260424000010 cuando existe responsables
   responsable_nombre    text,   -- desnormalizado para lecturas rápidas
 
   -- Extras
