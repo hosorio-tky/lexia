@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -99,7 +100,7 @@ export default function AppShell({
   const nav: NavItem[] = [
     { label: "Dashboard",     href: "/dashboard",       icon: <LayoutDashboard className="h-4 w-4" /> },
     { label: "Permisos",      href: "/permisos",        icon: <FileText className="h-4 w-4" /> },
-    { label: "Contratos",     href: "/contratos",       icon: <FileText className="h-4 w-4" />, disabled: true },
+    { label: "Contratos",     href: "/contratos",       icon: <FileText className="h-4 w-4" /> },
     { label: "Tareas",        href: "/tareas",          icon: <ClipboardCheck className="h-4 w-4" /> },
     { label: "Notificaciones",href: "/notificaciones",  icon: <Bell className="h-4 w-4" /> },
     { label: "Usuarios",      href: "/usuarios",        icon: <Users className="h-4 w-4" /> },
@@ -154,14 +155,15 @@ export default function AppShell({
       {/* ── Sidebar ── */}
       <aside className="fixed left-0 top-0 z-50 hidden h-svh w-[240px] border-r bg-background/80 backdrop-blur lg:flex lg:flex-col">
         {/* Logo */}
-        <div className="flex h-16 items-center gap-3 px-4">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/10 text-primary ring-1 ring-primary/20">
-            <Sparkles className="h-5 w-5" />
-          </div>
-          <div className="leading-tight">
-            <div className="text-sm font-semibold tracking-tight">Lexia</div>
-            <div className="text-xs text-muted-foreground">Gestión Legal</div>
-          </div>
+        <div className="flex h-16 items-center px-4">
+          <Image
+            src="/logo_lexia.png"
+            alt="Lexia"
+            width={120}
+            height={40}
+            className="object-contain"
+            priority
+          />
         </div>
 
         {/* Nav */}

@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import DOMPurify from "isomorphic-dompurify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotasRepository } from "@/lib/repositories/notas";
 import { createDocumentosRepository } from "@/lib/repositories/documentos";
@@ -9,6 +10,22 @@ import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/logger";
 import { indexDocument } from "@/lib/ai/indexer";
 import type { Nota } from "@/lib/repositories/notas";
+
+/**
+ * Sanitiza HTML antes de persistir — previene XSS.
+ * Permite etiquetas seguras de Tiptap pero elimina scripts y eventos inline.
+ */
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      "p", "br", "strong", "em", "u", "s", "ul", "ol", "li",
+      "blockquote", "code", "pre", "h1", "h2", "h3",
+      "span", "a", "mark",
+    ],
+    ALLOWED_ATTR: ["href", "target", "rel", "class", "data-type", "data-id", "data-label"],
+    ALLOW_DATA_ATTR: false,
+  });
+}
 
 const BUCKET = "documentos";
 
@@ -67,12 +84,14 @@ export async function crearNota(
   try {
     const modulo      = formData.get("modulo")      as string;
     const recursoId   = formData.get("recurso_id")  as string;
-    const contenido   = (formData.get("contenido")  as string)?.trim();
-    const recursoDesc = (formData.get("recurso_desc") as string) || recursoId;
+    const contenidoRaw = (formData.get("contenido")  as string)?.trim();
+    const recursoDesc  = (formData.get("recurso_desc") as string) || recursoId;
 
-    if (!contenido || contenido === "<p></p>") {
+    if (!contenidoRaw || contenidoRaw === "<p></p>") {
       return { error: "La nota no puede estar vacía" };
     }
+
+    const contenido = sanitizeHtml(contenidoRaw);
 
     const client    = createAdminClient();
     const notasRepo = createNotasRepository(client, session.tenant_id);
@@ -141,36 +160,25 @@ export async function subirArchivo(
     const uuid        = crypto.randomUUID();
     const storagePath = `${session.tenant_id}/${modulo}/${recursoId}/${uuid}.${ext}`;
 
-    // Subir a Supabase Storage
-    const storageUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+    // Subir a Supabase Storage usando el SDK (nunca exponer service key en fetch manual)
     const fileBuffer = await file.arrayBuffer();
 
-    const uploadRes = await fetch(
-      `${storageUrl}/storage/v1/object/${BUCKET}/${storagePath}`,
-      {
-        method:  "POST",
-        headers: {
-          "apikey":        serviceKey,
-          "Authorization": `Bearer ${serviceKey}`,
-          "Content-Type":  file.type || "application/octet-stream",
-          "x-upsert":      "false",
-        },
-        body: new Uint8Array(fileBuffer),
-      }
-    );
+    const { error: uploadError } = await client.storage
+      .from(BUCKET)
+      .upload(storagePath, fileBuffer, {
+        contentType: file.type || "application/octet-stream",
+        upsert: false,
+      });
 
-    if (!uploadRes.ok) {
-      const errBody = await uploadRes.json().catch(() => ({})) as { message?: string };
-      const errMsg = errBody.message ?? `Storage error ${uploadRes.status}`;
-      await logError(errMsg, {
+    if (uploadError) {
+      await logError(uploadError.message, {
         tenantId:   session.tenant_id,
         userId:     session.user_id,
         userNombre: session.nombre,
         action:     "subirArchivo",
         context:    { modulo: modulo ?? undefined, recursoId: recursoId ?? undefined },
       });
-      return { error: errMsg };
+      return { error: uploadError.message };
     }
 
     // Registrar en BD
@@ -188,10 +196,8 @@ export async function subirArchivo(
     });
 
     if (dbError) {
-      await fetch(`${storageUrl}/storage/v1/object/${BUCKET}/${storagePath}`, {
-        method: "DELETE",
-        headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` },
-      });
+      // Limpiar el archivo subido si el registro en BD falla
+      await client.storage.from(BUCKET).remove([storagePath]);
       await logError(dbError.message, {
         tenantId:   session.tenant_id,
         userId:     session.user_id,
@@ -289,14 +295,16 @@ export async function editarNota(
 ): Promise<{ error?: string; success?: boolean }> {
   const session     = await getSession();
   try {
-    const contenido   = (formData.get("contenido")   as string)?.trim();
-    const modulo      = formData.get("modulo")        as string;
-    const recursoId   = formData.get("recurso_id")    as string;
-    const recursoDesc = (formData.get("recurso_desc") as string) || recursoId;
+    const contenidoRaw = (formData.get("contenido")   as string)?.trim();
+    const modulo       = formData.get("modulo")        as string;
+    const recursoId    = formData.get("recurso_id")    as string;
+    const recursoDesc  = (formData.get("recurso_desc") as string) || recursoId;
 
-    if (!contenido || contenido === "<p></p>") {
+    if (!contenidoRaw || contenidoRaw === "<p></p>") {
       return { error: "La nota no puede estar vacía" };
     }
+
+    const contenido = sanitizeHtml(contenidoRaw);
 
     const client = createAdminClient();
     await createNotasRepository(client, session.tenant_id).update(id, contenido);

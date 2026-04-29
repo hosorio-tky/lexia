@@ -1,11 +1,24 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import DOMPurify from "isomorphic-dompurify";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createComentariosRepository } from "@/lib/repositories/comentarios";
 import { getSession } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
 import type { Comentario } from "@/lib/repositories/comentarios";
+
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      "p", "br", "strong", "em", "u", "s", "ul", "ol", "li",
+      "blockquote", "code", "pre", "h1", "h2", "h3",
+      "span", "a", "mark",
+    ],
+    ALLOWED_ATTR: ["href", "target", "rel", "class", "data-type", "data-id", "data-label"],
+    ALLOW_DATA_ATTR: false,
+  });
+}
 
 /** Crea notificaciones para los usuarios mencionados en un contenido HTML */
 async function notificarMenciones({
@@ -55,12 +68,14 @@ export async function crearComentario(
   const session    = await getSession();
   const modulo     = formData.get("modulo")      as string;
   const recursoId  = formData.get("recurso_id")  as string;
-  const contenido  = (formData.get("contenido")  as string)?.trim();
-  const recursoDesc = (formData.get("recurso_desc") as string) || recursoId;
+  const contenidoRaw = (formData.get("contenido")  as string)?.trim();
+  const recursoDesc  = (formData.get("recurso_desc") as string) || recursoId;
 
-  if (!contenido || contenido === "<p></p>") {
+  if (!contenidoRaw || contenidoRaw === "<p></p>") {
     return { error: "El comentario no puede estar vacío" };
   }
+
+  const contenido = sanitizeHtml(contenidoRaw);
 
   const client = createAdminClient();
   const repo   = createComentariosRepository(client, session.tenant_id);
@@ -105,14 +120,16 @@ export async function editarComentario(
   formData: FormData
 ): Promise<{ error?: string; success?: boolean }> {
   const session     = await getSession();
-  const contenido   = (formData.get("contenido")   as string)?.trim();
-  const modulo      = formData.get("modulo")        as string;
-  const recursoId   = formData.get("recurso_id")    as string;
-  const recursoDesc = (formData.get("recurso_desc") as string) || recursoId;
+  const contenidoRaw = (formData.get("contenido")   as string)?.trim();
+  const modulo       = formData.get("modulo")        as string;
+  const recursoId    = formData.get("recurso_id")    as string;
+  const recursoDesc  = (formData.get("recurso_desc") as string) || recursoId;
 
-  if (!contenido || contenido === "<p></p>") {
+  if (!contenidoRaw || contenidoRaw === "<p></p>") {
     return { error: "El contenido no puede estar vacío" };
   }
+
+  const contenido = sanitizeHtml(contenidoRaw);
 
   const client = createAdminClient();
   const repo   = createComentariosRepository(client, session.tenant_id);

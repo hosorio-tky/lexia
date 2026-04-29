@@ -214,6 +214,7 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
       tenant_id: string;
       nombre: string;
       tipo: string;
+      estado?: string;           // opcional — defecto "Creado"
       numero_expediente?: string;
       entidad_reguladora?: string;
       ubicacion_id?: string;
@@ -235,7 +236,7 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
     }): Promise<Permit> {
       const { data, error } = await client
         .from("permisos")
-        .insert(input)
+        .insert({ estado: "Creado", ...input }) // input.estado sobrescribe el default si se provee
         .select()
         .single();
 

@@ -6,6 +6,7 @@ import { createConfiguracionRepository } from "@/lib/repositories/configuracion"
 import { createUsuariosRepository } from "@/lib/repositories/usuarios";
 import { getSession, requireRole } from "@/lib/auth/session";
 import { indexDocument } from "@/lib/ai/indexer";
+import { indexContrato } from "@/lib/ai/contrato-indexer";
 import type { PlantillaAlerta } from "@/types/settings";
 
 // ─── T06-F03: Personalización empresa ─────────────────────────
@@ -234,4 +235,52 @@ export async function reindexarDocumentos(): Promise<{
   }
 
   return { total: indexable.length, indexed, errors };
+}
+
+// ─── Re-indexar contratos para RAG ───────────────────────────
+export async function reindexarContratos(): Promise<{
+  total: number;
+  indexed: number;
+  errors: string[];
+}> {
+  const session = await getSession();
+  const client  = createAdminClient();
+
+  // Contratos del tenant con contenido HTML o PDF
+  const { data: contratos } = await client
+    .from("contratos")
+    .select("id, contenido_html, storage_path")
+    .eq("tenant_id", session.tenant_id);
+
+  // Contratos que ya tienen chunks (de cualquier fuente)
+  const { data: existing } = await client
+    .from("contrato_chunks")
+    .select("contrato_id")
+    .eq("tenant_id", session.tenant_id);
+
+  const indexedIds = new Set((existing ?? []).map((r: { contrato_id: string }) => r.contrato_id));
+  const toIndex = (contratos ?? []).filter(
+    (c: { id: string; contenido_html: string | null; storage_path: string | null }) =>
+      !indexedIds.has(c.id) && (c.contenido_html || c.storage_path)
+  ) as Array<{ id: string; contenido_html: string | null; storage_path: string | null }>;
+
+  let indexed = 0;
+  const errors: string[] = [];
+
+  for (const contrato of toIndex) {
+    try {
+      await indexContrato({
+        contratoId:  contrato.id,
+        tenantId:    session.tenant_id,
+        html:        contrato.contenido_html,
+        storagePath: contrato.storage_path,
+      });
+      indexed++;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`${contrato.id.slice(0, 8)}…: ${msg}`);
+    }
+  }
+
+  return { total: toIndex.length, indexed, errors };
 }

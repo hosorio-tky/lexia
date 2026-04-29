@@ -14,15 +14,22 @@ const ACCION_CONFIG: Record<string, {
   icon: React.ElementType;
   color: string;
 }> = {
-  crear_permiso:      { label: "Permiso creado",          icon: Plus,           color: "text-emerald-600 bg-emerald-50" },
-  editar_permiso:     { label: "Permiso editado",         icon: Pencil,         color: "text-blue-600 bg-blue-50" },
-  cambiar_estado:     { label: "Estado cambiado",         icon: RefreshCw,      color: "text-indigo-600 bg-indigo-50" },
-  eliminar_permiso:   { label: "Permiso eliminado",       icon: Trash2,         color: "text-red-600 bg-red-50" },
-  agregar_comentario: { label: "Comentario agregado",     icon: MessageSquare,  color: "text-slate-600 bg-slate-100" },
-  editar_comentario:  { label: "Comentario editado",      icon: MessageSquare,  color: "text-slate-500 bg-slate-50" },
-  eliminar_comentario:{ label: "Comentario eliminado",    icon: Trash2,         color: "text-slate-500 bg-slate-50" },
-  subir_documento:    { label: "Documento subido",        icon: Upload,         color: "text-violet-600 bg-violet-50" },
-  eliminar_documento: { label: "Documento eliminado",     icon: Trash2,         color: "text-red-500 bg-red-50" },
+  // ── Permisos ──────────────────────────────────────────────────
+  crear_permiso:           { label: "Permiso creado",          icon: Plus,           color: "text-emerald-600 bg-emerald-50" },
+  editar_permiso:          { label: "Permiso editado",         icon: Pencil,         color: "text-blue-600 bg-blue-50" },
+  cambiar_estado:          { label: "Estado cambiado",         icon: RefreshCw,      color: "text-indigo-600 bg-indigo-50" },
+  eliminar_permiso:        { label: "Permiso eliminado",       icon: Trash2,         color: "text-red-600 bg-red-50" },
+  // ── Contratos ────────────────────────────────────────────────
+  crear_contrato:          { label: "Contrato creado",         icon: Plus,           color: "text-emerald-600 bg-emerald-50" },
+  editar_contrato:         { label: "Contrato editado",        icon: Pencil,         color: "text-blue-600 bg-blue-50" },
+  cambiar_estado_contrato: { label: "Estado cambiado",         icon: RefreshCw,      color: "text-indigo-600 bg-indigo-50" },
+  eliminar_contrato:       { label: "Contrato eliminado",      icon: Trash2,         color: "text-red-600 bg-red-50" },
+  // ── Compartidos ──────────────────────────────────────────────
+  agregar_comentario:      { label: "Comentario agregado",     icon: MessageSquare,  color: "text-slate-600 bg-slate-100" },
+  editar_comentario:       { label: "Comentario editado",      icon: MessageSquare,  color: "text-slate-500 bg-slate-50" },
+  eliminar_comentario:     { label: "Comentario eliminado",    icon: Trash2,         color: "text-slate-500 bg-slate-50" },
+  subir_documento:         { label: "Documento subido",        icon: Upload,         color: "text-violet-600 bg-violet-50" },
+  eliminar_documento:      { label: "Documento eliminado",     icon: Trash2,         color: "text-red-500 bg-red-50" },
 };
 
 const DEFAULT_CONFIG = {
@@ -35,7 +42,7 @@ const DEFAULT_CONFIG = {
 function ActionDetail({ accion, metadata }: { accion: string; metadata: Record<string, unknown> | null }) {
   if (!metadata) return null;
 
-  if (accion === "editar_permiso") {
+  if (accion === "editar_permiso" || accion === "editar_contrato") {
     const cambios = metadata.cambios as Array<{ campo: string; de: string | null; a: string | null }> | undefined;
     if (!cambios?.length) return null;
     return (
@@ -52,7 +59,7 @@ function ActionDetail({ accion, metadata }: { accion: string; metadata: Record<s
     );
   }
 
-  if (accion === "cambiar_estado") {
+  if (accion === "cambiar_estado" || accion === "cambiar_estado_contrato") {
     const { estado_anterior, estado_nuevo, comentario } = metadata as {
       estado_anterior?: string | null;
       estado_nuevo?: string;

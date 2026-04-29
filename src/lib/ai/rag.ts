@@ -35,7 +35,7 @@ export async function searchLexbaseChunks(
     p_tenant_id:   tenantId,
     p_embedding:   JSON.stringify(embedding),
     p_match_count: matchCount,
-    p_threshold:   0.25,
+    p_threshold:   0.10,
   });
 
   if (error || !data) return [];
@@ -46,25 +46,85 @@ export async function searchLexbaseChunks(
   }));
 }
 
-/** Busca los chunks más relevantes para una pregunta */
+/** Busca los chunks más relevantes de documentos generales.
+ *  Si la búsqueda vectorial no supera el threshold mínimo (ej. queries
+ *  meta como "resumir" o "listar cláusulas"), devuelve los top-K chunks
+ *  sin filtro de similitud para garantizar contexto siempre. */
 export async function searchDocumentChunks(
+  tenantId: string,
+  query: string,
+  matchCount = 8
+): Promise<ChunkResult[]> {
+  const client = createAdminClient();
+  const embedding = await generateEmbedding(query);
+  const embStr = JSON.stringify(embedding);
+
+  // Intento 1: búsqueda con threshold bajo
+  const { data, error } = await client.rpc("match_document_chunks", {
+    p_tenant_id:   tenantId,
+    p_embedding:   embStr,
+    p_match_count: matchCount,
+    p_threshold:   0.10,
+  });
+
+  if (!error && data && (data as ChunkResult[]).length > 0) {
+    return (data as ChunkResult[]).map((row) => ({
+      contenido:  row.contenido,
+      similarity: row.similarity,
+    }));
+  }
+
+  // Fallback: fuerza los top-K chunks más cercanos sin threshold
+  const { data: fallback } = await client.rpc("match_document_chunks", {
+    p_tenant_id:   tenantId,
+    p_embedding:   embStr,
+    p_match_count: matchCount,
+    p_threshold:   0.0,
+  });
+
+  if (!fallback) return [];
+  return (fallback as ChunkResult[]).map((row) => ({
+    contenido:  row.contenido,
+    similarity: row.similarity,
+  }));
+}
+
+/** Busca chunks vectorizados de contratos (HTML + PDF).
+ *  Mismo patrón de fallback sin threshold que documentos generales. */
+export async function searchContratoChunks(
   tenantId: string,
   query: string,
   matchCount = 6
 ): Promise<ChunkResult[]> {
   const client = createAdminClient();
   const embedding = await generateEmbedding(query);
+  const embStr = JSON.stringify(embedding);
 
-  const { data, error } = await client.rpc("match_document_chunks", {
+  // Intento 1: búsqueda con threshold bajo
+  const { data, error } = await client.rpc("match_contrato_chunks", {
     p_tenant_id:   tenantId,
-    p_embedding:   JSON.stringify(embedding),
+    p_embedding:   embStr,
     p_match_count: matchCount,
-    p_threshold:   0.25,
+    p_threshold:   0.10,
   });
 
-  if (error || !data) return [];
+  if (!error && data && (data as ChunkResult[]).length > 0) {
+    return (data as (ChunkResult & { fuente?: string })[]).map((row) => ({
+      contenido:  row.contenido,
+      similarity: row.similarity,
+    }));
+  }
 
-  return (data as ChunkResult[]).map((row) => ({
+  // Fallback: fuerza los top-K chunks más cercanos sin threshold
+  const { data: fallback } = await client.rpc("match_contrato_chunks", {
+    p_tenant_id:   tenantId,
+    p_embedding:   embStr,
+    p_match_count: matchCount,
+    p_threshold:   0.0,
+  });
+
+  if (!fallback) return [];
+  return (fallback as (ChunkResult & { fuente?: string })[]).map((row) => ({
     contenido:  row.contenido,
     similarity: row.similarity,
   }));
@@ -75,7 +135,7 @@ export async function getStructuredContext(tenantId: string): Promise<string> {
   const client = createAdminClient();
   const sections: string[] = [];
 
-  // ── Permisos (todos, con todos sus campos relevantes) ──────
+  // ── Permisos ───────────────────────────────────────────────
   const { data: permisos } = await client
     .from("permisos")
     .select("id, nombre, numero_expediente, estado, fecha_solicitud, fecha_emision, fecha_vencimiento, tipo, entidad_reguladora, base_legal, riesgo_incumplimiento, descripcion, responsable_nombre")
@@ -119,7 +179,6 @@ export async function getStructuredContext(tenantId: string): Promise<string> {
     .limit(30);
 
   if (historial && historial.length > 0) {
-    // Agrupar por permiso
     const byPermiso: Record<string, typeof historial> = {};
     for (const h of historial) {
       if (!byPermiso[h.permiso_id]) byPermiso[h.permiso_id] = [];
@@ -128,7 +187,7 @@ export async function getStructuredContext(tenantId: string): Promise<string> {
     const permisoNombres: Record<string, string> = {};
     for (const p of (permisos ?? [])) permisoNombres[p.id] = p.nombre;
 
-    const lines: string[] = ["\n## Historial de cambios de estado"];
+    const lines: string[] = ["\n## Historial de cambios de estado (permisos)"];
     for (const [permisoId, cambios] of Object.entries(byPermiso)) {
       const nombre = permisoNombres[permisoId] ?? permisoId.slice(0, 8) + "…";
       for (const c of cambios) {
@@ -144,7 +203,7 @@ export async function getStructuredContext(tenantId: string): Promise<string> {
   }
 
   // ── Notas de permisos ──────────────────────────────────────
-  const { data: notas } = await client
+  const { data: notasPermisos } = await client
     .from("notas")
     .select("recurso_id, contenido, user_nombre, created_at")
     .eq("tenant_id", tenantId)
@@ -152,22 +211,22 @@ export async function getStructuredContext(tenantId: string): Promise<string> {
     .order("created_at", { ascending: false })
     .limit(40);
 
-  if (notas && notas.length > 0) {
+  if (notasPermisos && notasPermisos.length > 0) {
     const permisoNombres: Record<string, string> = {};
     for (const p of (permisos ?? [])) permisoNombres[p.id] = p.nombre;
 
     const lines: string[] = ["\n## Notas en permisos"];
-    for (const n of notas) {
-      const nombrePermiso = permisoNombres[n.recurso_id] ?? n.recurso_id.slice(0, 8) + "…";
-      const texto = stripHtml(n.contenido).slice(0, 400);
-      const fecha = new Date(n.created_at).toLocaleDateString("es-SV");
-      lines.push(`- [${nombrePermiso}] ${n.user_nombre} (${fecha}): ${texto}`);
+    for (const n of notasPermisos) {
+      const nombre = permisoNombres[n.recurso_id] ?? n.recurso_id.slice(0, 8) + "…";
+      const texto  = stripHtml(n.contenido).slice(0, 400);
+      const fecha  = new Date(n.created_at).toLocaleDateString("es-SV");
+      lines.push(`- [${nombre}] ${n.user_nombre} (${fecha}): ${texto}`);
     }
     sections.push(lines.join("\n"));
   }
 
   // ── Comentarios de permisos ────────────────────────────────
-  const { data: comentarios } = await client
+  const { data: comentariosPermisos } = await client
     .from("comentarios")
     .select("recurso_id, contenido, user_nombre, created_at")
     .eq("tenant_id", tenantId)
@@ -175,16 +234,100 @@ export async function getStructuredContext(tenantId: string): Promise<string> {
     .order("created_at", { ascending: false })
     .limit(40);
 
-  if (comentarios && comentarios.length > 0) {
+  if (comentariosPermisos && comentariosPermisos.length > 0) {
     const permisoNombres: Record<string, string> = {};
     for (const p of (permisos ?? [])) permisoNombres[p.id] = p.nombre;
 
     const lines: string[] = ["\n## Comentarios en permisos"];
-    for (const c of comentarios) {
-      const nombrePermiso = permisoNombres[c.recurso_id] ?? c.recurso_id.slice(0, 8) + "…";
-      const texto = stripHtml(c.contenido).slice(0, 300);
-      const fecha = new Date(c.created_at).toLocaleDateString("es-SV");
-      lines.push(`- [${nombrePermiso}] ${c.user_nombre} (${fecha}): ${texto}`);
+    for (const c of comentariosPermisos) {
+      const nombre = permisoNombres[c.recurso_id] ?? c.recurso_id.slice(0, 8) + "…";
+      const texto  = stripHtml(c.contenido).slice(0, 300);
+      const fecha  = new Date(c.created_at).toLocaleDateString("es-SV");
+      lines.push(`- [${nombre}] ${c.user_nombre} (${fecha}): ${texto}`);
+    }
+    sections.push(lines.join("\n"));
+  }
+
+  // ── Contratos ──────────────────────────────────────────────
+  const { data: contratos } = await client
+    .from("contratos")
+    .select("id, titulo, numero, tipo, estado, responsable_nombre, contraparte_nombre, contraparte_email, valor, moneda, fecha_inicio, fecha_fin, fecha_firma, descripcion")
+    .eq("tenant_id", tenantId)
+    .order("fecha_fin", { ascending: true, nullsFirst: false })
+    .limit(50);
+
+  if (contratos && contratos.length > 0) {
+    const lines: string[] = ["\n## Contratos registrados"];
+    for (const c of contratos) {
+      const vence = c.fecha_fin
+        ? (() => {
+            const dias = Math.ceil((new Date(c.fecha_fin).getTime() - Date.now()) / 864e5);
+            return `${c.fecha_fin} (${dias > 0 ? `vence en ${dias} días` : `venció hace ${Math.abs(dias)} días`})`;
+          })()
+        : "sin fecha fin";
+      const valor = c.valor != null
+        ? `${c.moneda ?? "USD"} ${Number(c.valor).toLocaleString("es-SV", { minimumFractionDigits: 2 })}`
+        : "–";
+      lines.push(
+        `- [ID:${c.id}] ${c.titulo}` +
+        ` | Número: ${c.numero ?? "–"}` +
+        ` | Tipo: ${c.tipo ?? "–"}` +
+        ` | Estado: ${c.estado}` +
+        ` | Responsable: ${c.responsable_nombre ?? "–"}` +
+        ` | Contraparte: ${c.contraparte_nombre ?? "–"}` +
+        (c.contraparte_email ? ` (${c.contraparte_email})` : "") +
+        ` | Valor: ${valor}` +
+        ` | Inicio: ${c.fecha_inicio ?? "–"}` +
+        ` | Firma: ${c.fecha_firma ?? "–"}` +
+        ` | Vencimiento: ${vence}` +
+        (c.descripcion ? ` | Descripción: ${c.descripcion}` : "")
+      );
+    }
+    sections.push(lines.join("\n"));
+  }
+
+  // ── Notas de contratos ─────────────────────────────────────
+  const { data: notasContratos } = await client
+    .from("notas")
+    .select("recurso_id, contenido, user_nombre, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("modulo", "contratos")
+    .order("created_at", { ascending: false })
+    .limit(40);
+
+  if (notasContratos && notasContratos.length > 0) {
+    const contratoTitulos: Record<string, string> = {};
+    for (const c of (contratos ?? [])) contratoTitulos[c.id] = c.titulo;
+
+    const lines: string[] = ["\n## Notas en contratos"];
+    for (const n of notasContratos) {
+      const titulo = contratoTitulos[n.recurso_id] ?? n.recurso_id.slice(0, 8) + "…";
+      const texto  = stripHtml(n.contenido).slice(0, 400);
+      const fecha  = new Date(n.created_at).toLocaleDateString("es-SV");
+      lines.push(`- [${titulo}] ${n.user_nombre} (${fecha}): ${texto}`);
+    }
+    sections.push(lines.join("\n"));
+  }
+
+  // ── Comentarios de contratos ───────────────────────────────
+  const { data: comentariosContratos } = await client
+    .from("comentarios")
+    .select("recurso_id, contenido, user_nombre, created_at")
+    .eq("tenant_id", tenantId)
+    .eq("modulo", "contratos")
+    .order("created_at", { ascending: false })
+    .limit(40);
+
+  if (comentariosContratos && comentariosContratos.length > 0) {
+    const contratoTitulos: Record<string, string> = {};
+    for (const c of (contratos ?? [])) contratoTitulos[c.id] = c.titulo;
+
+    const lines: string[] = ["\n## Comentarios en contratos"];
+    for (const c of comentariosContratos) {
+      const titulo = contratoTitulos[c.recurso_id] ?? c.recurso_id.slice(0, 8) + "…";
+      const texto  = stripHtml(c.contenido).slice(0, 300);
+      const fecha  = new Date(c.created_at).toLocaleDateString("es-SV");
+      lines.push(`- [${titulo}] ${c.user_nombre} (${fecha}): ${texto}`);
     }
     sections.push(lines.join("\n"));
   }
@@ -226,15 +369,23 @@ export async function assembleContext(
   tenantId: string,
   query: string
 ): Promise<{ documentContext: string; structuredContext: string }> {
-  const [chunks, lexbaseChunks, structured] = await Promise.all([
+  const [chunks, lexbaseChunks, contratoChunks, structured] = await Promise.all([
     searchDocumentChunks(tenantId, query),
     searchLexbaseChunks(tenantId, query),
+    searchContratoChunks(tenantId, query),
     getStructuredContext(tenantId),
   ]);
 
   const allChunks = [
-    ...chunks.map((c, i) => `[Documento interno — fragmento ${i + 1}, relevancia ${(c.similarity * 100).toFixed(0)}%]\n${c.contenido}`),
-    ...lexbaseChunks.map((c, i) => `[Lexbase legal — fragmento ${i + 1}, relevancia ${(c.similarity * 100).toFixed(0)}%]\n${c.contenido}`),
+    ...chunks.map((c, i) =>
+      `[Documento interno — fragmento ${i + 1}, relevancia ${(c.similarity * 100).toFixed(0)}%]\n${c.contenido}`
+    ),
+    ...lexbaseChunks.map((c, i) =>
+      `[Lexbase legal — fragmento ${i + 1}, relevancia ${(c.similarity * 100).toFixed(0)}%]\n${c.contenido}`
+    ),
+    ...contratoChunks.map((c, i) =>
+      `[Contrato — fragmento ${i + 1}, relevancia ${(c.similarity * 100).toFixed(0)}%]\n${c.contenido}`
+    ),
   ];
 
   const documentContext = allChunks.length > 0

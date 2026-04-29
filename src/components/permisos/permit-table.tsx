@@ -121,7 +121,9 @@ export function PermitTable({
                       {permit.tipo.substring(0, 2).toUpperCase()}
                     </div>
                     <div>
-                      <div className="font-medium text-foreground leading-snug">{permit.nombre}</div>
+                      <Link href={`/permisos/${permit.id}`} className="font-medium text-foreground leading-snug hover:text-primary hover:underline transition-colors">
+                        {permit.nombre}
+                      </Link>
                       {permit.entidad_reguladora && (
                         <div className="text-[11px] text-muted-foreground">{permit.entidad_reguladora}</div>
                       )}

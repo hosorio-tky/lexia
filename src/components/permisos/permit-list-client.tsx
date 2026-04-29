@@ -2,12 +2,19 @@
 
 import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Upload, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { PermitStatCards } from "./permit-stat-cards";
 import { PermitFiltersBar } from "./permit-filters";
 import { PermitTable } from "./permit-table";
 import { PermitCardsGrid } from "./permit-cards-grid";
+import { PermitImportDialog } from "./permit-import-dialog";
 import { eliminarPermiso } from "@/app/actions/permisos";
 import { calcularVigencia } from "@/types/permits";
 import type { Permit, PermitFilters } from "@/types/permits";
@@ -15,9 +22,10 @@ import type { Permit, PermitFilters } from "@/types/permits";
 type ViewMode = "table" | "grid";
 
 export function PermitListClient({ initialPermits }: { initialPermits: Permit[] }) {
-  const [viewMode, setViewMode] = useState<ViewMode>("table");
-  const [selected, setSelected]  = useState<string[]>([]);
-  const [filters, setFilters]    = useState<PermitFilters>({
+  const [viewMode, setViewMode]     = useState<ViewMode>("table");
+  const [selected, setSelected]     = useState<string[]>([]);
+  const [importOpen, setImportOpen] = useState(false);
+  const [filters, setFilters]       = useState<PermitFilters>({
     search: "", estado: "", tipo: "", entidad: "", responsable: "", vigencia: "",
   });
   const [isPending, startTransition] = useTransition();
@@ -81,13 +89,34 @@ export function PermitListClient({ initialPermits }: { initialPermits: Permit[] 
           onViewModeChange={setViewMode}
           responsables={responsables}
         />
-        <Link href="/permisos/nuevo">
-          <Button size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Nuevo Permiso
-          </Button>
-        </Link>
+        <div className="flex items-center">
+          <Link href="/permisos/nuevo">
+            <Button size="sm" className="rounded-r-none border-r-0">
+              <Plus className="mr-2 h-4 w-4" />
+              Nuevo Permiso
+            </Button>
+          </Link>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" className="rounded-l-none px-2">
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                <Upload className="mr-2 h-4 w-4" />
+                Importar desde Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
+
+      <PermitImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onSuccess={() => { /* revalidatePath ya actualiza el server — el dialog se queda abierto */ }}
+      />
 
       {/* Lista */}
       {viewMode === "table" ? (
