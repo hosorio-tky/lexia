@@ -27,17 +27,20 @@ export async function invitarUsuario(
   const admin  = createAdminClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
-  // Invitar usuario — Supabase crea la cuenta Y envía el email (→ Mailpit en local)
-  const { data: userData, error: createError } = await admin.auth.admin.inviteUserByEmail(
+  // Crear usuario sin que Supabase envíe su email genérico —
+  // nosotros controlamos el envío 100% via Resend con nuestra plantilla.
+  const { data: userData, error: createError } = await admin.auth.admin.createUser({
     email,
-    {
-      data:       { nombre },
-      redirectTo: `${appUrl}/auth/callback?next=/actualizar-contrasena`,
-    }
-  );
+    user_metadata: { nombre },
+    email_confirm: false,
+  });
 
   if (createError) {
-    if (createError.message.includes("already registered")) {
+    if (
+      createError.message.toLowerCase().includes("already registered") ||
+      createError.message.toLowerCase().includes("already exists") ||
+      createError.message.toLowerCase().includes("already been registered")
+    ) {
       return { error: "Este correo ya tiene una cuenta en el sistema" };
     }
     return { error: createError.message };
@@ -61,6 +64,27 @@ export async function invitarUsuario(
   await admin.auth.admin.updateUserById(userData.user.id, {
     app_metadata: { tenant_id: session.tenant_id, rol },
   });
+
+  // Generar link de invitación y enviarlo via Resend con nuestra plantilla
+  const { data: linkData } = await admin.auth.admin.generateLink({
+    type:    "invite",
+    email,
+    options: { redirectTo: `${appUrl}/auth/confirm` },
+  });
+
+  let actionLink = linkData?.properties?.action_link;
+  // El SDK devuelve /verify en lugar de /auth/v1/verify — Kong requiere el prefijo
+  if (actionLink?.includes("/verify?") && !actionLink.includes("/auth/v1/verify")) {
+    actionLink = actionLink.replace("/verify?", "/auth/v1/verify?");
+  }
+
+  if (actionLink) {
+    await sendInvitacion(email, {
+      destinatarioNombre: nombre,
+      actionLink,
+      invitadoPorNombre:  session.nombre_completo || session.nombre,
+    });
+  }
 
   // Log de actividad
   const repo = createUsuariosRepository(admin, session.tenant_id);
