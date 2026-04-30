@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Copy, Send, UserPlus } from "lucide-react";
+import { ArrowLeft, Mail, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -18,7 +18,6 @@ import { USER_ROLES, ROLE_LABELS } from "@/types/users";
 
 export function UserInviteForm() {
   const [rol, setRol] = useState("usuario");
-  const [copied, setCopied]  = useState(false);
 
   const actionWithRol = async (_prev: unknown, formData: FormData) => {
     formData.set("rol", rol);
@@ -27,39 +26,32 @@ export function UserInviteForm() {
 
   const [state, formAction, isPending] = useActionState(actionWithRol, {});
 
-  const copyLink = async () => {
-    if (state?.inviteLink) {
-      await navigator.clipboard.writeText(state.inviteLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  // ── Éxito: mostrar link de activación ──────────────────────
-  if (state?.inviteLink) {
+  // ── Éxito: email enviado ───────────────────────────────────
+  if (state?.success) {
     return (
       <Card className="p-6 shadow-sm space-y-5">
         <div className="grid h-12 w-12 place-items-center rounded-full bg-emerald-100 text-emerald-600">
-          <Send className="h-6 w-6" />
+          <Mail className="h-6 w-6" />
         </div>
         <div>
-          <h2 className="font-semibold">Usuario invitado correctamente</h2>
+          <h2 className="font-semibold">Invitación enviada</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Comparte este enlace con el usuario para que active su cuenta y establezca su contraseña.
-            El enlace expira en 24 horas.
+            Se envió un correo de activación a{" "}
+            <span className="font-medium text-foreground">{state.email}</span>.
+            El usuario debe hacer clic en el enlace para establecer su contraseña.
           </p>
         </div>
-        <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">Enlace de activación</p>
-          <div className="flex items-center gap-2">
-            <code className="flex-1 text-xs break-all text-foreground">
-              {state.inviteLink}
-            </code>
-            <Button size="sm" variant="outline" onClick={copyLink} className="shrink-0">
-              <Copy className="h-4 w-4 mr-1" />
-              {copied ? "Copiado" : "Copiar"}
-            </Button>
-          </div>
+        <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+          💡 En entorno local, el correo llega a{" "}
+          <a
+            href="http://127.0.0.1:54324"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline"
+          >
+            Mailpit
+          </a>
+          .
         </div>
         <div className="flex gap-2">
           <Link href="/usuarios/invitar">

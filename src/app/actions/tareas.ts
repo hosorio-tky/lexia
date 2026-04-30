@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createTareasRepository } from "@/lib/repositories/tareas";
 import { createUsuariosRepository } from "@/lib/repositories/usuarios";
 import { getSession } from "@/lib/auth/session";
+import { sendTareaAsignada } from "@/lib/email/send";
 import type { TaskStatus } from "@/types/tasks";
 
 // ─── Crear tarea ───────────────────────────────────────────────
@@ -43,7 +44,7 @@ export async function crearTarea(
     created_by_nombre: session.nombre,
   });
 
-  // F11: Notificación al asignado (via activity log)
+  // F11: Notificación al asignado (via activity log + email)
   if (asignado_a && asignado_a !== session.user_id) {
     const uRepo = createUsuariosRepository(client, session.tenant_id);
     await uRepo.logActivity({
@@ -55,6 +56,31 @@ export async function crearTarea(
       recurso_id:   tarea.id,
       recurso_desc: `"${titulo}" asignada por ${session.nombre}`,
     });
+
+    // Email fire-and-forget
+    client
+      .from("profiles")
+      .select("email, nombre, apellido")
+      .eq("id", asignado_a)
+      .single()
+      .then(({ data }) => {
+        if (!data?.email) return;
+        const destinatarioNombre = data.apellido
+          ? `${data.nombre} ${data.apellido}`
+          : data.nombre;
+        sendTareaAsignada(data.email, {
+          destinatarioNombre,
+          asignadoPorNombre: session.nombre_completo || session.nombre,
+          tituloTarea:       titulo,
+          descripcion:       descripcion ?? null,
+          prioridad,
+          fechaLimite:       fecha_limite ?? null,
+          moduloOrigen:      modulo_origen ?? null,
+          recursoDesc:       recurso_desc ?? null,
+          tareaId:           tarea.id,
+        }).then(undefined, (e) => console.error("[crearTarea] email error:", e));
+      })
+      .then(undefined, (e) => console.error("[crearTarea] profile lookup error:", e));
   }
 
   revalidatePath("/tareas");

@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createComentariosRepository } from "@/lib/repositories/comentarios";
 import { getSession } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
+import { sendMencion } from "@/lib/email/send";
 import type { Comentario } from "@/lib/repositories/comentarios";
 
 function sanitizeHtml(html: string): string {
@@ -20,7 +21,7 @@ function sanitizeHtml(html: string): string {
   });
 }
 
-/** Crea notificaciones para los usuarios mencionados en un contenido HTML */
+/** Crea notificaciones (in-app + email) para los usuarios mencionados en HTML */
 async function notificarMenciones({
   html,
   tenantId,
@@ -59,6 +60,33 @@ async function notificarMenciones({
   }));
 
   await client.from("notificaciones").insert(rows);
+
+  // Emails fire-and-forget
+  client
+    .from("profiles")
+    .select("id, email, nombre, apellido")
+    .in("id", mentionIds)
+    .then(({ data }) => {
+      if (!data) return;
+      // Strip HTML tags to get plain-text fragment for email
+      const fragmento = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      for (const profile of data) {
+        if (!profile.email) continue;
+        const destinatarioNombre = profile.apellido
+          ? `${profile.nombre} ${profile.apellido}`
+          : profile.nombre;
+        sendMencion(profile.email, {
+          destinatarioNombre,
+          autorNombre,
+          modulo,
+          recursoNombre: recursoDesc,
+          recursoId,
+          fragmento,
+          tipo: contexto,
+        }).then(undefined, (e) => console.error("[notificarMenciones] email error:", e));
+      }
+    })
+    .then(undefined, (e) => console.error("[notificarMenciones] profile lookup error:", e));
 }
 
 export async function crearComentario(

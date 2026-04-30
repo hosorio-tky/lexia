@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import Link from "next/link";
 import { Eye, EyeOff, LogIn } from "lucide-react";
 import { useState } from "react";
@@ -9,9 +9,32 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signIn } from "@/app/actions/auth";
+import { createClient } from "@/lib/supabase/client";
 
 export function LoginForm({ next }: { next?: string }) {
   const [showPassword, setShowPassword] = useState(false);
+
+  // Red de seguridad: si el token llega aquí via hash (#access_token=...) lo procesamos
+  useEffect(() => {
+    const hash   = window.location.hash.substring(1);
+    if (!hash) return;
+    const params = new URLSearchParams(hash);
+    const accessToken  = params.get("access_token");
+    const refreshToken = params.get("refresh_token");
+    const type         = params.get("type");
+    if (!accessToken || !refreshToken) return;
+
+    const supabase = createClient();
+    supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+      .then(({ error }) => {
+        if (error) return;
+        // Hard navigation para que el servidor reciba las cookies recién escritas
+        window.location.href =
+          type === "recovery" || type === "invite"
+            ? "/actualizar-contrasena"
+            : "/permisos";
+      });
+  }, []);
 
   const actionWithNext = async (_prev: unknown, formData: FormData) => {
     if (next) formData.set("next", next);

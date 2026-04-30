@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import {
-  CheckCircle2, MoreHorizontal, UserPlus, XCircle,
+  CheckCircle2, MoreHorizontal, UserPlus, XCircle, Clock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -116,13 +116,17 @@ export function UserListClient({
                     {formatDate(user.ultimo_acceso)}
                   </td>
                   <td className="p-4">
-                    {user.activo ? (
-                      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Activo
-                      </span>
-                    ) : (
+                    {!user.activo ? (
                       <span className="inline-flex items-center gap-1 text-xs font-medium text-slate-400">
                         <XCircle className="h-3.5 w-3.5" /> Inactivo
+                      </span>
+                    ) : !user.ultimo_acceso ? (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600">
+                        <Clock className="h-3.5 w-3.5" /> Pendiente
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Activo
                       </span>
                     )}
                   </td>

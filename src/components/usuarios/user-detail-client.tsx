@@ -4,13 +4,13 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Clock, Edit, ToggleLeft, ToggleRight,
-  Building2, Phone, Briefcase,
+  Building2, Phone, Briefcase, Mail, CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { UserRoleBadge } from "./user-role-badge";
-import { toggleActivoUsuario } from "@/app/actions/usuarios";
+import { toggleActivoUsuario, reenviarInvitacion } from "@/app/actions/usuarios";
 import type { UserProfile, ActivityEvent, SessionInfo } from "@/types/users";
 
 function formatDate(iso?: string) {
@@ -76,14 +76,26 @@ export function UserDetailClient({
 }) {
   const [user, setUser] = useState(initialUser);
   const [isPending, startTransition] = useTransition();
+  const [inviteSent, setInviteSent] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
-  const isAdmin = session.rol === "admin";
-  const isSelf  = session.user_id === user.id;
+  const isAdmin   = session.rol === "admin";
+  const isSelf    = session.user_id === user.id;
+  const nuncaAccedio = !user.ultimo_acceso;
 
   const handleToggleActivo = () => {
     const newActivo = !user.activo;
     setUser((u) => ({ ...u, activo: newActivo }));
     startTransition(() => toggleActivoUsuario(user.id, newActivo));
+  };
+
+  const handleReenviarInvitacion = () => {
+    setInviteError(null);
+    startTransition(async () => {
+      const result = await reenviarInvitacion(user.id);
+      if (result.error) setInviteError(result.error);
+      else setInviteSent(true);
+    });
   };
 
   return (
@@ -151,6 +163,24 @@ export function UserDetailClient({
                 </Button>
               </Link>
             )}
+            {isAdmin && !isSelf && nuncaAccedio && (
+              <>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleReenviarInvitacion}
+                  disabled={isPending || inviteSent}
+                >
+                  {inviteSent
+                    ? <><CheckCircle className="mr-2 h-4 w-4 text-emerald-500" />Invitación enviada</>
+                    : <><Mail className="mr-2 h-4 w-4" />Reenviar invitación</>
+                  }
+                </Button>
+                {inviteError && (
+                  <p className="text-xs text-destructive">{inviteError}</p>
+                )}
+              </>
+            )}
             {isAdmin && !isSelf && (
               <Button
                 variant="outline"
@@ -170,8 +200,22 @@ export function UserDetailClient({
           <Card className="p-4 shadow-sm">
             <h3 className="text-sm font-semibold mb-3">Estado de la cuenta</h3>
             <div className="flex items-center gap-2">
-              <div className={`h-2.5 w-2.5 rounded-full ${user.activo ? "bg-emerald-500" : "bg-slate-400"}`} />
-              <span className="text-sm">{user.activo ? "Activo" : "Inactivo"}</span>
+              {!user.activo ? (
+                <>
+                  <div className="h-2.5 w-2.5 rounded-full bg-slate-400" />
+                  <span className="text-sm">Inactivo</span>
+                </>
+              ) : !user.ultimo_acceso ? (
+                <>
+                  <div className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                  <span className="text-sm text-amber-600">Pendiente de activación</span>
+                </>
+              ) : (
+                <>
+                  <div className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                  <span className="text-sm">Activo</span>
+                </>
+              )}
             </div>
           </Card>
         </div>

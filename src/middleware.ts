@@ -1,8 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+// Rutas de auth accesibles sin sesión
 const AUTH_ROUTES  = ["/login", "/registro", "/recuperar", "/actualizar-contrasena"];
-const PUBLIC_PATHS = ["/auth/callback", "/_next", "/favicon.ico", "/api/"];
+// Solo estas rutas redirigen al dashboard si el usuario YA está logueado
+const REDIRECT_IF_AUTHED = ["/login", "/registro", "/recuperar"];
+const PUBLIC_PATHS = ["/auth/callback", "/auth/confirm", "/_next", "/favicon.ico", "/api/"];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -47,8 +50,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Usuario autenticado intenta acceder a login/registro
-  if (user && isAuthRoute) {
+  // Usuario autenticado intenta acceder a login/registro (pero NO a /actualizar-contrasena)
+  if (user && REDIRECT_IF_AUTHED.some((r) => pathname.startsWith(r))) {
     return NextResponse.redirect(new URL("/permisos", request.url));
   }
 

@@ -8,6 +8,7 @@ import { getSession } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/logger";
 import { indexContrato } from "@/lib/ai/contrato-indexer";
+import { sendCambioEstado } from "@/lib/email/send";
 import type { ContratoEstado } from "@/types/contratos";
 
 const BUCKET = "documentos";
@@ -217,6 +218,33 @@ export async function cambiarEstadoContrato(
         estado_nuevo:    nuevoEstado,
       },
     });
+
+    // Email al responsable (fire-and-forget)
+    if (actual?.responsable_id) {
+      const client2 = createAdminClient();
+      client2
+        .from("profiles")
+        .select("email, nombre, apellido")
+        .eq("id", actual.responsable_id)
+        .single()
+        .then(({ data }) => {
+          if (!data?.email) return;
+          const destinatarioNombre = data.apellido
+            ? `${data.nombre} ${data.apellido}`
+            : data.nombre;
+          sendCambioEstado(data.email, {
+            destinatarioNombre,
+            modulo:            "contratos",
+            recursoNombre:     actual.titulo,
+            estadoAnterior:    actual.estado ?? "—",
+            estadoNuevo:       nuevoEstado,
+            cambiadoPorNombre: session.nombre_completo || session.nombre,
+            comentario:        null,
+            recursoId:         id,
+          }).then(undefined, (e) => console.error("[cambiarEstadoContrato] email error:", e));
+        })
+        .then(undefined, (e) => console.error("[cambiarEstadoContrato] profile lookup error:", e));
+    }
 
     revalidatePath(`/contratos/${id}`);
     revalidatePath("/contratos");

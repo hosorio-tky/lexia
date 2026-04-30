@@ -5,13 +5,14 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createUsuariosRepository } from "@/lib/repositories/usuarios";
 import { getSession, requireRole } from "@/lib/auth/session";
+import { sendInvitacion } from "@/lib/email/send";
 import type { UserRole } from "@/types/users";
 
 // ─── Invitar usuario al tenant ────────────────────────────────
 export async function invitarUsuario(
   _prevState: unknown,
   formData: FormData
-): Promise<{ error?: string; inviteLink?: string }> {
+): Promise<{ error?: string; success?: boolean; email?: string }> {
   const session = await getSession();
   requireRole(session, ["admin", "supervisor"]);
 
@@ -23,16 +24,17 @@ export async function invitarUsuario(
 
   if (!email || !nombre) return { error: "Email y nombre son obligatorios" };
 
-  const admin = createAdminClient();
+  const admin  = createAdminClient();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
-  // Crear usuario auth (sin app_metadata, lo gestionamos manualmente)
-  const tempPassword = Math.random().toString(36).slice(-12) + "Aa1!";
-  const { data: userData, error: createError } = await admin.auth.admin.createUser({
+  // Invitar usuario — Supabase crea la cuenta Y envía el email (→ Mailpit en local)
+  const { data: userData, error: createError } = await admin.auth.admin.inviteUserByEmail(
     email,
-    password: tempPassword,
-    email_confirm: true,
-    user_metadata: { nombre },
-  });
+    {
+      data:       { nombre },
+      redirectTo: `${appUrl}/auth/callback?next=/actualizar-contrasena`,
+    }
+  );
 
   if (createError) {
     if (createError.message.includes("already registered")) {
@@ -43,7 +45,7 @@ export async function invitarUsuario(
 
   if (!userData.user) return { error: "No se pudo crear el usuario." };
 
-  // Insertar/actualizar profile manualmente con tenant_id y rol correctos
+  // Insertar/actualizar profile con tenant_id y rol
   await admin.from("profiles").upsert({
     id:          userData.user.id,
     tenant_id:   session.tenant_id,
@@ -60,12 +62,6 @@ export async function invitarUsuario(
     app_metadata: { tenant_id: session.tenant_id, rol },
   });
 
-  // Generar link de activación (para que el usuario pueda establecer su contraseña)
-  const { data: linkData } = await admin.auth.admin.generateLink({
-    type: "recovery",
-    email,
-  });
-
   // Log de actividad
   const repo = createUsuariosRepository(admin, session.tenant_id);
   await repo.logActivity({
@@ -79,9 +75,99 @@ export async function invitarUsuario(
   });
 
   revalidatePath("/usuarios");
+  return { success: true, email };
+}
 
-  const inviteLink = linkData?.properties?.action_link ?? undefined;
-  return { inviteLink };
+// ─── Reenviar invitación a usuario existente ──────────────────
+export async function reenviarInvitacion(
+  userId: string
+): Promise<{ error?: string; success?: boolean }> {
+  const session = await getSession();
+  requireRole(session, ["admin"]);
+
+  const admin = createAdminClient();
+
+  // Obtener email del profile
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("email, nombre")
+    .eq("id", userId)
+    .eq("tenant_id", session.tenant_id)
+    .single();
+
+  if (profileError || !profile?.email) {
+    return { error: "Usuario no encontrado" };
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+  // Generar link (funciona siempre, sin importar si el email está confirmado)
+  const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+    type:    "recovery",
+    email:   profile.email,
+    options: { redirectTo: `${appUrl}/auth/confirm` },
+  });
+
+  if (linkError) {
+    console.error("[reenviarInvitacion] generateLink error:", linkError.message);
+    return { error: `No se pudo generar el enlace: ${linkError.message}` };
+  }
+
+  let actionLink = linkData?.properties?.action_link;
+  console.log("[reenviarInvitacion] actionLink raw:", actionLink ?? "null");
+
+  // El SDK devuelve /verify en lugar de /auth/v1/verify — Kong requiere el prefijo
+  if (actionLink?.includes("/verify?") && !actionLink.includes("/auth/v1/verify")) {
+    actionLink = actionLink.replace("/verify?", "/auth/v1/verify?");
+  }
+  console.log("[reenviarInvitacion] actionLink fixed:", actionLink ?? "null");
+
+  if (actionLink) {
+    await sendInvitacion(profile.email, {
+      destinatarioNombre: profile.nombre,
+      actionLink,
+      invitadoPorNombre:  session.nombre_completo || session.nombre,
+    });
+  } else {
+    return { error: "No se pudo generar el enlace de activación" };
+  }
+
+  const repo = createUsuariosRepository(admin, session.tenant_id);
+  await repo.logActivity({
+    tenant_id:    session.tenant_id,
+    user_id:      session.user_id,
+    user_nombre:  session.nombre,
+    accion:       "reenviar_invitacion",
+    modulo:       "usuarios",
+    recurso_id:   userId,
+    recurso_desc: `Reenvió invitación a ${profile.email}`,
+  });
+
+  revalidatePath(`/usuarios/${userId}`);
+  return { success: true };
+}
+
+/**
+ * Envía un email de activación/recuperación de contraseña vía Supabase Auth.
+ * Localmente el email llega a Mailpit. En producción usa el SMTP configurado.
+ */
+async function enviarEmailActivacion(email: string): Promise<void> {
+  const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+  const appUrl       = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+  await fetch(`${supabaseUrl}/auth/v1/recover`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "apikey": supabaseAnon,
+    },
+    body: JSON.stringify({
+      email,
+      gotrue_meta_security: {},
+      redirect_to: `${appUrl}/auth/confirm`,
+    }),
+  });
 }
 
 // ─── Editar usuario (rol, nombre, activo) ────────────────────

@@ -9,6 +9,7 @@ import { getSession } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/logger";
 import { indexDocument } from "@/lib/ai/indexer";
+import { sendMencion } from "@/lib/email/send";
 import type { Nota } from "@/lib/repositories/notas";
 
 /**
@@ -29,7 +30,7 @@ function sanitizeHtml(html: string): string {
 
 const BUCKET = "documentos";
 
-/** Crea notificaciones para los usuarios mencionados en un contenido HTML */
+/** Crea notificaciones (in-app + email) para los usuarios mencionados en HTML */
 async function notificarMenciones({
   html, tenantId, autorId, autorNombre, modulo, recursoId, recursoDesc,
 }: {
@@ -50,6 +51,32 @@ async function notificarMenciones({
       modulo, recurso_id: recursoId, recurso_desc: recursoDesc,
     }))
   );
+
+  // Emails fire-and-forget
+  const fragmento = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  client
+    .from("profiles")
+    .select("id, email, nombre, apellido")
+    .in("id", mentionIds)
+    .then(({ data }) => {
+      if (!data) return;
+      for (const profile of data) {
+        if (!profile.email) continue;
+        const destinatarioNombre = profile.apellido
+          ? `${profile.nombre} ${profile.apellido}`
+          : profile.nombre;
+        sendMencion(profile.email, {
+          destinatarioNombre,
+          autorNombre,
+          modulo,
+          recursoNombre: recursoDesc,
+          recursoId,
+          fragmento,
+          tipo: "nota",
+        }).then(undefined, (e) => console.error("[notificarMenciones] email error:", e));
+      }
+    })
+    .then(undefined, (e) => console.error("[notificarMenciones] profile lookup error:", e));
 }
 
 // ─── Generar URL pre-firmada para subida directa desde el browser ─

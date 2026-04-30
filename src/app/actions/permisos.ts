@@ -7,6 +7,7 @@ import { createPermisosRepository } from "@/lib/repositories/permisos";
 import { getSession } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/logger";
+import { sendCambioEstado } from "@/lib/email/send";
 import type { PermitStatus } from "@/types/permits";
 
 // Campos legibles para el diff
@@ -213,6 +214,33 @@ export async function cambiarEstado(
         comentario:      comment || null,
       },
     });
+
+    // Email al responsable (fire-and-forget)
+    if (actual?.responsable_id) {
+      const client2 = createAdminClient();
+      client2
+        .from("profiles")
+        .select("email, nombre, apellido")
+        .eq("id", actual.responsable_id)
+        .single()
+        .then(({ data }) => {
+          if (!data?.email) return;
+          const destinatarioNombre = data.apellido
+            ? `${data.nombre} ${data.apellido}`
+            : data.nombre;
+          sendCambioEstado(data.email, {
+            destinatarioNombre,
+            modulo:            "permisos",
+            recursoNombre:     actual.nombre,
+            estadoAnterior:    actual.estado ?? "—",
+            estadoNuevo:       newStatus,
+            cambiadoPorNombre: session.nombre_completo || session.nombre,
+            comentario:        comment ?? null,
+            recursoId:         id,
+          }).then(undefined, (e) => console.error("[cambiarEstado] email error:", e));
+        })
+        .then(undefined, (e) => console.error("[cambiarEstado] profile lookup error:", e));
+    }
 
     revalidatePath(`/permisos/${id}`);
     revalidatePath("/permisos");
