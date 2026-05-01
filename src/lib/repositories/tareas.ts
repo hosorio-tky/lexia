@@ -124,6 +124,7 @@ export function createTareasRepository(client: SupabaseClient, tenantId: string)
       titulo: string;
       descripcion?: string;
       prioridad?: string;
+      estado?: string;
       asignado_a?: string;
       asignado_nombre?: string;
       modulo_origen?: string;
