@@ -52,31 +52,31 @@ async function notificarMenciones({
     }))
   );
 
-  // Emails fire-and-forget
-  const fragmento = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  client
-    .from("profiles")
-    .select("id, email, nombre, apellido")
-    .in("id", mentionIds)
-    .then(({ data }) => {
-      if (!data) return;
-      for (const profile of data) {
-        if (!profile.email) continue;
-        const destinatarioNombre = profile.apellido
-          ? `${profile.nombre} ${profile.apellido}`
-          : profile.nombre;
-        sendMencion(profile.email, {
-          destinatarioNombre,
-          autorNombre,
-          modulo,
-          recursoNombre: recursoDesc,
-          recursoId,
-          fragmento,
-          tipo: "nota",
-        }).then(undefined, (e) => console.error("[notificarMenciones] email error:", e));
-      }
-    })
-    .then(undefined, (e) => console.error("[notificarMenciones] profile lookup error:", e));
+  // Emails a los mencionados
+  try {
+    const fragmento = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const { data: profiles } = await client
+      .from("profiles")
+      .select("id, email, nombre, apellido")
+      .in("id", mentionIds);
+    for (const profile of profiles ?? []) {
+      if (!profile.email) continue;
+      const destinatarioNombre = profile.apellido
+        ? `${profile.nombre} ${profile.apellido}`
+        : profile.nombre;
+      await sendMencion(profile.email, {
+        destinatarioNombre,
+        autorNombre,
+        modulo,
+        recursoNombre: recursoDesc,
+        recursoId,
+        fragmento,
+        tipo: "nota",
+      });
+    }
+  } catch (e) {
+    console.error("[notificarMenciones notas] email error:", e);
+  }
 }
 
 // ─── Generar URL pre-firmada para subida directa desde el browser ─

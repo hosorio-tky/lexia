@@ -219,20 +219,20 @@ export async function cambiarEstadoContrato(
       },
     });
 
-    // Email al responsable (fire-and-forget)
+    // Email al responsable
     if (actual?.responsable_id) {
-      const client2 = createAdminClient();
-      client2
-        .from("profiles")
-        .select("email, nombre, apellido")
-        .eq("id", actual.responsable_id)
-        .single()
-        .then(({ data }) => {
-          if (!data?.email) return;
-          const destinatarioNombre = data.apellido
-            ? `${data.nombre} ${data.apellido}`
-            : data.nombre;
-          sendCambioEstado(data.email, {
+      try {
+        const client2 = createAdminClient();
+        const { data: profile } = await client2
+          .from("profiles")
+          .select("email, nombre, apellido")
+          .eq("id", actual.responsable_id)
+          .single();
+        if (profile?.email) {
+          const destinatarioNombre = profile.apellido
+            ? `${profile.nombre} ${profile.apellido}`
+            : profile.nombre;
+          await sendCambioEstado(profile.email, {
             destinatarioNombre,
             modulo:            "contratos",
             recursoNombre:     actual.titulo,
@@ -241,9 +241,11 @@ export async function cambiarEstadoContrato(
             cambiadoPorNombre: session.nombre_completo || session.nombre,
             comentario:        null,
             recursoId:         id,
-          }).then(undefined, (e) => console.error("[cambiarEstadoContrato] email error:", e));
-        })
-        .then(undefined, (e) => console.error("[cambiarEstadoContrato] profile lookup error:", e));
+          });
+        }
+      } catch (e) {
+        console.error("[cambiarEstadoContrato] email error:", e);
+      }
     }
 
     revalidatePath(`/contratos/${id}`);

@@ -215,20 +215,20 @@ export async function cambiarEstado(
       },
     });
 
-    // Email al responsable (fire-and-forget)
+    // Email al responsable
     if (actual?.responsable_id) {
-      const client2 = createAdminClient();
-      client2
-        .from("profiles")
-        .select("email, nombre, apellido")
-        .eq("id", actual.responsable_id)
-        .single()
-        .then(({ data }) => {
-          if (!data?.email) return;
-          const destinatarioNombre = data.apellido
-            ? `${data.nombre} ${data.apellido}`
-            : data.nombre;
-          sendCambioEstado(data.email, {
+      try {
+        const client2 = createAdminClient();
+        const { data: profile } = await client2
+          .from("profiles")
+          .select("email, nombre, apellido")
+          .eq("id", actual.responsable_id)
+          .single();
+        if (profile?.email) {
+          const destinatarioNombre = profile.apellido
+            ? `${profile.nombre} ${profile.apellido}`
+            : profile.nombre;
+          await sendCambioEstado(profile.email, {
             destinatarioNombre,
             modulo:            "permisos",
             recursoNombre:     actual.nombre,
@@ -237,9 +237,11 @@ export async function cambiarEstado(
             cambiadoPorNombre: session.nombre_completo || session.nombre,
             comentario:        comment ?? null,
             recursoId:         id,
-          }).then(undefined, (e) => console.error("[cambiarEstado] email error:", e));
-        })
-        .then(undefined, (e) => console.error("[cambiarEstado] profile lookup error:", e));
+          });
+        }
+      } catch (e) {
+        console.error("[cambiarEstado] email error:", e);
+      }
     }
 
     revalidatePath(`/permisos/${id}`);

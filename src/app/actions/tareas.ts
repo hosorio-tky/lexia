@@ -57,18 +57,18 @@ export async function crearTarea(
       recurso_desc: `"${titulo}" asignada por ${session.nombre}`,
     });
 
-    // Email fire-and-forget
-    client
-      .from("profiles")
-      .select("email, nombre, apellido")
-      .eq("id", asignado_a)
-      .single()
-      .then(({ data }) => {
-        if (!data?.email) return;
-        const destinatarioNombre = data.apellido
-          ? `${data.nombre} ${data.apellido}`
-          : data.nombre;
-        sendTareaAsignada(data.email, {
+    // Email al asignado
+    try {
+      const { data: profile } = await client
+        .from("profiles")
+        .select("email, nombre, apellido")
+        .eq("id", asignado_a)
+        .single();
+      if (profile?.email) {
+        const destinatarioNombre = profile.apellido
+          ? `${profile.nombre} ${profile.apellido}`
+          : profile.nombre;
+        await sendTareaAsignada(profile.email, {
           destinatarioNombre,
           asignadoPorNombre: session.nombre_completo || session.nombre,
           tituloTarea:       titulo,
@@ -78,9 +78,11 @@ export async function crearTarea(
           moduloOrigen:      modulo_origen ?? null,
           recursoDesc:       recurso_desc ?? null,
           tareaId:           tarea.id,
-        }).then(undefined, (e) => console.error("[crearTarea] email error:", e));
-      })
-      .then(undefined, (e) => console.error("[crearTarea] profile lookup error:", e));
+        });
+      }
+    } catch (e) {
+      console.error("[crearTarea] email error:", e);
+    }
   }
 
   revalidatePath("/tareas");
