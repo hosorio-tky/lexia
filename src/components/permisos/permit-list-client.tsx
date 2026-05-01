@@ -3,6 +3,8 @@
 import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { Plus, Trash2, Upload, ChevronDown } from "lucide-react";
+import { nextSort, sortItems, activityTs } from "@/lib/sort-utils";
+import type { SortState } from "@/lib/sort-utils";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,6 +22,7 @@ import { calcularVigencia } from "@/types/permits";
 import type { Permit, PermitFilters } from "@/types/permits";
 
 type ViewMode = "table" | "grid";
+type PermitSortKey = "nombre" | "tipo" | "estado" | "vencimiento" | "actividad";
 
 export function PermitListClient({ initialPermits }: { initialPermits: Permit[] }) {
   const [viewMode, setViewMode]     = useState<ViewMode>("table");
@@ -28,7 +31,12 @@ export function PermitListClient({ initialPermits }: { initialPermits: Permit[] 
   const [filters, setFilters]       = useState<PermitFilters>({
     search: "", estado: "", tipo: "", entidad: "", responsable: "", vigencia: "",
   });
+  const [sort, setSort] = useState<SortState<PermitSortKey>>({ key: "actividad", dir: "desc" });
   const [isPending, startTransition] = useTransition();
+
+  function handleSort(key: PermitSortKey) {
+    setSort((prev) => nextSort(prev, key));
+  }
 
   // SC-10: lista única de responsables para el filtro
   const responsables = useMemo(() => {
@@ -39,7 +47,7 @@ export function PermitListClient({ initialPermits }: { initialPermits: Permit[] 
   }, [initialPermits]);
 
   const filtered = useMemo(() => {
-    return initialPermits.filter((p) => {
+    const list = initialPermits.filter((p) => {
       if (filters.search) {
         const q = filters.search.toLowerCase();
         if (
@@ -55,7 +63,17 @@ export function PermitListClient({ initialPermits }: { initialPermits: Permit[] 
       if (filters.vigencia && calcularVigencia(p.fecha_vencimiento) !== filters.vigencia) return false;
       return true;
     });
-  }, [initialPermits, filters]);
+    return sortItems(list, sort, (p, key) => {
+      switch (key as PermitSortKey) {
+        case "nombre":      return p.nombre;
+        case "tipo":        return p.tipo;
+        case "estado":      return p.estado;
+        case "vencimiento": return p.fecha_vencimiento ?? "";
+        case "actividad":   return activityTs(p.created_at, p.updated_at);
+        default:            return "";
+      }
+    });
+  }, [initialPermits, filters, sort]);
 
   const toggleSelect  = (id: string) =>
     setSelected((prev) =>
@@ -126,6 +144,8 @@ export function PermitListClient({ initialPermits }: { initialPermits: Permit[] 
           onToggle={toggleSelect}
           onToggleAll={toggleAll}
           onDelete={handleDelete}
+          sort={sort}
+          onSort={handleSort}
         />
       ) : (
         <PermitCardsGrid permits={filtered} />

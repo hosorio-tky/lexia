@@ -14,7 +14,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { PermitStatusBadge, VigenciaBadge } from "./permit-status-badge";
 import { calcularVigencia } from "@/types/permits";
+import { SortableTh } from "@/components/ui/sortable-th";
+import { ActivityCell } from "@/components/ui/activity-cell";
 import type { Permit } from "@/types/permits";
+import type { SortState } from "@/lib/sort-utils";
+
+type PermitSortKey = "nombre" | "tipo" | "estado" | "vencimiento" | "actividad";
 
 function daysUntil(iso?: string): number | null {
   if (!iso) return null;
@@ -67,12 +72,16 @@ export function PermitTable({
   onToggle,
   onToggleAll,
   onDelete,
+  sort,
+  onSort,
 }: {
   permits: Permit[];
   selected: string[];
   onToggle: (id: string) => void;
   onToggleAll: () => void;
   onDelete?: (id: string) => void;
+  sort: SortState<PermitSortKey>;
+  onSort: (key: PermitSortKey) => void;
 }) {
   return (
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
@@ -86,20 +95,21 @@ export function PermitTable({
                   onCheckedChange={onToggleAll}
                 />
               </th>
-              <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground">Permiso</th>
+              <SortableTh label="Permiso"     sortKey="nombre"     sort={sort} onSort={onSort} />
               <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground hidden sm:table-cell">Expediente</th>
-              <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground">Tipo</th>
-              <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground">Estado</th>
+              <SortableTh label="Tipo"        sortKey="tipo"       sort={sort} onSort={onSort} />
+              <SortableTh label="Estado"      sortKey="estado"     sort={sort} onSort={onSort} />
               <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground hidden md:table-cell">Vigencia</th>
               <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground hidden lg:table-cell">Ubicación</th>
-              <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground hidden xl:table-cell">Vencimiento</th>
+              <SortableTh label="Vencimiento" sortKey="vencimiento" sort={sort} onSort={onSort} className="hidden xl:table-cell" />
+              <SortableTh label="Actividad"   sortKey="actividad"  sort={sort} onSort={onSort} className="hidden lg:table-cell" />
               <th className="h-10 w-[80px] px-4 align-middle" />
             </tr>
           </thead>
           <tbody className="[&_tr:last-child]:border-0">
             {permits.length === 0 && (
               <tr>
-                <td colSpan={9} className="py-12 text-center text-muted-foreground">
+                <td colSpan={10} className="py-12 text-center text-muted-foreground">
                   No se encontraron permisos
                 </td>
               </tr>
@@ -154,6 +164,9 @@ export function PermitTable({
                 </td>
                 <td className="p-4 align-middle hidden xl:table-cell text-sm">
                   <ExpiryCell iso={permit.fecha_vencimiento} />
+                </td>
+                <td className="p-4 align-middle hidden lg:table-cell">
+                  <ActivityCell createdAt={permit.created_at} updatedAt={permit.updated_at} />
                 </td>
                 <td className="p-4 align-middle text-right">
                   <div className="flex items-center justify-end gap-1">

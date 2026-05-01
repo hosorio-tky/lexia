@@ -5,6 +5,10 @@ import Link from "next/link";
 import {
   Filter, KanbanSquare, LayoutList, Plus, Search, Trash2, X,
 } from "lucide-react";
+import { nextSort, sortItems, activityTs } from "@/lib/sort-utils";
+import { SortableTh } from "@/components/ui/sortable-th";
+import { ActivityCell } from "@/components/ui/activity-cell";
+import type { SortState } from "@/lib/sort-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -28,6 +32,7 @@ import { diasRestantes, CONTRACT_ESTADOS, CONTRACT_TIPOS, type Contrato, type Co
 import { ArrowRight, Edit, MoreHorizontal } from "lucide-react";
 
 type ViewMode = "tabla" | "kanban";
+type ContratoSortKey = "titulo" | "tipo" | "estado" | "contraparte" | "valor" | "fecha_fin" | "actividad";
 
 function formatFecha(iso?: string): string {
   if (!iso) return "—";
@@ -65,10 +70,15 @@ export function ContratoListClient({ initialContratos }: { initialContratos: Con
   const [viewMode, setViewMode]     = useState<ViewMode>("tabla");
   const [selected, setSelected]     = useState<string[]>([]);
   const [filters, setFilters]       = useState<ContratoFilters>({ search: "", estado: "", tipo: "" });
+  const [sort, setSort]             = useState<SortState<ContratoSortKey>>({ key: "actividad", dir: "desc" });
   const [isPending, startTransition] = useTransition();
 
+  function handleSort(key: ContratoSortKey) {
+    setSort((prev) => nextSort(prev, key));
+  }
+
   const filtered = useMemo(() => {
-    return initialContratos.filter((c) => {
+    const list = initialContratos.filter((c) => {
       if (filters.search) {
         const q = filters.search.toLowerCase();
         if (
@@ -81,7 +91,19 @@ export function ContratoListClient({ initialContratos }: { initialContratos: Con
       if (filters.tipo   && c.tipo   !== filters.tipo)   return false;
       return true;
     });
-  }, [initialContratos, filters]);
+    return sortItems(list, sort, (c, key) => {
+      switch (key as ContratoSortKey) {
+        case "titulo":      return c.titulo;
+        case "tipo":        return c.tipo;
+        case "estado":      return c.estado;
+        case "contraparte": return c.contraparte_nombre ?? "";
+        case "valor":       return c.valor ?? 0;
+        case "fecha_fin":   return c.fecha_fin ?? "";
+        case "actividad":   return activityTs(c.created_at, c.updated_at);
+        default:            return "";
+      }
+    });
+  }, [initialContratos, filters, sort]);
 
   const hasActiveFilters = filters.search || filters.estado || filters.tipo;
   const clearFilters = () => setFilters({ search: "", estado: "", tipo: "" });
@@ -202,21 +224,22 @@ export function ContratoListClient({ initialContratos }: { initialContratos: Con
                       onCheckedChange={toggleAll}
                     />
                   </th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Título</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">N°</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Tipo</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Estado</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Contraparte</th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">Valor</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Fecha Fin</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Vencimiento</th>
+                  <SortableTh label="Título"      sortKey="titulo"      sort={sort} onSort={handleSort} />
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground text-xs">N°</th>
+                  <SortableTh label="Tipo"        sortKey="tipo"        sort={sort} onSort={handleSort} />
+                  <SortableTh label="Estado"      sortKey="estado"      sort={sort} onSort={handleSort} />
+                  <SortableTh label="Contraparte" sortKey="contraparte" sort={sort} onSort={handleSort} />
+                  <SortableTh label="Valor"       sortKey="valor"       sort={sort} onSort={handleSort} align="right" />
+                  <SortableTh label="Fecha Fin"   sortKey="fecha_fin"   sort={sort} onSort={handleSort} />
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground text-xs">Vencimiento</th>
+                  <SortableTh label="Actividad"   sortKey="actividad"   sort={sort} onSort={handleSort} className="hidden lg:table-cell" />
                   <th className="px-4 py-3 w-10" />
                 </tr>
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-4 py-12 text-center text-muted-foreground">
+                    <td colSpan={11} className="px-4 py-12 text-center text-muted-foreground">
                       No hay contratos que coincidan con los filtros.
                     </td>
                   </tr>
@@ -253,6 +276,9 @@ export function ContratoListClient({ initialContratos }: { initialContratos: Con
                       <td className="px-4 py-3 whitespace-nowrap text-sm">{formatFecha(c.fecha_fin)}</td>
                       <td className="px-4 py-3">
                         <VencimientoCell iso={c.fecha_fin} />
+                      </td>
+                      <td className="px-4 py-3 hidden lg:table-cell">
+                        <ActivityCell createdAt={c.created_at} updatedAt={c.updated_at} />
                       </td>
                       <td className="px-4 py-3">
                         <DropdownMenu>

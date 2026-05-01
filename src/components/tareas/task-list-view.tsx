@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
 import { format, parseISO, isPast, isToday } from "date-fns";
 import { es } from "date-fns/locale";
 import {
-  AlertCircle, Calendar, Link2, Pencil, Trash2,
+  AlertCircle, Calendar, ChevronDown, ChevronUp, ChevronsUpDown,
+  Link2, Pencil, Trash2,
   CheckCircle2, Circle, Clock, XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +21,10 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { ActivityCell } from "@/components/ui/activity-cell";
 import { cn } from "@/lib/utils";
+import { nextSort, sortItems, activityTs } from "@/lib/sort-utils";
+import type { SortState } from "@/lib/sort-utils";
 import { eliminarTarea, cambiarEstadoTarea } from "@/app/actions/tareas";
 import {
   TASK_STATUS_LABELS,
@@ -32,6 +35,8 @@ import {
   type Task,
   type TaskStatus,
 } from "@/types/tasks";
+
+type TaskSortKey = "titulo" | "estado" | "prioridad" | "asignado" | "fecha_limite" | "actividad";
 
 const STATUS_ICONS: Record<TaskStatus, React.ReactNode> = {
   pendiente:   <Circle     className="h-3.5 w-3.5" />,
@@ -45,6 +50,42 @@ const MODULO_LABELS: Record<string, string> = {
   contratos: "Contrato",
   litigios:  "Litigio",
 };
+
+function SortBtn({
+  label,
+  sortKey,
+  sort,
+  onSort,
+  className,
+}: {
+  label: string;
+  sortKey: TaskSortKey;
+  sort: SortState<TaskSortKey>;
+  onSort: (key: TaskSortKey) => void;
+  className?: string;
+}) {
+  const active = sort.key === sortKey;
+  return (
+    <button
+      type="button"
+      onClick={() => onSort(sortKey)}
+      className={cn(
+        "inline-flex items-center gap-1 text-xs font-medium transition-colors hover:text-foreground select-none",
+        active ? "text-foreground" : "text-muted-foreground",
+        className
+      )}
+    >
+      {label}
+      {active ? (
+        sort.dir === "asc"
+          ? <ChevronUp   className="h-3 w-3 shrink-0" />
+          : <ChevronDown className="h-3 w-3 shrink-0" />
+      ) : (
+        <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-40" />
+      )}
+    </button>
+  );
+}
 
 interface TaskListViewProps {
   tasks: Task[];
@@ -60,6 +101,25 @@ export function TaskListView({
   onTaskDeleted,
 }: TaskListViewProps) {
   const [, startTransition] = useTransition();
+  const [sort, setSort] = useState<SortState<TaskSortKey>>({ key: "actividad", dir: "desc" });
+
+  function handleSort(key: TaskSortKey) {
+    setSort((prev) => nextSort(prev, key));
+  }
+
+  const sorted = useMemo(() =>
+    sortItems(tasks, sort, (t, key) => {
+      switch (key as TaskSortKey) {
+        case "titulo":      return t.titulo;
+        case "estado":      return t.estado;
+        case "prioridad":   return t.prioridad;
+        case "asignado":    return t.asignado_nombre ?? "";
+        case "fecha_limite": return t.fecha_limite ?? "";
+        case "actividad":   return activityTs(t.created_at, t.updated_at);
+        default:            return "";
+      }
+    }),
+  [tasks, sort]);
 
   function handleStatusToggle(task: Task) {
     const next: TaskStatus =
@@ -82,18 +142,19 @@ export function TaskListView({
   return (
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
       {/* Cabecera */}
-      <div className="hidden sm:grid grid-cols-[1fr_140px_120px_130px_120px_88px] items-center gap-3 border-b bg-muted/40 px-4 py-2.5 text-xs font-medium text-muted-foreground">
-        <span>Tarea</span>
-        <span>Estado</span>
-        <span>Prioridad</span>
-        <span>Asignado a</span>
-        <span>Fecha límite</span>
+      <div className="hidden sm:grid grid-cols-[1fr_140px_120px_130px_120px_140px_88px] items-center gap-3 border-b bg-muted/40 px-4 py-2.5">
+        <SortBtn label="Tarea"       sortKey="titulo"       sort={sort} onSort={handleSort} />
+        <SortBtn label="Estado"      sortKey="estado"       sort={sort} onSort={handleSort} />
+        <SortBtn label="Prioridad"   sortKey="prioridad"    sort={sort} onSort={handleSort} />
+        <SortBtn label="Asignado a"  sortKey="asignado"     sort={sort} onSort={handleSort} />
+        <SortBtn label="Fecha límite" sortKey="fecha_limite" sort={sort} onSort={handleSort} />
+        <SortBtn label="Actividad"   sortKey="actividad"    sort={sort} onSort={handleSort} />
         <span />
       </div>
 
       {/* Filas */}
       <div className="divide-y">
-        {tasks.map((task) => (
+        {sorted.map((task) => (
           <TaskListRow
             key={task.id}
             task={task}
@@ -138,7 +199,7 @@ function TaskListRow({
     : null;
 
   return (
-    <div className="group grid grid-cols-1 sm:grid-cols-[1fr_140px_120px_130px_120px_88px] items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/20">
+    <div className="group grid grid-cols-1 sm:grid-cols-[1fr_140px_120px_130px_120px_140px_88px] items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/20">
       {/* Título + módulo */}
       <div className="flex items-start gap-2.5 min-w-0">
         {/* Checkbox / estado toggle */}
@@ -235,6 +296,11 @@ function TaskListRow({
         ) : (
           <span className="text-muted-foreground">—</span>
         )}
+      </div>
+
+      {/* Actividad */}
+      <div className="hidden sm:block">
+        <ActivityCell createdAt={task.created_at} updatedAt={task.updated_at} />
       </div>
 
       {/* Acciones */}
