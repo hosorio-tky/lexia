@@ -352,7 +352,7 @@ export function TaskBoardClient({
 
       {/* Modal crear / editar — key fuerza remonte para reinicializar useState */}
       <TaskFormModal
-        key={modalState.editTask?.id ?? "new"}
+        key={modalState.editTask?.id ?? `new-${modalState.defaultStatus ?? "pendiente"}`}
         open={modalState.open}
         onClose={() => setModalState({ open: false })}
         onCreated={handleTaskCreated}
