@@ -345,8 +345,9 @@ export function TaskDetailClient({
         </div>
       </div>
 
-      {/* Modal edición */}
+      {/* Modal edición — key fuerza remonte para reinicializar useState */}
       <TaskFormModal
+        key={task.id}
         open={editOpen}
         onClose={() => setEditOpen(false)}
         editTask={task}
