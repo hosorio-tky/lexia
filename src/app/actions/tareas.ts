@@ -21,6 +21,7 @@ export async function crearTarea(
   const titulo        = formData.get("titulo")        as string;
   const descripcion   = (formData.get("descripcion")  as string) || undefined;
   const prioridad     = (formData.get("prioridad")    as string) || "media";
+  const estado        = (formData.get("estado")       as string) || "pendiente";
   const asignado_a    = (formData.get("asignado_a")   as string) || undefined;
   const asignado_nombre = (formData.get("asignado_nombre") as string) || undefined;
   const fecha_limite  = (formData.get("fecha_limite") as string) || undefined;
@@ -34,6 +35,7 @@ export async function crearTarea(
     titulo,
     descripcion,
     prioridad,
+    estado,
     asignado_a,
     asignado_nombre,
     fecha_limite,
