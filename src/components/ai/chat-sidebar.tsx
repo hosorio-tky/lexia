@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { X, Send, Bot, User, Loader2, Sparkles, RotateCcw, Maximize2, Minimize2 } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 
 interface ChatSidebarProps {
@@ -266,14 +268,50 @@ export function ChatSidebar({ open, onClose }: ChatSidebarProps) {
                 {msg.role === "user" ? <User className="h-3.5 w-3.5" /> : <Bot className="h-3.5 w-3.5" />}
               </div>
               <div className={cn(
-                "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm whitespace-pre-wrap",
+                "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm",
                 msg.role === "user"
-                  ? "rounded-tr-sm bg-primary text-primary-foreground"
+                  ? "rounded-tr-sm bg-primary text-primary-foreground whitespace-pre-wrap"
                   : "rounded-tl-sm bg-muted"
               )}>
-                {msg.role === "assistant" && !msg.text
-                  ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                  : msg.text}
+                {msg.role === "assistant" && !msg.text ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : msg.role === "assistant" ? (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      h1: ({ children }) => <p className="font-semibold text-sm mt-3 mb-1 first:mt-0">{children}</p>,
+                      h2: ({ children }) => <p className="font-semibold text-sm mt-3 mb-1 first:mt-0">{children}</p>,
+                      h3: ({ children }) => <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mt-3 mb-1 first:mt-0">{children}</p>,
+                      p:  ({ children }) => <p className="my-1 leading-relaxed">{children}</p>,
+                      ul: ({ children }) => <ul className="my-1 space-y-0.5 pl-4 list-disc">{children}</ul>,
+                      ol: ({ children }) => <ol className="my-1 space-y-0.5 pl-4 list-decimal">{children}</ol>,
+                      li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                      strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                      code: ({ children }) => <code className="text-xs bg-background/60 px-1 py-0.5 rounded font-mono">{children}</code>,
+                      hr: () => <hr className="my-2 border-border" />,
+                      table: ({ children }) => (
+                        <div className="my-2 w-full overflow-x-auto rounded-lg border border-border">
+                          <table className="w-full text-xs border-collapse">{children}</table>
+                        </div>
+                      ),
+                      thead: ({ children }) => <thead className="bg-muted/60">{children}</thead>,
+                      tbody: ({ children }) => <tbody className="divide-y divide-border">{children}</tbody>,
+                      tr: ({ children }) => <tr className="hover:bg-muted/30 transition-colors">{children}</tr>,
+                      th: ({ children }) => (
+                        <th className="px-3 py-2 text-left font-semibold text-muted-foreground whitespace-nowrap border-b border-border">
+                          {children}
+                        </th>
+                      ),
+                      td: ({ children }) => (
+                        <td className="px-3 py-2 align-top">{children}</td>
+                      ),
+                    }}
+                  >
+                    {msg.text}
+                  </ReactMarkdown>
+                ) : (
+                  msg.text
+                )}
               </div>
             </div>
           ))}

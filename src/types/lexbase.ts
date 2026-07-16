@@ -1,4 +1,4 @@
-export const LEXBASE_TIPOS = ["Ley", "Código", "Reglamento", "Política", "Resolución", "Decreto", "Circular", "Otro"] as const;
+export const LEXBASE_TIPOS = ["Ley", "Código", "Reglamento", "Política", "Resolución", "Decreto", "Circular", "Diario Oficial", "Otro"] as const;
 export type LexbaseTipo = (typeof LEXBASE_TIPOS)[number];
 
 export const LEXBASE_TIPO_COLORS: Record<LexbaseTipo, string> = {
@@ -8,8 +8,9 @@ export const LEXBASE_TIPO_COLORS: Record<LexbaseTipo, string> = {
   "Política":    "bg-emerald-50 text-emerald-700 border-emerald-200",
   "Resolución":  "bg-amber-50 text-amber-700 border-amber-200",
   "Decreto":     "bg-orange-50 text-orange-700 border-orange-200",
-  "Circular":    "bg-slate-50 text-slate-700 border-slate-200",
-  "Otro":        "bg-gray-50 text-gray-700 border-gray-200",
+  "Circular":        "bg-slate-50 text-slate-700 border-slate-200",
+  "Diario Oficial":  "bg-teal-50 text-teal-700 border-teal-200",
+  "Otro":            "bg-gray-50 text-gray-700 border-gray-200",
 };
 
 export interface TocEntry {

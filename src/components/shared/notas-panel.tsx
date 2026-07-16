@@ -9,7 +9,7 @@ import { formatDistanceToNow, format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { RichTextEditor, RichTextView } from "./rich-text-editor";
-import { crearNota, editarNota, eliminarNota, eliminarDocumentoDeNota, obtenerUrlSubida, registrarDocumento } from "@/app/actions/notas";
+import { crearNota, editarNota, eliminarNota, eliminarDocumentoDeNota } from "@/app/actions/notas";
 import type { Nota } from "@/lib/repositories/notas";
 import type { Documento } from "@/lib/repositories/documentos";
 import type { MentionUser } from "./mention-list";
@@ -19,47 +19,51 @@ function extractMentionIds(html: string): string[] {
   return [...new Set(matches.map((m) => m[1]))];
 }
 
-// ─── Upload directo al Storage (browser → Supabase, sin pasar por Next.js) ──
-async function uploadViaSupabase(
+function uploadErrorMessage(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  // Archivos en OneDrive/iCloud que no están descargados localmente fallan aquí
+  if (/load failed|not readable|network|webkitblob/i.test(msg)) {
+    return "No se pudo leer el archivo. Si está en OneDrive, iCloud u otro servicio en la nube, descárgalo primero al equipo e intenta de nuevo.";
+  }
+  return msg || "Error al subir archivo";
+}
+
+// ─── Upload server-side via /api/upload (evita CORS browser→Storage) ────────
+async function uploadViaApi(
   file: File,
   notaId: string,
   modulo: string,
   recursoId: string,
 ): Promise<{ error?: string; docId?: string; storagePath?: string; createdAt?: string }> {
-  const ext = file.name.split(".").pop() ?? "bin";
+  const fd = new FormData();
+  fd.set("file",       file);
+  fd.set("nota_id",    notaId);
+  fd.set("modulo",     modulo);
+  fd.set("recurso_id", recursoId);
 
-  // 1. Pedir URL pre-firmada al servidor
-  const { signedUrl, storagePath, error: urlError } =
-    await obtenerUrlSubida({ modulo, recursoId, fileName: file.name, fileExt: ext });
-
-  if (urlError || !signedUrl || !storagePath) {
-    return { error: urlError ?? "No se pudo obtener URL de subida" };
+  let res: Response;
+  try {
+    res = await fetch("/api/upload", { method: "POST", body: fd });
+  } catch (err) {
+    return { error: uploadErrorMessage(err) };
   }
 
-  // 2. Subir el archivo directo desde el browser a Supabase Storage
-  const uploadRes = await fetch(signedUrl, {
-    method:  "PUT",
-    headers: { "Content-Type": file.type || "application/octet-stream" },
-    body:    file,
-  });
-
-  if (!uploadRes.ok) {
-    const body = await uploadRes.json().catch(() => ({})) as { message?: string };
-    return { error: body.message ?? `Error al subir archivo (${uploadRes.status})` };
+  let json: { error?: string; documento?: { id: string; storage_path: string; created_at: string } };
+  try {
+    json = await res.json();
+  } catch {
+    return { error: `Error al subir archivo (${res.status})` };
   }
 
-  // 3. Registrar metadatos en la BD y obtener el ID real
-  const { error: dbError, docId, createdAt } = await registrarDocumento({
-    notaId,
-    modulo,
-    recursoId,
-    storagePath,
-    nombre:   file.name,
-    tipoMime: file.type,
-    tamano:   file.size,
-  });
+  if (!res.ok || json.error) {
+    return { error: json.error ?? `Error al subir archivo (${res.status})` };
+  }
 
-  return { error: dbError, docId, storagePath, createdAt };
+  return {
+    docId:       json.documento!.id,
+    storagePath: json.documento!.storage_path,
+    createdAt:   json.documento!.created_at,
+  };
 }
 
 // ─── Utilidades ───────────────────────────────────────────────
@@ -183,12 +187,14 @@ function FileSelector({
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const nuevos = Array.from(e.target.files ?? []);
+    if (!nuevos.length) return;
     onChange([...files, ...nuevos]);
-    e.target.value = "";
   }
 
   function remove(i: number) {
-    onChange(files.filter((_, idx) => idx !== i));
+    const next = files.filter((_, idx) => idx !== i);
+    onChange(next);
+    if (next.length === 0 && inputRef.current) inputRef.current.value = "";
   }
 
   return (
@@ -200,7 +206,7 @@ function FileSelector({
               key={i}
               className="flex items-center gap-1 rounded-full border bg-muted/50 px-2 py-0.5 text-xs"
             >
-              <DocIcon mime={f.type} />
+              <DocIcon mime={f.type || null} />
               <span className="max-w-[140px] truncate">{f.name}</span>
               <button type="button" onClick={() => remove(i)} className="text-muted-foreground hover:text-foreground">
                 <X className="h-3 w-3" />
@@ -244,14 +250,14 @@ function NotaCard({
   onDelete: (id: string) => void;
   users?: MentionUser[];
 }) {
-  const [editing, setEditing]       = useState(false);
+  const [editing, setEditing]         = useState(false);
   const [editContent, setEditContent] = useState(nota.contenido);
-  const [docs, setDocs]             = useState<Documento[]>(nota.documentos ?? []);
-  const [docsOpen, setDocsOpen]     = useState(true);
-  const [isPending, startTransition] = useTransition();
+  const [docs, setDocs]               = useState<Documento[]>(nota.documentos ?? []);
+  const [docsOpen, setDocsOpen]       = useState(true);
+  const [isPending, startTransition]  = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const ini = initials(nota.user_nombre);
+  const ini     = initials(nota.user_nombre);
   const relTime = formatDistanceToNow(new Date(nota.created_at), { addSuffix: true, locale: es });
   const absTime = format(parseISO(nota.created_at), "d MMM yyyy, HH:mm", { locale: es });
 
@@ -276,40 +282,29 @@ function NotaCard({
   async function handleAddFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    e.target.value = "";
 
-    // Placeholder optimista mientras sube
     const tempId = `temp-${Date.now()}`;
-    const tempDoc: Documento = {
+    setDocs((prev) => [...prev, {
       id: tempId,
       tenant_id: "", modulo, recurso_id: recursoId,
       nota_id: nota.id, nombre: file.name,
       tipo_mime: file.type, tamano: file.size,
       storage_path: "", subido_por: null, subido_por_nombre: null,
       created_at: new Date().toISOString(),
-    };
-    setDocs((prev) => [...prev, tempDoc]);
+    }]);
 
-    try {
-      const { error, docId, storagePath, createdAt } =
-        await uploadViaSupabase(file, nota.id, modulo, recursoId);
+    const { error, docId, storagePath, createdAt } =
+      await uploadViaApi(file, nota.id, modulo, recursoId);
 
-      if (error || !docId || !storagePath) {
-        setDocs((prev) => prev.filter((d) => d.id !== tempId));
-        console.error("[notas-panel] handleAddFile error:", error);
-        alert(`Error al subir "${file.name}": ${error ?? "datos incompletos"}`);
-      } else {
-        // Reemplazar placeholder con el documento real (storage_path correcto para ver/descargar)
-        setDocs((prev) => prev.map((d) =>
-          d.id === tempId
-            ? { ...d, id: docId, storage_path: storagePath, created_at: createdAt ?? d.created_at }
-            : d
-        ));
-      }
-    } catch (err) {
+    if (error || !docId || !storagePath) {
       setDocs((prev) => prev.filter((d) => d.id !== tempId));
-      console.error("[notas-panel] handleAddFile exception:", err);
-      alert(`Error inesperado al subir el archivo`);
+      alert(`Error al subir "${file.name}": ${error ?? "datos incompletos"}`);
+    } else {
+      setDocs((prev) => prev.map((d) =>
+        d.id === tempId
+          ? { ...d, id: docId, storage_path: storagePath, created_at: createdAt ?? d.created_at }
+          : d
+      ));
     }
   }
 
@@ -449,7 +444,6 @@ function NuevaNotaForm({
     setError(null);
 
     try {
-      // Paso 1: crear la nota (sin archivos)
       const fd = new FormData();
       fd.set("modulo",      modulo);
       fd.set("recurso_id",  recursoId);
@@ -463,16 +457,16 @@ function NuevaNotaForm({
         return;
       }
 
-      // Paso 2: subir archivos
       const docsSubidos: Documento[] = [];
+      let uploadError: string | null = null;
 
       for (const file of files) {
         const { error: uploadErr, docId, storagePath, createdAt } =
-          await uploadViaSupabase(file, res.nota.id, modulo, recursoId);
+          await uploadViaApi(file, res.nota.id, modulo, recursoId);
 
         if (uploadErr) {
-          console.error(`[notas-panel] upload error for "${file.name}":`, uploadErr);
-          setError(`Error al subir "${file.name}": ${uploadErr}`);
+          uploadError = uploadErr;
+          break;
         } else if (docId && storagePath) {
           docsSubidos.push({
             id: docId,
@@ -486,11 +480,15 @@ function NuevaNotaForm({
         }
       }
 
-      // Mostrar la nota con todos los archivos que subieron correctamente
+      // La nota ya fue creada — mostrarla siempre (con los archivos que sí subieron)
       onCreated({ ...res.nota, documentos: docsSubidos });
+
+      // Si hubo error en algún archivo, alertar después de cerrar el formulario
+      if (uploadError) {
+        alert(`La nota fue guardada, pero no se pudo adjuntar el archivo.\n\n${uploadError}`);
+      }
     } catch (err) {
-      console.error("[notas-panel] handleSubmit exception:", err);
-      setError(err instanceof Error ? err.message : "Error inesperado al guardar");
+      setError(uploadErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -533,9 +531,9 @@ interface NotasPanelProps {
 }
 
 export function NotasPanel({ modulo, recursoId, initialNotas, users = [] }: NotasPanelProps) {
-  const [notas, setNotas]       = useState<Nota[]>(initialNotas);
-  const [adding, setAdding]     = useState(false);
-  const [, startTransition]     = useTransition();
+  const [notas, setNotas]   = useState<Nota[]>(initialNotas);
+  const [adding, setAdding] = useState(false);
+  const [, startTransition] = useTransition();
 
   function handleCreated(nota: Nota) {
     setNotas((prev) => [nota, ...prev]);
@@ -549,7 +547,6 @@ export function NotasPanel({ modulo, recursoId, initialNotas, users = [] }: Nota
 
   return (
     <div className="space-y-4">
-      {/* Botón agregar */}
       {!adding && (
         <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
           <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -557,7 +554,6 @@ export function NotasPanel({ modulo, recursoId, initialNotas, users = [] }: Nota
         </Button>
       )}
 
-      {/* Formulario nueva nota */}
       {adding && (
         <NuevaNotaForm
           modulo={modulo}
@@ -568,7 +564,6 @@ export function NotasPanel({ modulo, recursoId, initialNotas, users = [] }: Nota
         />
       )}
 
-      {/* Lista de notas */}
       {notas.length === 0 && !adding ? (
         <div className="py-8 text-center text-sm text-muted-foreground">
           <FileText className="mx-auto mb-2 h-8 w-8 opacity-30" />

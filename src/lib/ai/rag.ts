@@ -30,18 +30,27 @@ export async function searchLexbaseChunks(
 ): Promise<ChunkResult[]> {
   const client = createAdminClient();
   const embedding = await generateEmbedding(query);
+  const embStr = JSON.stringify(embedding);
 
-  const { data, error } = await client.rpc("match_lexbase_chunks", {
+  const rpcParams = (threshold: number) => ({
     p_tenant_id:   tenantId,
-    p_embedding:   JSON.stringify(embedding),
+    p_embedding:   embStr,
     p_match_count: matchCount,
-    p_threshold:   0.10,
+    p_threshold:   threshold,
   });
 
-  if (error || !data) return [];
+  let { data, error } = await client.rpc("match_lexbase_chunks", rpcParams(0.10));
 
-  return (data as (ChunkResult & { titulo?: string })[]).map((row) => ({
-    contenido:  row.titulo ? `[${row.titulo}]\n${row.contenido}` : row.contenido,
+  if (error) return [];
+
+  // Fallback sin threshold para queries meta (igual que document_chunks)
+  if (!data || (data as unknown[]).length === 0) {
+    ({ data, error } = await client.rpc("match_lexbase_chunks", rpcParams(0.0)));
+    if (error || !data) return [];
+  }
+
+  return (data as (ChunkResult & { documento_titulo?: string })[]).map((row) => ({
+    contenido:  row.documento_titulo ? `[${row.documento_titulo}]\n${row.contenido}` : row.contenido,
     similarity: row.similarity,
   }));
 }

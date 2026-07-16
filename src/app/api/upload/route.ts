@@ -49,7 +49,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
-    // Leer multipart form data
     const formData  = await request.formData();
     const file      = formData.get("file")       as File | null;
     const notaId    = formData.get("nota_id")    as string | null;
@@ -60,17 +59,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Faltan parámetros requeridos" }, { status: 400 });
     }
 
-    // Generar path único
     const ext         = file.name.split(".").pop() ?? "";
     const uuid        = crypto.randomUUID();
     const storagePath = `${session.tenant_id}/${modulo}/${recursoId}/${uuid}.${ext}`;
 
-    // Subir a Supabase Storage (server-side → sin CORS)
     const storageUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-    const fileBuffer  = await file.arrayBuffer();
-    const uploadRes   = await fetch(
+    const fileBuffer = await file.arrayBuffer();
+    const uploadRes  = await fetch(
       `${storageUrl}/storage/v1/object/${BUCKET}/${storagePath}`,
       {
         method:  "POST",
@@ -92,7 +89,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Registrar metadata en BD
     const client = createAdminClient();
     const { data: doc, error: dbError } = await client
       .from("documentos")
@@ -112,7 +108,6 @@ export async function POST(request: Request) {
       .single();
 
     if (dbError) {
-      // Limpiar el archivo subido si el insert falla
       await fetch(`${storageUrl}/storage/v1/object/${BUCKET}/${storagePath}`, {
         method: "DELETE",
         headers: { "apikey": serviceKey, "Authorization": `Bearer ${serviceKey}` },
