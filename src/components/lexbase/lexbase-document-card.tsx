@@ -51,7 +51,7 @@ export function LexbaseDocumentCard({ doc }: { doc: LexbaseDocumento }) {
 
         {/* Title */}
         <div className="flex-1">
-          <h3 className="font-semibold text-sm leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+          <h3 className="font-semibold text-sm leading-snug line-clamp-3 group-hover:text-primary transition-colors">
             {doc.titulo}
           </h3>
 
