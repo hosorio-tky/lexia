@@ -16,6 +16,10 @@ import type { Nota } from "@/lib/repositories/notas";
  * Sanitiza HTML antes de persistir — previene XSS.
  * Permite etiquetas seguras de Tiptap pero elimina scripts y eventos inline.
  */
+function textSnippet(html: string, max = 150): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().substring(0, max);
+}
+
 function sanitizeHtml(html: string): string {
   return DOMPurify.sanitize(html, {
     ALLOWED_TAGS: [
@@ -139,6 +143,7 @@ export async function crearNota(
         accion:      "agregar_nota",
         modulo,
         recurso_id:  recursoId,
+        metadata:    { nota_id: nota.id, contenido: textSnippet(contenido) },
       }),
       notificarMenciones({
         html:        contenido,
@@ -334,6 +339,14 @@ export async function editarNota(
     const contenido = sanitizeHtml(contenidoRaw);
 
     const client = createAdminClient();
+
+    const { data: anterior } = await client
+      .from("notas")
+      .select("contenido")
+      .eq("id", id)
+      .eq("tenant_id", session.tenant_id)
+      .single();
+
     await createNotasRepository(client, session.tenant_id).update(id, contenido);
 
     await Promise.all([
@@ -355,7 +368,11 @@ export async function editarNota(
       accion:      "editar_nota",
       modulo,
       recurso_id:  recursoId,
-      metadata:    { nota_id: id },
+      metadata:    {
+        nota_id:            id,
+        contenido_anterior: anterior?.contenido ? textSnippet(anterior.contenido) : null,
+        contenido_nuevo:    textSnippet(contenido),
+      },
     });
 
     revalidatePath(`/${modulo}/${recursoId}`);
@@ -380,7 +397,15 @@ export async function eliminarNota(
 ): Promise<void> {
   const session = await getSession();
   try {
-    const client  = createAdminClient();
+    const client = createAdminClient();
+
+    const { data: anterior } = await client
+      .from("notas")
+      .select("contenido")
+      .eq("id", id)
+      .eq("tenant_id", session.tenant_id)
+      .single();
+
     await createNotasRepository(client, session.tenant_id).delete(id);
 
     await logActivity({
@@ -390,7 +415,10 @@ export async function eliminarNota(
       accion:      "eliminar_nota",
       modulo,
       recurso_id:  recursoId,
-      metadata:    { nota_id: id },
+      metadata:    {
+        nota_id:  id,
+        contenido: anterior?.contenido ? textSnippet(anterior.contenido) : null,
+      },
     });
 
     revalidatePath(`/${modulo}/${recursoId}`);
@@ -415,7 +443,15 @@ export async function eliminarDocumentoDeNota(
 ): Promise<void> {
   const session = await getSession();
   try {
-    const client  = createAdminClient();
+    const client = createAdminClient();
+
+    const { data: doc } = await client
+      .from("documentos")
+      .select("nombre")
+      .eq("id", docId)
+      .eq("tenant_id", session.tenant_id)
+      .single();
+
     await createDocumentosRepository(client, session.tenant_id).delete(docId, storagePath);
 
     await logActivity({
@@ -425,7 +461,7 @@ export async function eliminarDocumentoDeNota(
       accion:      "eliminar_documento",
       modulo,
       recurso_id:  recursoId,
-      metadata:    { documento_id: docId },
+      metadata:    { documento_id: docId, nombre: doc?.nombre ?? null },
     });
 
     revalidatePath(`/${modulo}/${recursoId}`);

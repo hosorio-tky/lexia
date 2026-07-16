@@ -28,6 +28,9 @@ const ACCION_CONFIG: Record<string, {
   agregar_comentario:      { label: "Comentario agregado",     icon: MessageSquare,  color: "text-slate-600 bg-slate-100" },
   editar_comentario:       { label: "Comentario editado",      icon: MessageSquare,  color: "text-slate-500 bg-slate-50" },
   eliminar_comentario:     { label: "Comentario eliminado",    icon: Trash2,         color: "text-slate-500 bg-slate-50" },
+  agregar_nota:            { label: "Nota agregada",           icon: FileText,       color: "text-teal-600 bg-teal-50" },
+  editar_nota:             { label: "Nota editada",            icon: Pencil,         color: "text-teal-500 bg-teal-50" },
+  eliminar_nota:           { label: "Nota eliminada",          icon: Trash2,         color: "text-red-500 bg-red-50" },
   subir_documento:         { label: "Documento subido",        icon: Upload,         color: "text-violet-600 bg-violet-50" },
   eliminar_documento:      { label: "Documento eliminado",     icon: Trash2,         color: "text-red-500 bg-red-50" },
 };
@@ -79,6 +82,62 @@ function ActionDetail({ accion, metadata }: { accion: string; metadata: Record<s
     );
   }
 
+  if (accion === "agregar_comentario" || accion === "eliminar_comentario") {
+    const { contenido } = metadata as { contenido?: string | null };
+    if (!contenido) return null;
+    return (
+      <p className="mt-1 text-xs text-muted-foreground italic truncate">
+        &ldquo;{contenido}&rdquo;
+      </p>
+    );
+  }
+
+  if (accion === "editar_comentario") {
+    const { contenido_anterior, contenido_nuevo } = metadata as {
+      contenido_anterior?: string | null;
+      contenido_nuevo?: string | null;
+    };
+    if (!contenido_anterior && !contenido_nuevo) return null;
+    return (
+      <div className="mt-1.5 text-xs text-muted-foreground space-y-0.5">
+        {contenido_anterior && (
+          <p className="line-through opacity-60 truncate">&ldquo;{contenido_anterior}&rdquo;</p>
+        )}
+        {contenido_nuevo && (
+          <p className="truncate">→ &ldquo;{contenido_nuevo}&rdquo;</p>
+        )}
+      </div>
+    );
+  }
+
+  if (accion === "agregar_nota" || accion === "eliminar_nota") {
+    const { contenido } = metadata as { contenido?: string | null };
+    if (!contenido) return null;
+    return (
+      <p className="mt-1 text-xs text-muted-foreground italic truncate">
+        &ldquo;{contenido}&rdquo;
+      </p>
+    );
+  }
+
+  if (accion === "editar_nota") {
+    const { contenido_anterior, contenido_nuevo } = metadata as {
+      contenido_anterior?: string | null;
+      contenido_nuevo?: string | null;
+    };
+    if (!contenido_anterior && !contenido_nuevo) return null;
+    return (
+      <div className="mt-1.5 text-xs text-muted-foreground space-y-0.5">
+        {contenido_anterior && (
+          <p className="line-through opacity-60 truncate">&ldquo;{contenido_anterior}&rdquo;</p>
+        )}
+        {contenido_nuevo && (
+          <p className="truncate">→ &ldquo;{contenido_nuevo}&rdquo;</p>
+        )}
+      </div>
+    );
+  }
+
   if (accion === "subir_documento") {
     const { nombre, tamano } = metadata as { nombre?: string; tamano?: number };
     if (!nombre) return null;
@@ -87,6 +146,14 @@ function ActionDetail({ accion, metadata }: { accion: string; metadata: Record<s
       <p className="mt-1 text-xs text-muted-foreground">
         {nombre}{kb}
       </p>
+    );
+  }
+
+  if (accion === "eliminar_documento") {
+    const { nombre } = metadata as { nombre?: string | null };
+    if (!nombre) return null;
+    return (
+      <p className="mt-1 text-xs text-muted-foreground">{nombre}</p>
     );
   }
 

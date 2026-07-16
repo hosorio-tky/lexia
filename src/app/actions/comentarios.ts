@@ -9,6 +9,10 @@ import { logActivity } from "@/lib/activity";
 import { sendMencion } from "@/lib/email/send";
 import type { Comentario } from "@/lib/repositories/comentarios";
 
+function textSnippet(html: string, max = 150): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().substring(0, max);
+}
+
 function sanitizeHtml(html: string): string {
   return DOMPurify.sanitize(html, {
     ALLOWED_TAGS: [
@@ -123,7 +127,7 @@ export async function crearComentario(
       accion:      "agregar_comentario",
       modulo,
       recurso_id:  recursoId,
-      metadata:    { comentario_id: comentario.id },
+      metadata:    { comentario_id: comentario.id, contenido: textSnippet(contenido) },
     }),
     notificarMenciones({
       html:        contenido,
@@ -160,6 +164,14 @@ export async function editarComentario(
 
   const client = createAdminClient();
   const repo   = createComentariosRepository(client, session.tenant_id);
+
+  const { data: anterior } = await client
+    .from("comentarios")
+    .select("contenido")
+    .eq("id", id)
+    .eq("tenant_id", session.tenant_id)
+    .single();
+
   await repo.update(id, contenido);
 
   await Promise.all([
@@ -170,7 +182,11 @@ export async function editarComentario(
       accion:      "editar_comentario",
       modulo,
       recurso_id:  recursoId,
-      metadata:    { comentario_id: id },
+      metadata:    {
+        comentario_id:     id,
+        contenido_anterior: anterior?.contenido ? textSnippet(anterior.contenido) : null,
+        contenido_nuevo:    textSnippet(contenido),
+      },
     }),
     notificarMenciones({
       html:        contenido,
@@ -195,7 +211,15 @@ export async function eliminarComentario(
 ): Promise<void> {
   const session = await getSession();
   const client  = createAdminClient();
-  const repo    = createComentariosRepository(client, session.tenant_id);
+
+  const { data: anterior } = await client
+    .from("comentarios")
+    .select("contenido")
+    .eq("id", id)
+    .eq("tenant_id", session.tenant_id)
+    .single();
+
+  const repo = createComentariosRepository(client, session.tenant_id);
   await repo.delete(id);
 
   await logActivity({
@@ -205,7 +229,10 @@ export async function eliminarComentario(
     accion:      "eliminar_comentario",
     modulo,
     recurso_id:  recursoId,
-    metadata:    { comentario_id: id },
+    metadata:    {
+      comentario_id: id,
+      contenido:     anterior?.contenido ? textSnippet(anterior.contenido) : null,
+    },
   });
 
   revalidatePath(`/${modulo}/${recursoId}`);
