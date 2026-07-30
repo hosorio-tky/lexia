@@ -7,6 +7,15 @@ export const PERMIT_STATUSES = [
   "Aprobado",
   "Actualizar Permiso",
   "Rechazado",
+  // Estados de ciclo de vida del permiso
+  "Identificado",
+  "Requisitos",
+  "En Trámite",
+  "En Revisión",
+  "Vigente",
+  "Pre-Renovación",
+  "Suspendido",
+  "Vencido",
 ] as const;
 
 export type PermitStatus = (typeof PERMIT_STATUSES)[number];
@@ -20,6 +29,15 @@ export const STATUS_TRANSITIONS: Record<PermitStatus, PermitStatus[]> = {
   "Aprobado":                ["Actualizar Permiso"],
   "Actualizar Permiso":      ["Aprobado", "Rechazado"],
   "Rechazado":               [],
+  // Estados de ciclo de vida
+  "Identificado":            ["Requisitos", "En Trámite"],
+  "Requisitos":              ["En Trámite"],
+  "En Trámite":              ["En Revisión", "Vigente"],
+  "En Revisión":             ["Vigente", "Suspendido"],
+  "Vigente":                 ["Pre-Renovación", "Suspendido", "Vencido"],
+  "Pre-Renovación":          ["Vigente", "Vencido"],
+  "Suspendido":              ["Vigente", "Vencido"],
+  "Vencido":                 [],
 };
 
 // ─── Colores semáforo ──────────────────────────────────────────────────────
@@ -31,6 +49,15 @@ export const STATUS_COLORS: Record<PermitStatus, string> = {
   "Aprobado":                "bg-emerald-50 text-emerald-700 border-emerald-200",
   "Actualizar Permiso":      "bg-orange-50 text-orange-700 border-orange-200",
   "Rechazado":               "bg-red-100 text-red-700 border-red-300",
+  // Estados de ciclo de vida
+  "Identificado":            "bg-slate-100 text-slate-600 border-slate-200",
+  "Requisitos":              "bg-sky-50 text-sky-700 border-sky-200",
+  "En Trámite":              "bg-blue-50 text-blue-700 border-blue-200",
+  "En Revisión":             "bg-indigo-50 text-indigo-700 border-indigo-200",
+  "Vigente":                 "bg-emerald-50 text-emerald-700 border-emerald-200",
+  "Pre-Renovación":          "bg-orange-50 text-orange-700 border-orange-200",
+  "Suspendido":              "bg-red-50 text-red-700 border-red-200",
+  "Vencido":                 "bg-red-100 text-red-700 border-red-300",
 };
 
 // ─── Vigencia (calculada, nunca almacenada) ────────────────────────────────
