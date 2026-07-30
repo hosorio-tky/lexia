@@ -184,30 +184,22 @@ export function PermitDetailClient({
             </div>
           </Section>
 
-          {(permit.base_legal || permit.riesgo_incumplimiento || permit.base_legal_incumplimiento) && (
-            <Section title="Marco Legal y Riesgo" defaultOpen={false}>
-              <div className="space-y-4">
-                {permit.base_legal && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Base Legal del Permiso</p>
-                    <p className="text-sm whitespace-pre-wrap">{permit.base_legal}</p>
-                  </div>
-                )}
-                {permit.riesgo_incumplimiento && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Riesgo por Incumplimiento</p>
-                    <p className="text-sm whitespace-pre-wrap">{permit.riesgo_incumplimiento}</p>
-                  </div>
-                )}
-                {permit.base_legal_incumplimiento && (
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Base Legal del Incumplimiento</p>
-                    <p className="text-sm whitespace-pre-wrap">{permit.base_legal_incumplimiento}</p>
-                  </div>
-                )}
+          <Section title="Marco Legal y Riesgo" defaultOpen={true}>
+            <div className="space-y-4">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Base Legal del Permiso</p>
+                <p className="text-sm whitespace-pre-wrap">{permit.base_legal || <span className="text-muted-foreground italic">No especificada</span>}</p>
               </div>
-            </Section>
-          )}
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Riesgo por Incumplimiento</p>
+                <p className="text-sm whitespace-pre-wrap">{permit.riesgo_incumplimiento || <span className="text-muted-foreground italic">No especificado</span>}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-1">Base Legal del Incumplimiento</p>
+                <p className="text-sm whitespace-pre-wrap">{permit.base_legal_incumplimiento || <span className="text-muted-foreground italic">No especificada</span>}</p>
+              </div>
+            </div>
+          </Section>
 
           <Section title="Fechas Clave">
             <div className="grid sm:grid-cols-3 gap-4">
