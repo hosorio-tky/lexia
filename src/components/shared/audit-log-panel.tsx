@@ -3,8 +3,8 @@
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import {
-  FileText, MessageSquare, Pencil, Plus,
-  RefreshCw, Trash2, Upload, User,
+  FileText, Globe, Lock, MessageSquare, Pencil, Plus,
+  RefreshCw, ShieldCheck, ShieldOff, Trash2, Upload, User,
 } from "lucide-react";
 import type { ActividadEntry } from "@/lib/repositories/actividad";
 
@@ -33,6 +33,10 @@ const ACCION_CONFIG: Record<string, {
   eliminar_nota:           { label: "Nota eliminada",          icon: Trash2,         color: "text-red-500 bg-red-50" },
   subir_documento:         { label: "Documento subido",        icon: Upload,         color: "text-violet-600 bg-violet-50" },
   eliminar_documento:      { label: "Documento eliminado",     icon: Trash2,         color: "text-red-500 bg-red-50" },
+  // ── Control de acceso ────────────────────────────────────────
+  cambiar_visibilidad:     { label: "Visibilidad cambiada",    icon: Globe,          color: "text-amber-600 bg-amber-50" },
+  otorgar_acceso:          { label: "Acceso otorgado",         icon: ShieldCheck,    color: "text-emerald-600 bg-emerald-50" },
+  revocar_acceso:          { label: "Acceso revocado",         icon: ShieldOff,      color: "text-red-500 bg-red-50" },
 };
 
 const DEFAULT_CONFIG = {
@@ -154,6 +158,72 @@ function ActionDetail({ accion, metadata }: { accion: string; metadata: Record<s
     if (!nombre) return null;
     return (
       <p className="mt-1 text-xs text-muted-foreground">{nombre}</p>
+    );
+  }
+
+  if (accion === "cambiar_visibilidad") {
+    const { anterior, nuevo } = metadata as { anterior?: string; nuevo?: string };
+    if (!anterior && !nuevo) return null;
+    return (
+      <p className="mt-1 text-xs text-muted-foreground flex items-center gap-1.5">
+        {anterior && (
+          <>
+            {anterior === "Público"
+              ? <Globe className="h-3 w-3 text-emerald-500 shrink-0" />
+              : <Lock className="h-3 w-3 text-amber-500 shrink-0" />
+            }
+            <span className="line-through opacity-60">{anterior}</span>
+          </>
+        )}
+        {anterior && nuevo && <span>→</span>}
+        {nuevo && (
+          <>
+            {nuevo === "Público"
+              ? <Globe className="h-3 w-3 text-emerald-500 shrink-0" />
+              : <Lock className="h-3 w-3 text-amber-500 shrink-0" />
+            }
+            <span className="font-medium text-foreground">{nuevo}</span>
+          </>
+        )}
+      </p>
+    );
+  }
+
+  if (accion === "otorgar_acceso") {
+    const { subject_type, subject_name, nivel } = metadata as {
+      subject_type?: string;
+      subject_name?: string;
+      nivel?: string;
+    };
+    if (!subject_name) return null;
+    return (
+      <p className="mt-1 text-xs text-muted-foreground">
+        {subject_type && <span className="text-muted-foreground/70">{subject_type}: </span>}
+        <span className="font-medium text-foreground">{subject_name}</span>
+        {nivel && (
+          <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+            nivel === "Edición"
+              ? "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
+              : "bg-muted text-muted-foreground"
+          }`}>
+            {nivel}
+          </span>
+        )}
+      </p>
+    );
+  }
+
+  if (accion === "revocar_acceso") {
+    const { subject_type, subject_name } = metadata as {
+      subject_type?: string;
+      subject_name?: string;
+    };
+    if (!subject_name) return null;
+    return (
+      <p className="mt-1 text-xs text-muted-foreground">
+        {subject_type && <span className="text-muted-foreground/70">{subject_type}: </span>}
+        <span className="font-medium text-foreground">{subject_name}</span>
+      </p>
     );
   }
 

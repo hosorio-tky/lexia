@@ -145,6 +145,7 @@ export interface PermitFilters {
   estado: PermitStatus | "";
   tipo: PermitType | "";
   entidad: string;
-  responsable: string;   // SC-10: filtro por responsable_nombre
+  responsable: string;
   vigencia: VigenciaStatus | "";
+  ubicacion: string;
 }

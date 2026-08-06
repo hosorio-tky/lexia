@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
   Filter, KanbanSquare, LayoutList, Plus, Search, Trash2, X,
 } from "lucide-react";
@@ -30,6 +31,7 @@ import { ContratoKanban } from "./contrato-kanban";
 import { eliminarContrato } from "@/app/actions/contratos";
 import { diasRestantes, CONTRACT_ESTADOS, CONTRACT_TIPOS, type Contrato, type ContratoFilters } from "@/types/contratos";
 import { ArrowRight, Edit, MoreHorizontal } from "lucide-react";
+import { AccesoIndicador } from "@/components/shared/acceso-indicador";
 
 type ViewMode = "tabla" | "kanban";
 type ContratoSortKey = "titulo" | "tipo" | "estado" | "contraparte" | "valor" | "fecha_fin" | "actividad";
@@ -66,12 +68,35 @@ function VencimientoCell({ iso }: { iso?: string }) {
   );
 }
 
-export function ContratoListClient({ initialContratos }: { initialContratos: Contrato[] }) {
-  const [viewMode, setViewMode]     = useState<ViewMode>("tabla");
+export function ContratoListClient({
+  initialContratos,
+  userId,
+  userRol,
+  editableIds = [],
+}: {
+  initialContratos: Contrato[];
+  userId?: string;
+  userRol?: string;
+  editableIds?: string[];
+}) {
+  const searchParams = useSearchParams();
+  const router       = useRouter();
+  const pathname     = usePathname();
+
+  const viewMode = (searchParams.get("v") as ViewMode | null) ?? "tabla";
+
+  function setViewMode(mode: ViewMode) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("v", mode);
+    router.replace(`${pathname}?${params.toString()}`);
+  }
+
   const [selected, setSelected]     = useState<string[]>([]);
   const [filters, setFilters]       = useState<ContratoFilters>({ search: "", estado: "", tipo: "" });
   const [sort, setSort]             = useState<SortState<ContratoSortKey>>({ key: "actividad", dir: "desc" });
   const [isPending, startTransition] = useTransition();
+
+  const editableSet = useMemo(() => new Set(editableIds), [editableIds]);
 
   function handleSort(key: ContratoSortKey) {
     setSort((prev) => nextSort(prev, key));
@@ -108,17 +133,27 @@ export function ContratoListClient({ initialContratos }: { initialContratos: Con
   const hasActiveFilters = filters.search || filters.estado || filters.tipo;
   const clearFilters = () => setFilters({ search: "", estado: "", tipo: "" });
 
-  const toggleSelect  = (id: string) =>
+  const editableFiltered = useMemo(
+    () => filtered.filter((c) => editableSet.has(c.id)),
+    [filtered, editableSet],
+  );
+
+  const toggleSelect  = (id: string) => {
+    if (!editableSet.has(id)) return;
     setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
   const toggleAll = () =>
-    setSelected(selected.length === filtered.length ? [] : filtered.map((c) => c.id));
+    setSelected(selected.length === editableFiltered.length && editableFiltered.length > 0
+      ? []
+      : editableFiltered.map((c) => c.id));
 
   const handleDelete = (id: string) => {
     startTransition(() => eliminarContrato(id));
   };
   const handleDeleteSelected = () => {
+    const toDelete = selected.filter((id) => editableSet.has(id));
     startTransition(async () => {
-      for (const id of selected) await eliminarContrato(id);
+      for (const id of toDelete) await eliminarContrato(id);
       setSelected([]);
     });
   };
@@ -188,7 +223,7 @@ export function ContratoListClient({ initialContratos }: { initialContratos: Con
             <button
               onClick={() => setViewMode("tabla")}
               className={cn("rounded-md p-1.5 transition", viewMode === "tabla" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground")}
-              title="Vista tabla"
+              title="Vista lista"
             >
               <LayoutList className="h-4 w-4" />
             </button>
@@ -220,8 +255,9 @@ export function ContratoListClient({ initialContratos }: { initialContratos: Con
                 <tr className="border-b bg-muted/40">
                   <th className="px-4 py-3 w-10">
                     <Checkbox
-                      checked={selected.length === filtered.length && filtered.length > 0}
+                      checked={editableFiltered.length > 0 && selected.length === editableFiltered.length}
                       onCheckedChange={toggleAll}
+                      disabled={editableFiltered.length === 0}
                     />
                   </th>
                   <SortableTh label="Título"      sortKey="titulo"      sort={sort} onSort={handleSort} />
@@ -247,15 +283,26 @@ export function ContratoListClient({ initialContratos }: { initialContratos: Con
                   filtered.map((c) => (
                     <tr key={c.id} className={cn("border-b transition-colors hover:bg-muted/30", selected.includes(c.id) && "bg-muted/20")}>
                       <td className="px-4 py-3">
-                        <Checkbox
-                          checked={selected.includes(c.id)}
-                          onCheckedChange={() => toggleSelect(c.id)}
-                        />
+                        {editableSet.has(c.id) && (
+                          <Checkbox
+                            checked={selected.includes(c.id)}
+                            onCheckedChange={() => toggleSelect(c.id)}
+                          />
+                        )}
                       </td>
                       <td className="px-4 py-3 max-w-[200px]">
-                        <Link href={`/contratos/${c.id}`} className="font-medium hover:underline line-clamp-2">
-                          {c.titulo}
-                        </Link>
+                        <div className="flex items-center gap-1.5">
+                          <Link href={`/contratos/${c.id}?from=tabla`} className="font-medium hover:underline line-clamp-2">
+                            {c.titulo}
+                          </Link>
+                          <AccesoIndicador
+                            resourceType="contrato"
+                            resourceId={c.id}
+                            resourceName={c.titulo}
+                            visibilidad={c.visibilidad ?? "publico"}
+                            canManage={userRol === "admin" || c.created_by === userId}
+                          />
+                        </div>
                         {c.responsable_nombre && (
                           <p className="text-xs text-muted-foreground mt-0.5">{c.responsable_nombre}</p>
                         )}
@@ -291,26 +338,32 @@ export function ContratoListClient({ initialContratos }: { initialContratos: Con
                             <DropdownMenuLabel className="text-xs">Acciones</DropdownMenuLabel>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem asChild>
-                              <Link href={`/contratos/${c.id}`}>
+                              <Link href={`/contratos/${c.id}?from=tabla`}>
                                 <ArrowRight className="mr-2 h-4 w-4" />
                                 Ver detalle
                               </Link>
                             </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/contratos/${c.id}/editar`}>
-                                <Edit className="mr-2 h-4 w-4" />
-                                Editar
-                              </Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => handleDelete(c.id)}
-                              disabled={isPending}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Eliminar
-                            </DropdownMenuItem>
+                            {editableSet.has(c.id) && (
+                              <DropdownMenuItem asChild>
+                                <Link href={`/contratos/${c.id}/editar`}>
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Editar
+                                </Link>
+                              </DropdownMenuItem>
+                            )}
+                            {editableSet.has(c.id) && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => handleDelete(c.id)}
+                                  disabled={isPending}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Eliminar
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </td>
@@ -322,7 +375,7 @@ export function ContratoListClient({ initialContratos }: { initialContratos: Con
           </div>
         </div>
       ) : (
-        <ContratoKanban contratos={filtered} />
+        <ContratoKanban contratos={filtered} editableIds={editableIds} />
       )}
 
       {/* Barra bulk */}

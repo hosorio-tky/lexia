@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import Link from "next/link";
 import { ArrowRight, Edit, Eye, MoreHorizontal, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import { PermitStatusBadge, VigenciaBadge } from "./permit-status-badge";
 import { calcularVigencia } from "@/types/permits";
 import { SortableTh } from "@/components/ui/sortable-th";
 import { ActivityCell } from "@/components/ui/activity-cell";
+import { AccesoIndicador } from "@/components/shared/acceso-indicador";
 import type { Permit } from "@/types/permits";
 import type { SortState } from "@/lib/sort-utils";
 
@@ -74,6 +76,9 @@ export function PermitTable({
   onDelete,
   sort,
   onSort,
+  userId,
+  userRol,
+  editableIds = [],
 }: {
   permits: Permit[];
   selected: string[];
@@ -82,7 +87,13 @@ export function PermitTable({
   onDelete?: (id: string) => void;
   sort: SortState<PermitSortKey>;
   onSort: (key: PermitSortKey) => void;
+  userId?: string;
+  userRol?: string;
+  editableIds?: string[];
 }) {
+  const editableSet = useMemo(() => new Set(editableIds), [editableIds]);
+  const editableInView = useMemo(() => permits.filter((p) => editableSet.has(p.id)), [permits, editableSet]);
+
   return (
     <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
       <div className="relative w-full overflow-auto">
@@ -91,8 +102,9 @@ export function PermitTable({
             <tr className="border-b bg-muted/30">
               <th className="h-10 w-[40px] px-4 align-middle">
                 <Checkbox
-                  checked={permits.length > 0 && selected.length === permits.length}
+                  checked={editableInView.length > 0 && selected.length === editableInView.length}
                   onCheckedChange={onToggleAll}
+                  disabled={editableInView.length === 0}
                 />
               </th>
               <SortableTh label="Permiso"     sortKey="nombre"     sort={sort} onSort={onSort} />
@@ -120,10 +132,12 @@ export function PermitTable({
                 className="border-b transition-colors hover:bg-muted/40 group"
               >
                 <td className="p-4 align-middle">
-                  <Checkbox
-                    checked={selected.includes(permit.id)}
-                    onCheckedChange={() => onToggle(permit.id)}
-                  />
+                  {editableSet.has(permit.id) && (
+                    <Checkbox
+                      checked={selected.includes(permit.id)}
+                      onCheckedChange={() => onToggle(permit.id)}
+                    />
+                  )}
                 </td>
                 <td className="p-4 align-middle">
                   <div className="flex items-center gap-3">
@@ -131,9 +145,18 @@ export function PermitTable({
                       {permit.tipo.substring(0, 2).toUpperCase()}
                     </div>
                     <div>
-                      <Link href={`/permisos/${permit.id}`} className="font-medium text-foreground leading-snug hover:text-primary hover:underline transition-colors">
-                        {permit.nombre}
-                      </Link>
+                      <div className="flex items-center gap-1.5">
+                        <Link href={`/permisos/${permit.id}?from=table`} className="font-medium text-foreground leading-snug hover:text-primary hover:underline transition-colors">
+                          {permit.nombre}
+                        </Link>
+                        <AccesoIndicador
+                          resourceType="permiso"
+                          resourceId={permit.id}
+                          resourceName={permit.nombre}
+                          visibilidad={permit.visibilidad ?? "publico"}
+                          canManage={userRol === "admin" || permit.created_by === userId}
+                        />
+                      </div>
                       {permit.entidad_reguladora && (
                         <div className="text-[11px] text-muted-foreground">{permit.entidad_reguladora}</div>
                       )}
@@ -192,12 +215,14 @@ export function PermitTable({
                             <Eye className="mr-2 h-4 w-4" /> Ver detalle
                           </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link href={`/permisos/${permit.id}/editar`}>
-                            <Edit className="mr-2 h-4 w-4" /> Editar
-                          </Link>
-                        </DropdownMenuItem>
-                        {onDelete && (
+                        {editableSet.has(permit.id) && (
+                          <DropdownMenuItem asChild>
+                            <Link href={`/permisos/${permit.id}/editar`}>
+                              <Edit className="mr-2 h-4 w-4" /> Editar
+                            </Link>
+                          </DropdownMenuItem>
+                        )}
+                        {editableSet.has(permit.id) && onDelete && (
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem

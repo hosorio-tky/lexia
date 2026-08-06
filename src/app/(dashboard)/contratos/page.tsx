@@ -1,7 +1,9 @@
+import { Suspense } from "react";
 import AppShell from "@/components/layout/app-shell";
 import { ContratoListClient } from "@/components/contratos/contrato-list-client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createContratosRepository } from "@/lib/repositories/contratos";
+import { getEditableIds } from "@/lib/repositories/acceso";
 import { getSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +12,12 @@ export default async function ContratosPage() {
   const session   = await getSession();
   const client    = createAdminClient();
   const repo      = createContratosRepository(client, session.tenant_id);
-  const contratos = await repo.list();
+  const contratos = await repo.list(undefined, { userId: session.user_id, userRol: session.rol });
+
+  const editableSet = await getEditableIds(
+    client, session.tenant_id, "contrato", contratos, session.user_id, session.rol,
+  );
+  const editableIds = Array.from(editableSet);
 
   return (
     <AppShell
@@ -23,7 +30,14 @@ export default async function ContratosPage() {
         rol:             session.rol,
       }}
     >
-      <ContratoListClient initialContratos={contratos} />
+      <Suspense>
+        <ContratoListClient
+          initialContratos={contratos}
+          userId={session.user_id}
+          userRol={session.rol}
+          editableIds={editableIds}
+        />
+      </Suspense>
     </AppShell>
   );
 }

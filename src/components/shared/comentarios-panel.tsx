@@ -6,6 +6,11 @@ import { es } from "date-fns/locale";
 import { Pencil, Send, Trash2, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import {
   crearComentario,
@@ -19,7 +24,9 @@ import type { MentionUser } from "./mention-list";
 interface ComentariosPanelProps {
   modulo:              string;
   recursoId:           string;
+  recursoDesc?:        string;
   userId:              string;
+  userRol?:            string;
   initialComentarios:  Comentario[];
   users?:              MentionUser[];
 }
@@ -33,7 +40,9 @@ function extractMentionIds(html: string): string[] {
 export function ComentariosPanel({
   modulo,
   recursoId,
+  recursoDesc = "",
   userId,
+  userRol = "usuario",
   initialComentarios,
   users = [],
 }: ComentariosPanelProps) {
@@ -56,6 +65,7 @@ export function ComentariosPanel({
     fd.set("contenido",    newHtml);
     fd.set("modulo",       modulo);
     fd.set("recurso_id",   recursoId);
+    fd.set("recurso_desc", recursoDesc);
     fd.set("mention_ids",  extractMentionIds(newHtml).join(","));
 
     const res = await crearComentario(null, fd);
@@ -84,6 +94,7 @@ export function ComentariosPanel({
     fd.set("contenido",   editHtml);
     fd.set("modulo",      modulo);
     fd.set("recurso_id",  recursoId);
+    fd.set("recurso_desc", recursoDesc);
     fd.set("mention_ids", extractMentionIds(editHtml).join(","));
 
     setItems((prev) =>
@@ -108,7 +119,7 @@ export function ComentariosPanel({
       ) : (
         <div className="space-y-3">
           {items.map((c) => {
-            const isOwn  = c.user_id === userId;
+            const isOwn  = c.user_id === userId || userRol === "admin";
             const isEdit = editingId === c.id;
 
             return (
@@ -137,13 +148,25 @@ export function ComentariosPanel({
                           <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => startEdit(c)}>
                             <Pencil className="h-3 w-3" />
                           </Button>
-                          <Button
-                            variant="ghost" size="icon"
-                            className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                            onClick={() => handleDelete(c.id)}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive">
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>¿Eliminar comentario?</AlertDialogTitle>
+                                <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => handleDelete(c.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                                  Eliminar
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
                         </div>
                       )}
                     </div>

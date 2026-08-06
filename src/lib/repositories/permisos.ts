@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Permit, PermitType, TimelineEvent, PermitFilters, PermitStatus, PermitFechaHistorial } from "@/types/permits";
+import { getAccessibleIds } from "./acceso";
 
 // ─── Tipos de filas DB (evita `any`) ─────────────────────────
 interface PermisoRow {
@@ -26,6 +27,9 @@ interface PermisoRow {
   base_legal: string | null;
   riesgo_incumplimiento: string | null;
   base_legal_incumplimiento: string | null;
+  visibilidad: string | null;
+  created_by: string | null;
+  updated_by: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -80,6 +84,9 @@ function mapRow(row: PermisoRow): Permit {
     base_legal:                 row.base_legal ?? undefined,
     riesgo_incumplimiento:      row.riesgo_incumplimiento ?? undefined,
     base_legal_incumplimiento:  row.base_legal_incumplimiento ?? undefined,
+    visibilidad:                (row.visibilidad as "publico" | "restringido") ?? "publico",
+    created_by:                 row.created_by ?? undefined,
+    updated_by:                 row.updated_by ?? undefined,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -116,11 +123,14 @@ function mapFechaHistorialRow(row: PermisoFechaHistorialRow): PermitFechaHistori
 export function createPermisosRepository(client: SupabaseClient, tenantId: string) {
   return {
     // M01-F01: Listado con filtros
-    async list(filters?: Partial<PermitFilters>): Promise<Permit[]> {
+    async list(
+      filters?: Partial<PermitFilters>,
+      caller?: { userId: string; userRol: string },
+    ): Promise<Permit[]> {
       let query = client
         .from("permisos")
         .select("*")
-        .eq("tenant_id", tenantId)          // ← aislamiento tenant
+        .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
 
       if (filters?.estado) {
@@ -140,23 +150,46 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data ?? []).map((row) => mapRow(row as PermisoRow));
+      let result = (data ?? []).map((row) => mapRow(row as PermisoRow));
+
+      // Enforce visibility for non-admin users
+      if (caller && caller.userRol !== "admin") {
+        const accessibleIds = await getAccessibleIds(client, tenantId, "permiso", caller.userId);
+        result = result.filter(
+          (p) =>
+            p.visibilidad !== "restringido" ||
+            p.created_by === caller.userId ||
+            accessibleIds.has(p.id),
+        );
+      }
+
+      return result;
     },
 
     // M01-F02: Detalle del permiso
-    async getById(id: string): Promise<Permit | null> {
+    async getById(id: string, caller?: { userId: string; userRol: string }): Promise<Permit | null> {
       const { data, error } = await client
         .from("permisos")
         .select("*")
         .eq("id", id)
-        .eq("tenant_id", tenantId)          // ← evita acceso cross-tenant
+        .eq("tenant_id", tenantId)
         .single();
 
       if (error) {
         if (error.code === "PGRST116") return null; // not found
         throw error;
       }
-      return mapRow(data as PermisoRow);
+      const permit = mapRow(data as PermisoRow);
+
+      // Enforce visibility for non-admin users
+      if (caller && caller.userRol !== "admin" && permit.visibilidad === "restringido") {
+        if (permit.created_by !== caller.userId) {
+          const accessibleIds = await getAccessibleIds(client, tenantId, "permiso", caller.userId);
+          if (!accessibleIds.has(id)) return null;
+        }
+      }
+
+      return permit;
     },
 
     // M01-F04: Cronología del trámite

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import AppShell from "@/components/layout/app-shell";
 import { ContratoDetailClient } from "@/components/contratos/contrato-detail-client";
@@ -8,8 +9,9 @@ import { createNotasRepository } from "@/lib/repositories/notas";
 import { createActividadRepository } from "@/lib/repositories/actividad";
 import { createTareasRepository } from "@/lib/repositories/tareas";
 import { createUsuariosRepository } from "@/lib/repositories/usuarios";
-import { createAccesoRepository } from "@/lib/repositories/acceso";
+import { createAccesoRepository, getUserNivel } from "@/lib/repositories/acceso";
 import { createGruposRepository } from "@/lib/repositories/grupos";
+import { createSuscripcionesRepository } from "@/lib/repositories/suscripciones";
 import { getSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -23,8 +25,10 @@ export default async function ContratoDetallePage({
   const client = createAdminClient();
   const repo   = createContratosRepository(client, session.tenant_id);
 
+  const suscRepo = createSuscripcionesRepository(client, session.tenant_id);
+
   const [contrato, versiones, comentarios, notas, actividad, tareas, usuarios, accesos, grupos] = await Promise.all([
-    repo.getById(id),
+    repo.getById(id, { userId: session.user_id, userRol: session.rol }),
     repo.getVersiones(id),
     createComentariosRepository(client, session.tenant_id).list("contratos", id),
     createNotasRepository(client, session.tenant_id).list("contratos", id),
@@ -40,6 +44,12 @@ export default async function ContratoDetallePage({
 
   if (!contrato) notFound();
 
+  const [nivel, isSuscrito, suscripciones] = await Promise.all([
+    getUserNivel(client, session.tenant_id, "contrato", id, session.user_id, session.rol, contrato.created_by),
+    suscRepo.isSuscrito("contrato", id, session.user_id),
+    suscRepo.listByResource("contrato", id),
+  ]);
+
   return (
     <AppShell
       breadcrumb={`Inicio › Contratos › ${contrato.numero ?? id}`}
@@ -52,19 +62,24 @@ export default async function ContratoDetallePage({
         rol:             session.rol,
       }}
     >
-      <ContratoDetailClient
-        contrato={contrato}
-        versiones={versiones}
-        comentarios={comentarios}
-        notas={notas}
-        actividad={actividad}
-        tareas={tareas}
-        usuarios={usuarios}
-        accesos={accesos}
-        grupos={grupos}
-        userId={session.user_id}
-        userRol={session.rol}
-      />
+      <Suspense>
+        <ContratoDetailClient
+          contrato={contrato}
+          versiones={versiones}
+          comentarios={comentarios}
+          notas={notas}
+          actividad={actividad}
+          tareas={tareas}
+          usuarios={usuarios}
+          accesos={accesos}
+          grupos={grupos}
+          userId={session.user_id}
+          userRol={session.rol}
+          canEdit={nivel === "edicion"}
+          isSuscrito={isSuscrito}
+          suscripciones={suscripciones}
+        />
+      </Suspense>
     </AppShell>
   );
 }

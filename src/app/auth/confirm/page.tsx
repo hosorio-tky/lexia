@@ -11,6 +11,7 @@
  */
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { stampUltimoAcceso } from "@/app/actions/auth";
 
 export default function AuthConfirmPage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -33,12 +34,14 @@ export default function AuthConfirmPage() {
 
     supabase.auth
       .setSession({ access_token: accessToken, refresh_token: refreshToken })
-      .then(({ error }) => {
+      .then(async ({ error }) => {
         if (error) {
           console.error("[auth/confirm] setSession error:", error.message);
           setErrorMsg(error.message);
           return;
         }
+        // Marcar primer acceso — resuelve el estado "Pendiente"
+        await stampUltimoAcceso();
         // Hard navigation para que el servidor reciba las cookies recién escritas
         if (type === "recovery" || type === "invite") {
           window.location.href = "/actualizar-contrasena";

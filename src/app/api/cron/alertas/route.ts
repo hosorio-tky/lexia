@@ -1,124 +1,238 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createNotificacionesRepository } from "@/lib/repositories/notificaciones";
 import { sendAlertaVencimiento } from "@/lib/email/send";
+import { createSuscripcionesRepository } from "@/lib/repositories/suscripciones";
 import { logError } from "@/lib/logger";
+import type { ResourceType } from "@/types/access-control";
 
 /**
  * SC-05 — Alertas de vencimiento
  *
- * Invocado por Vercel Cron (vercel.json) o manualmente.
- * 1. Genera notificaciones in-app (RPC existente).
- * 2. Envía emails a responsables con vencimientos en 0 / 7 / 15 / 30 días.
+ * Lee las plantillas_alerta activas de cada tenant para determinar:
+ * - In-app: recursos que vencen dentro de los próximos `dias_antes` días
+ * - Email:  recursos que vencen EXACTAMENTE en `dias_antes` días
  *
- * Protegido por CRON_SECRET env var (Vercel la inyecta automáticamente).
+ * Corre vía Vercel Cron (vercel.json: 0 8 * * *) o manualmente.
  */
 
-// Días exactos en que se envía el email de alerta (0 = ya venció hoy)
-const DIAS_ALERTA = new Set([0, 7, 15, 30]);
-
 export async function GET(request: Request) {
-  // Verificar secreto de cron
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
-
   if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const client = createAdminClient();
-
-    // ── 1. Notificaciones in-app (comportamiento original) ─────────
-    const repo = createNotificacionesRepository(client, "");
-    const generadas = await repo.generarAlertasVencimiento();
-
-    // ── 2. Emails de alerta ────────────────────────────────────────
-    const hoy = new Date();
+    const hoy    = new Date();
     hoy.setHours(0, 0, 0, 0);
-    const limite = new Date(hoy);
-    limite.setDate(limite.getDate() + 30);
-    const limiteStr = limite.toISOString().split("T")[0];
+    const hoyStr = hoy.toISOString().split("T")[0];
 
-    let emailsEnviados = 0;
+    // ── 1. Leer todas las plantillas activas de vencimiento_proximo ──
+    const { data: plantillaRows, error: pErr } = await client
+      .from("plantillas_alerta")
+      .select("id, tenant_id, modulo, canal, dias_antes")
+      .eq("evento", "vencimiento_proximo")
+      .eq("activo", true);
+    if (pErr) throw pErr;
 
-    // Permisos próximos a vencer con responsable asignado
-    const { data: permisos } = await client
-      .from("permisos")
-      .select("id, nombre, fecha_vencimiento, responsable_id")
-      .not("fecha_vencimiento", "is", null)
-      .not("responsable_id", "is", null)
-      .lte("fecha_vencimiento", limiteStr)
-      .in("estado", ["activo", "en_tramite", "provisional"]);
-
-    for (const permiso of permisos ?? []) {
-      const dias = diasRestantes(hoy, permiso.fecha_vencimiento!);
-      if (!DIAS_ALERTA.has(dias)) continue;
-
-      const { data: p } = await client
-        .from("profiles").select("email, nombre, apellido")
-        .eq("id", permiso.responsable_id).single();
-      if (!p?.email) continue;
-
-      await sendAlertaVencimiento(p.email, {
-        destinatarioNombre: p.apellido ? `${p.nombre} ${p.apellido}` : p.nombre,
-        modulo:             "permisos",
-        recursoNombre:      permiso.nombre,
-        recursoId:          permiso.id,
-        fechaVencimiento:   permiso.fecha_vencimiento!,
-        diasRestantes:      dias,
-      }).catch((e) => console.error("[cron/alertas] email permiso:", e));
-      emailsEnviados++;
+    // Agrupar por tenant
+    const byTenant = new Map<string, typeof plantillaRows>();
+    for (const p of plantillaRows ?? []) {
+      if (!byTenant.has(p.tenant_id)) byTenant.set(p.tenant_id, []);
+      byTenant.get(p.tenant_id)!.push(p);
     }
 
-    // Contratos próximos a vencer con responsable asignado
-    const { data: contratos } = await client
-      .from("contratos")
-      .select("id, titulo, fecha_fin, responsable_id")
-      .not("fecha_fin", "is", null)
-      .not("responsable_id", "is", null)
-      .lte("fecha_fin", limiteStr)
-      .in("estado", ["activo", "en_revision", "borrador"]);
+    let inAppTotal   = 0;
+    let emailsTotal  = 0;
 
-    for (const contrato of contratos ?? []) {
-      const dias = diasRestantes(hoy, contrato.fecha_fin!);
-      if (!DIAS_ALERTA.has(dias)) continue;
+    for (const [tenantId, plantillas] of byTenant) {
+      const inAppPlantillas  = plantillas.filter((p) => p.canal === "in_app");
+      const emailPlantillas  = plantillas.filter((p) => p.canal === "email");
 
-      const { data: p } = await client
-        .from("profiles").select("email, nombre, apellido")
-        .eq("id", contrato.responsable_id).single();
-      if (!p?.email) continue;
+      // ── IN-APP ────────────────────────────────────────────────────
+      if (inAppPlantillas.length > 0) {
+        // Usuarios elegibles del tenant
+        const { data: usuarios } = await client
+          .from("profiles")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .in("rol", ["admin", "supervisor", "abogado"]);
 
-      await sendAlertaVencimiento(p.email, {
-        destinatarioNombre: p.apellido ? `${p.nombre} ${p.apellido}` : p.nombre,
-        modulo:             "contratos",
-        recursoNombre:      contrato.titulo,
-        recursoId:          contrato.id,
-        fechaVencimiento:   contrato.fecha_fin!,
-        diasRestantes:      dias,
-      }).catch((e) => console.error("[cron/alertas] email contrato:", e));
-      emailsEnviados++;
+        if (usuarios && usuarios.length > 0) {
+          // Notificaciones de hoy (para dedup)
+          const { data: hoyNotifs } = await client
+            .from("notificaciones")
+            .select("user_id, recurso_id")
+            .eq("tenant_id", tenantId)
+            .eq("tipo", "in_app")
+            .gte("created_at", hoyStr);
+
+          const yaEnviado = new Set(
+            (hoyNotifs ?? []).map((n: { user_id: string; recurso_id: string }) =>
+              `${n.user_id}:${n.recurso_id}`
+            )
+          );
+
+          for (const plantilla of inAppPlantillas) {
+            const dias    = plantilla.dias_antes ?? 30;
+            const limite  = addDays(hoy, dias).toISOString().split("T")[0];
+            const { recursos, nombreKey } = await fetchRecursos(
+              client, tenantId, plantilla.modulo, hoyStr, limite
+            );
+
+            const toInsert: Record<string, unknown>[] = [];
+            for (const recurso of recursos) {
+              const diasRest = diasRestantes(hoy, recurso.fecha!);
+              const nombre   = recurso[nombreKey] as string;
+              for (const usuario of usuarios) {
+                const key = `${usuario.id}:${recurso.id}`;
+                if (yaEnviado.has(key)) continue;
+                yaEnviado.add(key);
+                toInsert.push({
+                  tenant_id:   tenantId,
+                  user_id:     usuario.id,
+                  tipo:        "in_app",
+                  modulo:      plantilla.modulo,
+                  recurso_id:  recurso.id,
+                  recurso_desc: nombre,
+                  titulo:      diasRest <= 0
+                    ? `${nombre} ha vencido`
+                    : `${nombre} vence en ${diasRest} día${diasRest === 1 ? "" : "s"}`,
+                  mensaje:     `Módulo: ${plantilla.modulo === "permisos" ? "Permisos" : "Contratos"}`,
+                  leida:       false,
+                });
+              }
+            }
+
+            if (toInsert.length > 0) {
+              const { error } = await client.from("notificaciones").insert(toInsert);
+              if (error) console.error("[cron/alertas] in_app insert:", error.message);
+              else inAppTotal += toInsert.length;
+            }
+          }
+        }
+      }
+
+      // ── EMAIL ─────────────────────────────────────────────────────
+      for (const plantilla of emailPlantillas) {
+        const dias       = plantilla.dias_antes ?? 0;
+        const targetStr  = addDays(hoy, dias).toISOString().split("T")[0];
+        const { recursos, nombreKey } = await fetchRecursos(
+          client, tenantId, plantilla.modulo, targetStr, targetStr
+        );
+
+        const suscRepo = createSuscripcionesRepository(client, tenantId);
+        const resourceType: ResourceType = plantilla.modulo === "permisos" ? "permiso" : "contrato";
+
+        for (const recurso of recursos) {
+          const nombre = recurso[nombreKey] as string;
+          const payload = {
+            modulo:           plantilla.modulo,
+            recursoNombre:    nombre,
+            recursoId:        recurso.id,
+            fechaVencimiento: recurso.fecha!,
+            diasRestantes:    dias,
+          };
+
+          // Emails ya enviados en este recurso (dedup)
+          const emailsEnviados = new Set<string>();
+
+          // Responsable
+          if (recurso.responsable_id) {
+            const { data: profile } = await client
+              .from("profiles")
+              .select("email, nombre, apellido")
+              .eq("id", recurso.responsable_id)
+              .single();
+            if (profile?.email) {
+              emailsEnviados.add(profile.email);
+              await sendAlertaVencimiento(profile.email, {
+                destinatarioNombre: profile.apellido
+                  ? `${profile.nombre} ${profile.apellido}`
+                  : profile.nombre,
+                ...payload,
+              }).catch((e) => console.error("[cron/alertas] email responsable:", e));
+              emailsTotal++;
+            }
+          }
+
+          // Suscriptores (sin duplicar al responsable)
+          const suscEmails = await suscRepo.getSuscriptoresEmail(resourceType, recurso.id);
+          for (const email of suscEmails) {
+            if (emailsEnviados.has(email)) continue;
+            emailsEnviados.add(email);
+            await sendAlertaVencimiento(email, {
+              destinatarioNombre: email,
+              ...payload,
+            }).catch((e) => console.error("[cron/alertas] email suscriptor:", e));
+            emailsTotal++;
+          }
+        }
+      }
     }
 
     return NextResponse.json({
-      ok: true,
-      notificaciones_generadas: generadas,
-      emails_enviados:          emailsEnviados,
-      timestamp:                new Date().toISOString(),
+      ok:                    true,
+      notificaciones_in_app: inAppTotal,
+      emails_enviados:       emailsTotal,
+      tenants_procesados:    byTenant.size,
+      timestamp:             new Date().toISOString(),
     });
   } catch (error) {
     console.error("[cron/alertas] Error:", error);
     await logError(String(error), { path: "/api/cron/alertas", action: "GET" });
-    return NextResponse.json(
-      { ok: false, error: String(error) },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: String(error) }, { status: 500 });
   }
 }
 
-/** Días que faltan para `fechaStr` desde `hoy` (negativo = ya venció) */
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function addDays(base: Date, days: number): Date {
+  const d = new Date(base);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
 function diasRestantes(hoy: Date, fechaStr: string): number {
   const fecha = new Date(fechaStr);
   fecha.setHours(0, 0, 0, 0);
   return Math.round((fecha.getTime() - hoy.getTime()) / 86_400_000);
+}
+
+async function fetchRecursos(
+  client: ReturnType<typeof createAdminClient>,
+  tenantId: string,
+  modulo: string,
+  desde: string,
+  hasta: string,
+): Promise<{
+  recursos: Array<{ id: string; fecha: string | null; responsable_id?: string | null; [key: string]: unknown }>;
+  nombreKey: string;
+}> {
+  if (modulo === "permisos") {
+    const { data } = await client
+      .from("permisos")
+      .select("id, nombre, fecha_vencimiento, responsable_id")
+      .eq("tenant_id", tenantId)
+      .gte("fecha_vencimiento", desde)
+      .lte("fecha_vencimiento", hasta)
+      .in("estado", ["activo", "en_tramite", "provisional"]);
+    return {
+      recursos: (data ?? []).map((r) => ({ ...r, fecha: r.fecha_vencimiento })),
+      nombreKey: "nombre",
+    };
+  } else {
+    const { data } = await client
+      .from("contratos")
+      .select("id, titulo, fecha_fin, responsable_id")
+      .eq("tenant_id", tenantId)
+      .gte("fecha_fin", desde)
+      .lte("fecha_fin", hasta)
+      .in("estado", ["Vigente", "En Revisión", "Pendiente Firma"]);
+    return {
+      recursos: (data ?? []).map((r) => ({ ...r, fecha: r.fecha_fin })),
+      nombreKey: "titulo",
+    };
+  }
 }

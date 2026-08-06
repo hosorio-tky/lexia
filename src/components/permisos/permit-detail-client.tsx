@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Calendar, ChevronDown, ChevronUp,
-  Edit, MapPin, RefreshCw,
+  Edit, MapPin, RefreshCw, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -16,7 +17,12 @@ import { Separator } from "@/components/ui/separator";
 import { PermitStatusBadge, VigenciaBadge } from "./permit-status-badge";
 import { PermitTimeline } from "./permit-timeline";
 import { PermitWorkflowModal } from "./permit-workflow-modal";
-import { cambiarEstado } from "@/app/actions/permisos";
+import { cambiarEstado, eliminarPermiso } from "@/app/actions/permisos";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   PERMIT_STATUSES,
   calcularVigencia,
@@ -31,12 +37,14 @@ import { ComentariosPanel } from "@/components/shared/comentarios-panel";
 import { NotasPanel } from "@/components/shared/notas-panel";
 import { AuditLogPanel } from "@/components/shared/audit-log-panel";
 import { AccesoPanel } from "@/components/shared/acceso-panel";
+import { SuscripcionWidget } from "@/components/shared/suscripcion-widget";
 import type { UserProfile } from "@/types/users";
 import type { Task } from "@/types/tasks";
 import type { Comentario } from "@/lib/repositories/comentarios";
 import type { Nota } from "@/lib/repositories/notas";
 import type { ActividadEntry } from "@/lib/repositories/actividad";
 import type { RecursoAcceso, Grupo } from "@/types/access-control";
+import type { Suscripcion } from "@/lib/repositories/suscripciones";
 
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
   return (
@@ -94,6 +102,9 @@ export function PermitDetailClient({
   grupos = [],
   userId = "",
   userRol = "usuario",
+  canEdit = true,
+  isSuscrito = false,
+  suscripciones = [],
 }: {
   permit: Permit;
   timeline: TimelineEvent[];
@@ -107,7 +118,15 @@ export function PermitDetailClient({
   grupos?: Grupo[];
   userId?: string;
   userRol?: string;
+  canEdit?: boolean;
+  isSuscrito?: boolean;
+  suscripciones?: Suscripcion[];
 }) {
+  const searchParams = useSearchParams();
+  const router       = useRouter();
+  const fromView     = searchParams.get("from");
+  const backHref     = fromView ? `/permisos?v=${fromView}` : "/permisos";
+
   const [permit, setPermit]     = useState(initialPermit);
   const [timeline, setTimeline] = useState(initialTimeline);
   const [workflowOpen, setWorkflowOpen] = useState(false);
@@ -143,7 +162,7 @@ export function PermitDetailClient({
   return (
     <div className="flex flex-col gap-5">
       <Link
-        href="/permisos"
+        href={backHref}
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -304,26 +323,14 @@ export function PermitDetailClient({
             />
           </Section>
 
-          {/* Acceso */}
-          <Section title="Control de acceso" defaultOpen={false}>
-            <AccesoPanel
-              resourceType="permiso"
-              resourceId={permit.id}
-              resourceName={permit.nombre}
-              visibilidad={permit.visibilidad ?? "publico"}
-              accesos={accesos}
-              usuarios={usuarios}
-              grupos={grupos}
-              canManage={userRol === "admin" || permit.created_by === userId}
-            />
-          </Section>
-
           {/* SC-01 — Comentarios */}
-          <Section title="Comentarios" defaultOpen={false}>
+          <Section title={`Comentarios${comentarios.length > 0 ? ` (${comentarios.length})` : ""}`} defaultOpen={false}>
             <ComentariosPanel
               modulo="permisos"
               recursoId={permit.id}
+              recursoDesc={permit.nombre}
               userId={userId}
+              userRol={userRol}
               initialComentarios={comentarios}
               users={usuarios.map((u) => ({
                 id:       u.id,
@@ -338,7 +345,10 @@ export function PermitDetailClient({
             <NotasPanel
               modulo="permisos"
               recursoId={permit.id}
+              recursoDesc={permit.nombre}
               initialNotas={notas}
+              userId={userId}
+              userRol={userRol}
               users={usuarios.map((u) => ({
                 id:       u.id,
                 label:    u.nombre_completo || u.nombre,
@@ -384,29 +394,99 @@ export function PermitDetailClient({
               Estado actual: <strong className="text-foreground">{permit.estado}</strong>
             </p>
             <div className="flex flex-col gap-2">
-              <Button
-                className="w-full"
-                onClick={() => setWorkflowOpen(true)}
-                disabled={isPending}
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Cambiar estado
-              </Button>
-              <TaskQuickCreate
-                modulo="permisos"
-                recursoId={permit.id}
-                recursoDesc={permit.nombre}
-                usuarios={usuarios}
-                variant="outline"
-                size="sm"
-              />
-              <Link href={`/permisos/${permit.id}/editar`}>
-                <Button variant="outline" className="w-full">
-                  <Edit className="mr-2 h-4 w-4" />
-                  Editar permiso
+              {canEdit && (
+                <Button
+                  className="w-full"
+                  onClick={() => setWorkflowOpen(true)}
+                  disabled={isPending}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Cambiar estado
                 </Button>
-              </Link>
+              )}
+              {canEdit && (
+                <TaskQuickCreate
+                  modulo="permisos"
+                  recursoId={permit.id}
+                  recursoDesc={permit.nombre}
+                  usuarios={usuarios}
+                  variant="outline"
+                  size="sm"
+                />
+              )}
+              {canEdit && (
+                <Link href={`/permisos/${permit.id}/editar`}>
+                  <Button variant="outline" className="w-full">
+                    <Edit className="mr-2 h-4 w-4" />
+                    Editar permiso
+                  </Button>
+                </Link>
+              )}
+              {!canEdit && (
+                <p className="text-xs text-muted-foreground text-center py-1">
+                  Acceso de solo lectura
+                </p>
+              )}
+              {canEdit && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <button className="mt-1 flex w-full items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors py-1">
+                      <Trash2 className="h-3 w-3" />
+                      Eliminar permiso
+                    </button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Eliminar permiso?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Se eliminará <strong>{permit.nombre}</strong> de forma permanente. Esta acción no se puede deshacer.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={() => startTransition(async () => {
+                          await eliminarPermiso(permit.id);
+                          router.push("/permisos");
+                        })}
+                      >
+                        Eliminar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </div>
+          </Card>
+
+          {/* Control de acceso */}
+          <Card className="p-4 shadow-sm">
+            <h3 className="text-sm font-semibold mb-3">Control de acceso</h3>
+            <AccesoPanel
+              resourceType="permiso"
+              resourceId={permit.id}
+              resourceName={permit.nombre}
+              visibilidad={permit.visibilidad ?? "publico"}
+              accesos={accesos}
+              usuarios={usuarios}
+              grupos={grupos}
+              canManage={userRol === "admin" || permit.created_by === userId}
+            />
+          </Card>
+
+          {/* Alertas / Suscripciones */}
+          <Card className="p-4 shadow-sm">
+            <h3 className="text-sm font-semibold mb-3">Alertas de vencimiento</h3>
+            <SuscripcionWidget
+              resourceType="permiso"
+              resourceId={permit.id}
+              userId={userId}
+              canManage={userRol === "admin" || permit.created_by === userId}
+              initialSuscrito={isSuscrito}
+              initialSuscripciones={suscripciones}
+              usuarios={usuarios}
+            />
           </Card>
         </div>
       </div>

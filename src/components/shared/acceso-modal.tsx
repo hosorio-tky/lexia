@@ -27,6 +27,8 @@ interface AccesoModalProps {
   accesos: RecursoAcceso[];
   usuarios: UserProfile[];
   grupos: Grupo[];
+  onVisibilidadChange?: (v: "publico" | "restringido") => void;
+  onAccesosChange?: (accesos: RecursoAcceso[]) => void;
 }
 
 const NIVEL_LABELS: Record<NivelAcceso, string> = {
@@ -44,6 +46,8 @@ export function AccesoModal({
   accesos: initialAccesos,
   usuarios,
   grupos,
+  onVisibilidadChange,
+  onAccesosChange,
 }: AccesoModalProps) {
   const [visibilidad, setVisibilidadLocal]   = useState(initialVisibilidad);
   const [accesos, setAccesos]               = useState(initialAccesos);
@@ -64,11 +68,13 @@ export function AccesoModal({
   const handleToggleVisibilidad = () => {
     const next = visibilidad === "publico" ? "restringido" : "publico";
     setVisibilidadLocal(next);
+    onVisibilidadChange?.(next);
     startTransition(async () => {
       try {
         await setVisibilidad(resourceType, resourceId, next);
       } catch {
         setVisibilidadLocal(visibilidad);
+        onVisibilidadChange?.(visibilidad);
         toast.error("Error al cambiar la visibilidad");
       }
     });
@@ -90,7 +96,9 @@ export function AccesoModal({
       const filtered = prev.filter(
         (a) => !(a.subject_type === subjectType && a.subject_id === subjectId)
       );
-      return [...filtered, newAcceso];
+      const next = [...filtered, newAcceso];
+      onAccesosChange?.(next);
+      return next;
     });
     setSubjectId("");
     startTransition(async () => {
@@ -105,9 +113,13 @@ export function AccesoModal({
   };
 
   const handleRevoke = (acceso: RecursoAcceso) => {
-    setAccesos((prev) =>
-      prev.filter((a) => !(a.subject_type === acceso.subject_type && a.subject_id === acceso.subject_id))
-    );
+    setAccesos((prev) => {
+      const next = prev.filter(
+        (a) => !(a.subject_type === acceso.subject_type && a.subject_id === acceso.subject_id)
+      );
+      onAccesosChange?.(next);
+      return next;
+    });
     startTransition(async () => {
       try {
         await revokeAcceso(resourceType, resourceId, acceso.subject_type, acceso.subject_id);

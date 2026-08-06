@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Calendar, ChevronDown, ChevronUp, Edit, FileDown, RefreshCw, Trash2,
@@ -21,6 +22,7 @@ import { NotasPanel } from "@/components/shared/notas-panel";
 import { AuditLogPanel } from "@/components/shared/audit-log-panel";
 import { RichTextView } from "@/components/shared/rich-text-editor";
 import { AccesoPanel } from "@/components/shared/acceso-panel";
+import { SuscripcionWidget } from "@/components/shared/suscripcion-widget";
 import { cambiarEstadoContrato, eliminarContrato } from "@/app/actions/contratos";
 import {
   CONTRACT_ESTADOS,
@@ -32,10 +34,16 @@ import {
 } from "@/types/contratos";
 import type { UserProfile } from "@/types/users";
 import type { Task } from "@/types/tasks";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import type { Comentario } from "@/lib/repositories/comentarios";
 import type { Nota } from "@/lib/repositories/notas";
 import type { ActividadEntry } from "@/lib/repositories/actividad";
 import type { RecursoAcceso, Grupo } from "@/types/access-control";
+import type { Suscripcion } from "@/lib/repositories/suscripciones";
 
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
   return (
@@ -133,19 +141,30 @@ export function ContratoDetailClient({
   grupos = [],
   userId = "",
   userRol = "usuario",
+  canEdit = true,
+  isSuscrito = false,
+  suscripciones = [],
 }: {
-  contrato:    Contrato;
-  versiones:   ContratoVersion[];
-  comentarios: Comentario[];
-  notas:       Nota[];
-  actividad:   ActividadEntry[];
-  tareas?:     Task[];
-  usuarios?:   UserProfile[];
-  accesos?:    RecursoAcceso[];
-  grupos?:     Grupo[];
-  userId?:     string;
-  userRol?:    string;
+  contrato:      Contrato;
+  versiones:     ContratoVersion[];
+  comentarios:   Comentario[];
+  notas:         Nota[];
+  actividad:     ActividadEntry[];
+  tareas?:       Task[];
+  usuarios?:     UserProfile[];
+  accesos?:      RecursoAcceso[];
+  grupos?:       Grupo[];
+  userId?:       string;
+  userRol?:      string;
+  canEdit?:      boolean;
+  isSuscrito?:   boolean;
+  suscripciones?: Suscripcion[];
 }) {
+  const searchParams = useSearchParams();
+  const router       = useRouter();
+  const fromView     = searchParams.get("from");
+  const backHref     = fromView ? `/contratos?v=${fromView}` : "/contratos";
+
   const [contrato, setContrato]         = useState(initialContrato);
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const [isPending, startTransition]    = useTransition();
@@ -155,10 +174,7 @@ export function ContratoDetailClient({
     startTransition(() => cambiarEstadoContrato(contrato.id, nuevoEstado));
   };
 
-  const handleEliminar = () => {
-    if (!confirm("¿Eliminar este contrato? Esta acción es irreversible.")) return;
-    startTransition(() => eliminarContrato(contrato.id));
-  };
+
 
   const progress        = workflowProgress(contrato.estado);
   const tieneProgreso   = !!(contrato.fecha_inicio && contrato.fecha_fin);
@@ -166,7 +182,7 @@ export function ContratoDetailClient({
   return (
     <div className="flex flex-col gap-5">
       <Link
-        href="/contratos"
+        href={backHref}
         className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition"
       >
         <ArrowLeft className="h-4 w-4" />
@@ -282,26 +298,14 @@ export function ContratoDetailClient({
             />
           </Section>
 
-          {/* Acceso */}
-          <Section title="Control de acceso" defaultOpen={false}>
-            <AccesoPanel
-              resourceType="contrato"
-              resourceId={contrato.id}
-              resourceName={contrato.titulo}
-              visibilidad={contrato.visibilidad ?? "publico"}
-              accesos={accesos}
-              usuarios={usuarios}
-              grupos={grupos}
-              canManage={userRol === "admin" || contrato.created_by === userId}
-            />
-          </Section>
-
           {/* Comentarios */}
-          <Section title="Comentarios" defaultOpen={false}>
+          <Section title={`Comentarios${initialComentarios.length > 0 ? ` (${initialComentarios.length})` : ""}`} defaultOpen={false}>
             <ComentariosPanel
               modulo="contratos"
               recursoId={contrato.id}
+              recursoDesc={contrato.titulo}
               userId={userId}
+              userRol={userRol}
               initialComentarios={initialComentarios}
               users={usuarios.map((u) => ({
                 id:        u.id,
@@ -319,7 +323,10 @@ export function ContratoDetailClient({
             <NotasPanel
               modulo="contratos"
               recursoId={contrato.id}
+              recursoDesc={contrato.titulo}
               initialNotas={initialNotas}
+              userId={userId}
+              userRol={userRol}
               users={usuarios.map((u) => ({
                 id:        u.id,
                 label:     u.nombre_completo || u.nombre,
@@ -382,20 +389,29 @@ export function ContratoDetailClient({
               Estado actual: <strong className="text-foreground">{contrato.estado}</strong>
             </p>
             <div className="flex flex-col gap-2">
-              <Button
-                className="w-full"
-                onClick={() => setWorkflowOpen(true)}
-                disabled={isPending}
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Cambiar estado
-              </Button>
-              <Link href={`/contratos/${contrato.id}/editar`}>
-                <Button variant="outline" className="w-full">
-                  <Edit className="mr-2 h-4 w-4" />
-                  Editar contrato
+              {canEdit && (
+                <Button
+                  className="w-full"
+                  onClick={() => setWorkflowOpen(true)}
+                  disabled={isPending}
+                >
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Cambiar estado
                 </Button>
-              </Link>
+              )}
+              {canEdit && (
+                <Link href={`/contratos/${contrato.id}/editar`}>
+                  <Button variant="outline" className="w-full">
+                    <Edit className="mr-2 h-4 w-4" />
+                    Editar contrato
+                  </Button>
+                </Link>
+              )}
+              {!canEdit && (
+                <p className="text-xs text-muted-foreground text-center py-1">
+                  Acceso de solo lectura
+                </p>
+              )}
               <a
                 href={`/contratos/${contrato.id}/imprimir`}
                 target="_blank"
@@ -406,16 +422,66 @@ export function ContratoDetailClient({
                   Exportar PDF
                 </Button>
               </a>
-              <Button
-                variant="outline"
-                className="w-full text-destructive hover:text-destructive"
-                onClick={handleEliminar}
-                disabled={isPending}
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                Eliminar
-              </Button>
+              {canEdit && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <button className="mt-1 flex w-full items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors py-1">
+                      <Trash2 className="h-3 w-3" />
+                      Eliminar contrato
+                    </button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Eliminar contrato?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Se eliminará <strong>{contrato.titulo}</strong> de forma permanente. Esta acción no se puede deshacer.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        onClick={() => startTransition(async () => {
+                          await eliminarContrato(contrato.id);
+                          router.push("/contratos");
+                        })}
+                      >
+                        Eliminar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </div>
+          </Card>
+
+          {/* Control de acceso */}
+          <Card className="p-4 shadow-sm">
+            <h3 className="text-sm font-semibold mb-3">Control de acceso</h3>
+            <AccesoPanel
+              resourceType="contrato"
+              resourceId={contrato.id}
+              resourceName={contrato.titulo}
+              visibilidad={contrato.visibilidad ?? "publico"}
+              accesos={accesos}
+              usuarios={usuarios}
+              grupos={grupos}
+              canManage={userRol === "admin" || contrato.created_by === userId}
+            />
+          </Card>
+
+          {/* Alertas / Suscripciones */}
+          <Card className="p-4 shadow-sm">
+            <h3 className="text-sm font-semibold mb-3">Alertas de vencimiento</h3>
+            <SuscripcionWidget
+              resourceType="contrato"
+              resourceId={contrato.id}
+              userId={userId}
+              canManage={userRol === "admin" || contrato.created_by === userId}
+              initialSuscrito={isSuscrito}
+              initialSuscripciones={suscripciones}
+              usuarios={usuarios}
+            />
           </Card>
 
           {/* Resumen económico */}

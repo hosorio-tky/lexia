@@ -45,15 +45,11 @@ export interface CatalogoItem {
 // ─── Plantillas de alerta (T06-F02) ──────────────────────────────────────────
 export const EVENTOS_ALERTA = [
   "vencimiento_proximo",
-  "cambio_estado",
-  "creacion",
 ] as const;
 export type EventoAlerta = (typeof EVENTOS_ALERTA)[number];
 
 export const EVENTO_LABELS: Record<EventoAlerta, string> = {
   vencimiento_proximo: "Vencimiento próximo",
-  cambio_estado:       "Cambio de estado",
-  creacion:            "Creación de registro",
 };
 
 export const CANALES_ALERTA = ["in_app", "email"] as const;

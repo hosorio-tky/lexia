@@ -46,6 +46,15 @@ export async function setVisibilidad(
 
     const client = createAdminClient();
     const repo = createAccesoRepository(client, session.tenant_id);
+
+    // Read current value for the log
+    const table = resourceType === "permiso" ? "permisos" : "contratos";
+    const { data: current } = await client
+      .from(table)
+      .select("visibilidad")
+      .eq("id", resourceId)
+      .single();
+
     await repo.setVisibilidad(resourceType, resourceId, visibilidad);
 
     await logActivity({
@@ -55,7 +64,11 @@ export async function setVisibilidad(
       accion:       "cambiar_visibilidad",
       modulo:       resourceType === "permiso" ? "permisos" : "contratos",
       recurso_id:   resourceId,
-      recurso_desc: visibilidad,
+      recurso_desc: `Visibilidad: ${visibilidad === "publico" ? "Público" : "Restringido"}`,
+      metadata: {
+        anterior: current?.visibilidad === "publico" ? "Público" : "Restringido",
+        nuevo:    visibilidad === "publico" ? "Público" : "Restringido",
+      },
     });
 
     revalidatePath(resourcePath(resourceType, resourceId));
@@ -64,6 +77,31 @@ export async function setVisibilidad(
     await logError(msg, { path: "/actions/acceso", action: "setVisibilidad" });
     throw err;
   }
+}
+
+async function resolveSubjectName(
+  client: ReturnType<typeof createAdminClient>,
+  tenantId: string,
+  subjectType: SubjectType,
+  subjectId: string
+): Promise<string> {
+  if (subjectType === "user") {
+    const { data } = await client
+      .from("profiles")
+      .select("nombre, apellido")
+      .eq("id", subjectId)
+      .single();
+    if (data) return [data.nombre, data.apellido].filter(Boolean).join(" ");
+  } else {
+    const { data } = await client
+      .from("grupos")
+      .select("nombre")
+      .eq("id", subjectId)
+      .eq("tenant_id", tenantId)
+      .single();
+    if (data) return data.nombre;
+  }
+  return subjectId;
 }
 
 export async function grantAcceso(
@@ -81,6 +119,10 @@ export async function grantAcceso(
     const repo = createAccesoRepository(client, session.tenant_id);
     await repo.grant({ resourceType, resourceId, subjectType, subjectId, nivel });
 
+    const subjectName = await resolveSubjectName(client, session.tenant_id, subjectType, subjectId);
+    const nivelLabel  = nivel === "edicion" ? "Edición" : "Lectura";
+    const typeLabel   = subjectType === "user" ? "Usuario" : "Grupo";
+
     await logActivity({
       tenant_id:    session.tenant_id,
       user_id:      session.user_id,
@@ -88,7 +130,12 @@ export async function grantAcceso(
       accion:       "otorgar_acceso",
       modulo:       resourceType === "permiso" ? "permisos" : "contratos",
       recurso_id:   resourceId,
-      recurso_desc: `${subjectType}:${subjectId} nivel=${nivel}`,
+      recurso_desc: `Acceso otorgado a ${subjectName} (${nivelLabel})`,
+      metadata: {
+        subject_type: typeLabel,
+        subject_name: subjectName,
+        nivel:        nivelLabel,
+      },
     });
 
     revalidatePath(resourcePath(resourceType, resourceId));
@@ -111,6 +158,10 @@ export async function revokeAcceso(
 
     const client = createAdminClient();
     const repo = createAccesoRepository(client, session.tenant_id);
+
+    const subjectName = await resolveSubjectName(client, session.tenant_id, subjectType, subjectId);
+    const typeLabel   = subjectType === "user" ? "Usuario" : "Grupo";
+
     await repo.revoke({ resourceType, resourceId, subjectType, subjectId });
 
     await logActivity({
@@ -120,7 +171,11 @@ export async function revokeAcceso(
       accion:       "revocar_acceso",
       modulo:       resourceType === "permiso" ? "permisos" : "contratos",
       recurso_id:   resourceId,
-      recurso_desc: `${subjectType}:${subjectId}`,
+      recurso_desc: `Acceso revocado a ${subjectName}`,
+      metadata: {
+        subject_type: typeLabel,
+        subject_name: subjectName,
+      },
     });
 
     revalidatePath(resourcePath(resourceType, resourceId));

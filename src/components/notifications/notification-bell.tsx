@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useTransition, useRef } from "react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import {
   Bell, Check, CheckCheck, ExternalLink, FileText,
-  ClipboardCheck, Trash2,
+  ClipboardCheck, FileSignature, Trash2,
 } from "lucide-react";
 import {
   Popover,
@@ -25,13 +26,15 @@ import {
 import type { Notificacion } from "@/types/notifications";
 
 const MODULO_ICONS: Record<string, React.ReactNode> = {
-  permisos: <FileText     className="h-3.5 w-3.5" />,
-  tareas:   <ClipboardCheck className="h-3.5 w-3.5" />,
+  permisos:  <FileText      className="h-3.5 w-3.5" />,
+  contratos: <FileSignature className="h-3.5 w-3.5" />,
+  tareas:    <ClipboardCheck className="h-3.5 w-3.5" />,
 };
 
 const MODULO_HREFS: Record<string, string> = {
-  permisos: "/permisos",
-  tareas:   "/tareas",
+  permisos:  "/permisos",
+  contratos: "/contratos",
+  tareas:    "/tareas",
 };
 
 function NotifItem({
@@ -134,15 +137,49 @@ export function NotificationBell() {
   const [open, setOpen]         = useState(false);
   const [loaded, setLoaded]     = useState(false);
   const [, startTransition]     = useTransition();
+  const channelRef              = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
 
   const unreadCount = notifs.filter((n) => !n.leida).length;
 
-  // Cargar al montar
+  // Carga inicial + suscripción Realtime
   useEffect(() => {
     obtenerNotificacionesRecientes().then((data) => {
       setNotifs(data);
       setLoaded(true);
     });
+
+    const supabase = createClient();
+
+    // Obtener el usuario actual para filtrar por user_id
+    supabase.auth.getUser().then(({ data }) => {
+      const userId = data.user?.id;
+      if (!userId) return;
+
+      const channel = supabase
+        .channel(`notificaciones:${userId}`)
+        .on(
+          "postgres_changes",
+          {
+            event:  "INSERT",
+            schema: "public",
+            table:  "notificaciones",
+            filter: `user_id=eq.${userId}`,
+          },
+          (payload) => {
+            setNotifs((prev) => [payload.new as Notificacion, ...prev]);
+          }
+        )
+        .subscribe();
+
+      channelRef.current = channel;
+    });
+
+    return () => {
+      if (channelRef.current) {
+        const supabase = createClient();
+        supabase.removeChannel(channelRef.current);
+      }
+    };
   }, []);
 
   function handleOpen(v: boolean) {

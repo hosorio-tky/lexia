@@ -28,7 +28,7 @@ export function PermitCardsGrid({ permits }: { permits: Permit[] }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {permits.map((permit) => (
-        <Link key={permit.id} href={`/permisos/${permit.id}`}>
+        <Link key={permit.id} href={`/permisos/${permit.id}?from=grid`}>
           <Card className="overflow-hidden transition-all hover:shadow-md cursor-pointer h-full">
             <div className={`h-1.5 w-full ${TYPE_COLORS[permit.tipo] ?? "bg-slate-400"}`} />
             <div className="p-4 space-y-3">

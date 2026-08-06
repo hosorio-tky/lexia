@@ -97,17 +97,25 @@ export function createGruposRepository(client: SupabaseClient, tenantId: string)
     },
 
     async listMiembros(grupoId: string): Promise<GrupoMiembro[]> {
-      const { data, error } = await client
+      const { data: rows, error } = await client
         .from("grupo_miembros")
-        .select(`
-          id, user_id, added_by, created_at,
-          profile:profiles(nombre, apellido, email, rol)
-        `)
+        .select("id, user_id, added_by, created_at")
         .eq("grupo_id", grupoId)
         .eq("tenant_id", tenantId);
       if (error) throw error;
-      return (data ?? []).map((m) => {
-        const profile = m.profile as { nombre?: string; apellido?: string; email?: string; rol?: string } | null;
+      if (!rows || rows.length === 0) return [];
+
+      const userIds = rows.map((r) => r.user_id);
+      const { data: profiles, error: profilesError } = await client
+        .from("profiles")
+        .select("id, nombre, apellido, email, rol")
+        .in("id", userIds);
+      if (profilesError) throw profilesError;
+
+      const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+      return rows.map((m) => {
+        const p = profileMap.get(m.user_id);
         return {
           id:         m.id,
           tenant_id:  tenantId,
@@ -115,10 +123,10 @@ export function createGruposRepository(client: SupabaseClient, tenantId: string)
           user_id:    m.user_id,
           added_by:   m.added_by,
           created_at: m.created_at,
-          nombre:     profile?.nombre,
-          apellido:   profile?.apellido,
-          email:      profile?.email,
-          rol:        profile?.rol,
+          nombre:     p?.nombre,
+          apellido:   p?.apellido,
+          email:      p?.email,
+          rol:        p?.rol,
         };
       });
     },

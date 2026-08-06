@@ -22,16 +22,18 @@ export function AccesoPanel({
   resourceType,
   resourceId,
   resourceName,
-  visibilidad,
-  accesos,
+  visibilidad: initialVisibilidad,
+  accesos: initialAccesos,
   usuarios,
   grupos,
   canManage,
 }: AccesoPanelProps) {
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOpen,   setModalOpen]   = useState(false);
+  const [visibilidad, setVisibilidad] = useState(initialVisibilidad);
+  const [accesos,     setAccesos]     = useState(initialAccesos);
 
-  const isPublico    = visibilidad === "publico";
-  const accesoCount  = accesos.length;
+  const isPublico   = visibilidad === "publico";
+  const accesoCount = accesos.length;
 
   return (
     <div className="space-y-3">
@@ -113,6 +115,8 @@ export function AccesoPanel({
         accesos={accesos}
         usuarios={usuarios}
         grupos={grupos}
+        onVisibilidadChange={setVisibilidad}
+        onAccesosChange={setAccesos}
       />
     </div>
   );

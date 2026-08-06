@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import AppShell from "@/components/layout/app-shell";
 import { PermitDetailClient } from "@/components/permisos/permit-detail-client";
@@ -8,8 +9,9 @@ import { createTareasRepository } from "@/lib/repositories/tareas";
 import { createComentariosRepository } from "@/lib/repositories/comentarios";
 import { createNotasRepository } from "@/lib/repositories/notas";
 import { createActividadRepository } from "@/lib/repositories/actividad";
-import { createAccesoRepository } from "@/lib/repositories/acceso";
+import { createAccesoRepository, getUserNivel } from "@/lib/repositories/acceso";
 import { createGruposRepository } from "@/lib/repositories/grupos";
+import { createSuscripcionesRepository } from "@/lib/repositories/suscripciones";
 import { getSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +26,11 @@ export default async function PermisoDetallePage({
 
   const repo = createPermisosRepository(client, session.tenant_id);
 
+  const suscRepo = createSuscripcionesRepository(client, session.tenant_id);
+
   const [permit, timeline, fechasHistorial, usuarios, tareas, comentarios, notas, actividad, accesos, grupos] =
     await Promise.all([
-      repo.getById(id),
+      repo.getById(id, { userId: session.user_id, userRol: session.rol }),
       repo.getTimeline(id),
       repo.getFechasHistorial(id),
       createUsuariosRepository(client, session.tenant_id).list(),
@@ -43,6 +47,12 @@ export default async function PermisoDetallePage({
 
   if (!permit) notFound();
 
+  const [nivel, isSuscrito, suscripciones] = await Promise.all([
+    getUserNivel(client, session.tenant_id, "permiso", id, session.user_id, session.rol, permit.created_by),
+    suscRepo.isSuscrito("permiso", id, session.user_id),
+    suscRepo.listByResource("permiso", id),
+  ]);
+
   return (
     <AppShell
       breadcrumb={`Inicio › Permisos › ${permit.numero_expediente ?? id}`}
@@ -55,20 +65,25 @@ export default async function PermisoDetallePage({
         rol:             session.rol,
       }}
     >
-      <PermitDetailClient
-        permit={permit}
-        timeline={timeline}
-        fechasHistorial={fechasHistorial}
-        usuarios={usuarios}
-        tareas={tareas}
-        comentarios={comentarios}
-        notas={notas}
-        actividad={actividad}
-        accesos={accesos}
-        grupos={grupos}
-        userId={session.user_id}
-        userRol={session.rol}
-      />
+      <Suspense>
+        <PermitDetailClient
+          permit={permit}
+          timeline={timeline}
+          fechasHistorial={fechasHistorial}
+          usuarios={usuarios}
+          tareas={tareas}
+          comentarios={comentarios}
+          notas={notas}
+          actividad={actividad}
+          accesos={accesos}
+          grupos={grupos}
+          userId={session.user_id}
+          userRol={session.rol}
+          canEdit={nivel === "edicion"}
+          isSuscrito={isSuscrito}
+          suscripciones={suscripciones}
+        />
+      </Suspense>
     </AppShell>
   );
 }

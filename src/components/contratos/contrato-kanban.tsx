@@ -25,7 +25,7 @@ function formatValor(valor?: number, moneda?: string): string | null {
   return `${moneda ?? "USD"} ${valor.toLocaleString("es-SV", { minimumFractionDigits: 0 })}`;
 }
 
-function ContratoCard({ contrato }: { contrato: Contrato }) {
+function ContratoCard({ contrato, canEdit }: { contrato: Contrato; canEdit: boolean }) {
   const [isPending, startTransition] = useTransition();
   const transiciones = ESTADO_TRANSITIONS[contrato.estado];
   const dias         = diasRestantes(contrato.fecha_fin);
@@ -34,14 +34,14 @@ function ContratoCard({ contrato }: { contrato: Contrato }) {
     <div className="rounded-xl border bg-card p-3 shadow-sm space-y-2 hover:shadow-md transition">
       <div className="flex items-start justify-between gap-2">
         <Link
-          href={`/contratos/${contrato.id}`}
+          href={`/contratos/${contrato.id}?from=kanban`}
           className="text-sm font-medium leading-tight hover:underline line-clamp-2"
         >
           {contrato.titulo}
         </Link>
 
         {/* Dropdown cambio de estado */}
-        {transiciones.length > 0 && (
+        {canEdit && transiciones.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -66,7 +66,7 @@ function ContratoCard({ contrato }: { contrato: Contrato }) {
           </DropdownMenu>
         )}
 
-        {transiciones.length === 0 && (
+        {(!canEdit || transiciones.length === 0) && (
           <ContratoStatusBadge estado={contrato.estado} />
         )}
       </div>
@@ -94,7 +94,8 @@ function ContratoCard({ contrato }: { contrato: Contrato }) {
   );
 }
 
-export function ContratoKanban({ contratos }: { contratos: Contrato[] }) {
+export function ContratoKanban({ contratos, editableIds = [] }: { contratos: Contrato[]; editableIds?: string[] }) {
+  const editableSet = new Set(editableIds);
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {COLUMNAS.map(({ estado, label, colorClass }) => {
@@ -115,7 +116,7 @@ export function ContratoKanban({ contratos }: { contratos: Contrato[] }) {
             {items.length === 0 ? (
               <p className="px-1 text-xs text-muted-foreground italic">Sin contratos</p>
             ) : (
-              items.map((c) => <ContratoCard key={c.id} contrato={c} />)
+              items.map((c) => <ContratoCard key={c.id} contrato={c} canEdit={editableSet.has(c.id)} />)
             )}
           </div>
         );

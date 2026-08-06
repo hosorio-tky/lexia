@@ -6,6 +6,7 @@ import type {
   ContratoTipo,
   ContratoEstado,
 } from "@/types/contratos";
+import { getAccessibleIds } from "./acceso";
 
 // ─── Tipos de filas DB (evita `any`) ─────────────────────────
 interface ContratoRow {
@@ -27,6 +28,7 @@ interface ContratoRow {
   contenido_html: string | null;
   responsable_id: string | null;
   responsable_nombre: string | null;
+  visibilidad: string | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;
@@ -66,6 +68,7 @@ function mapRow(row: ContratoRow): Contrato {
     contenido_html:      row.contenido_html ?? undefined,
     responsable_id:      row.responsable_id ?? undefined,
     responsable_nombre:  row.responsable_nombre ?? undefined,
+    visibilidad:         (row.visibilidad as "publico" | "restringido") ?? "publico",
     created_by:          row.created_by ?? undefined,
     updated_by:          row.updated_by ?? undefined,
     created_at:          row.created_at,
@@ -91,7 +94,10 @@ function mapVersionRow(row: ContratoVersionRow): ContratoVersion {
 export function createContratosRepository(client: SupabaseClient, tenantId: string) {
   return {
     // M02-F01: Listado con filtros
-    async list(filters?: Partial<ContratoFilters>): Promise<Contrato[]> {
+    async list(
+      filters?: Partial<ContratoFilters>,
+      caller?: { userId: string; userRol: string },
+    ): Promise<Contrato[]> {
       let query = client
         .from("contratos")
         .select("*")
@@ -112,11 +118,24 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
 
       const { data, error } = await query;
       if (error) throw error;
-      return (data ?? []).map((row) => mapRow(row as ContratoRow));
+      let result = (data ?? []).map((row) => mapRow(row as ContratoRow));
+
+      // Enforce visibility for non-admin users
+      if (caller && caller.userRol !== "admin") {
+        const accessibleIds = await getAccessibleIds(client, tenantId, "contrato", caller.userId);
+        result = result.filter(
+          (c) =>
+            c.visibilidad !== "restringido" ||
+            c.created_by === caller.userId ||
+            accessibleIds.has(c.id),
+        );
+      }
+
+      return result;
     },
 
     // M02-F06: Detalle del contrato
-    async getById(id: string): Promise<Contrato | null> {
+    async getById(id: string, caller?: { userId: string; userRol: string }): Promise<Contrato | null> {
       const { data, error } = await client
         .from("contratos")
         .select("*")
@@ -128,7 +147,17 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
         if (error.code === "PGRST116") return null; // not found
         throw error;
       }
-      return mapRow(data as ContratoRow);
+      const contrato = mapRow(data as ContratoRow);
+
+      // Enforce visibility for non-admin users
+      if (caller && caller.userRol !== "admin" && contrato.visibilidad === "restringido") {
+        if (contrato.created_by !== caller.userId) {
+          const accessibleIds = await getAccessibleIds(client, tenantId, "contrato", caller.userId);
+          if (!accessibleIds.has(id)) return null;
+        }
+      }
+
+      return contrato;
     },
 
     // M02-F14: Historial de versiones

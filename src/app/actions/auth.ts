@@ -126,6 +126,7 @@ export async function signIn(
 ): Promise<{ error: string } | null> {
   const email    = formData.get("email") as string;
   const password = formData.get("password") as string;
+  const next     = (formData.get("next") as string | null)?.trim() || "/permisos";
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -159,7 +160,7 @@ export async function signIn(
     }
   }
 
-  redirect("/permisos");
+  redirect(next);
 }
 
 // ─── Cerrar sesión ────────────────────────────────────────────
@@ -186,6 +187,18 @@ export async function solicitarRecuperacion(
 
   if (error) return { error: error.message };
   return { success: true };
+}
+
+// ─── Marcar primer acceso (llamado desde /auth/confirm tras setSession) ────
+export async function stampUltimoAcceso(): Promise<void> {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  const admin = createAdminClient();
+  await admin
+    .from("profiles")
+    .update({ ultimo_acceso: new Date().toISOString() })
+    .eq("id", user.id);
 }
 
 // ─── Actualizar contraseña (desde link de recuperación) ───────

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useTransition } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Plus, Trash2, Upload, ChevronDown } from "lucide-react";
 import { nextSort, sortItems, activityTs } from "@/lib/sort-utils";
 import type { SortState } from "@/lib/sort-utils";
@@ -13,37 +14,66 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PermitStatCards } from "./permit-stat-cards";
-import { PermitFiltersBar } from "./permit-filters";
+import { PermitFiltersBar, type ViewMode } from "./permit-filters";
 import { PermitTable } from "./permit-table";
 import { PermitCardsGrid } from "./permit-cards-grid";
+import { PermitLocationView } from "./permit-location-view";
 import { PermitImportDialog } from "./permit-import-dialog";
 import { eliminarPermiso } from "@/app/actions/permisos";
 import { calcularVigencia } from "@/types/permits";
 import type { Permit, PermitFilters } from "@/types/permits";
 
-type ViewMode = "table" | "grid";
 type PermitSortKey = "nombre" | "tipo" | "estado" | "vencimiento" | "actividad";
 
-export function PermitListClient({ initialPermits }: { initialPermits: Permit[] }) {
-  const [viewMode, setViewMode]     = useState<ViewMode>("table");
+export function PermitListClient({
+  initialPermits,
+  userId,
+  userRol,
+  editableIds = [],
+}: {
+  initialPermits: Permit[];
+  userId?: string;
+  userRol?: string;
+  editableIds?: string[];
+}) {
+  const searchParams = useSearchParams();
+  const router       = useRouter();
+  const pathname     = usePathname();
+
+  const viewMode = (searchParams.get("v") as ViewMode | null) ?? "table";
+
+  function setViewMode(mode: ViewMode) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("v", mode);
+    router.replace(`${pathname}?${params.toString()}`);
+  }
+
   const [selected, setSelected]     = useState<string[]>([]);
   const [importOpen, setImportOpen] = useState(false);
   const [filters, setFilters]       = useState<PermitFilters>({
-    search: "", estado: "", tipo: "", entidad: "", responsable: "", vigencia: "",
+    search: "", estado: "", tipo: "", entidad: "", responsable: "", vigencia: "", ubicacion: "",
   });
   const [sort, setSort] = useState<SortState<PermitSortKey>>({ key: "actividad", dir: "desc" });
   const [isPending, startTransition] = useTransition();
+
+  const editableSet = useMemo(() => new Set(editableIds), [editableIds]);
 
   function handleSort(key: PermitSortKey) {
     setSort((prev) => nextSort(prev, key));
   }
 
-  // SC-10: lista única de responsables para el filtro
   const responsables = useMemo(() => {
     const names = initialPermits
       .map((p) => p.responsable_nombre)
       .filter((n): n is string => Boolean(n));
     return [...new Set(names)].sort();
+  }, [initialPermits]);
+
+  const ubicaciones = useMemo(() => {
+    const locs = initialPermits
+      .map((p) => p.ubicacion)
+      .filter((u): u is string => Boolean(u));
+    return [...new Set(locs)].sort((a, b) => a.localeCompare(b, "es"));
   }, [initialPermits]);
 
   const filtered = useMemo(() => {
@@ -56,11 +86,12 @@ export function PermitListClient({ initialPermits }: { initialPermits: Permit[] 
           !(p.entidad_reguladora ?? "").toLowerCase().includes(q)
         ) return false;
       }
-      if (filters.estado && p.estado !== filters.estado) return false;
-      if (filters.tipo   && p.tipo   !== filters.tipo)   return false;
-      if (filters.entidad && p.entidad_reguladora !== filters.entidad) return false;
+      if (filters.estado    && p.estado              !== filters.estado)    return false;
+      if (filters.tipo      && p.tipo                !== filters.tipo)      return false;
+      if (filters.entidad   && p.entidad_reguladora  !== filters.entidad)   return false;
       if (filters.responsable && p.responsable_nombre !== filters.responsable) return false;
-      if (filters.vigencia && calcularVigencia(p.fecha_vencimiento) !== filters.vigencia) return false;
+      if (filters.vigencia  && calcularVigencia(p.fecha_vencimiento) !== filters.vigencia) return false;
+      if (filters.ubicacion && (p.ubicacion ?? "") !== filters.ubicacion)   return false;
       return true;
     });
     return sortItems(list, sort, (p, key) => {
@@ -75,20 +106,30 @@ export function PermitListClient({ initialPermits }: { initialPermits: Permit[] 
     });
   }, [initialPermits, filters, sort]);
 
-  const toggleSelect  = (id: string) =>
+  const editableFiltered = useMemo(
+    () => filtered.filter((p) => editableSet.has(p.id)),
+    [filtered, editableSet],
+  );
+
+  const toggleSelect = (id: string) => {
+    if (!editableSet.has(id)) return;
     setSelected((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
+  };
   const toggleAll = () =>
-    setSelected(selected.length === filtered.length ? [] : filtered.map((p) => p.id));
+    setSelected(selected.length === editableFiltered.length && editableFiltered.length > 0
+      ? []
+      : editableFiltered.map((p) => p.id));
 
   const handleDelete = (id: string) => {
     startTransition(() => eliminarPermiso(id));
   };
 
   const handleDeleteSelected = () => {
+    const toDelete = selected.filter((id) => editableSet.has(id));
     startTransition(async () => {
-      for (const id of selected) await eliminarPermiso(id);
+      for (const id of toDelete) await eliminarPermiso(id);
       setSelected([]);
     });
   };
@@ -106,6 +147,7 @@ export function PermitListClient({ initialPermits }: { initialPermits: Permit[] 
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           responsables={responsables}
+          ubicaciones={ubicaciones}
         />
         <div className="flex items-center">
           <Link href="/permisos/nuevo">
@@ -136,20 +178,32 @@ export function PermitListClient({ initialPermits }: { initialPermits: Permit[] 
         onSuccess={() => { /* revalidatePath ya actualiza el server — el dialog se queda abierto */ }}
       />
 
-      {/* Lista */}
-      {viewMode === "table" ? (
-        <PermitTable
-          permits={filtered}
-          selected={selected}
-          onToggle={toggleSelect}
-          onToggleAll={toggleAll}
-          onDelete={handleDelete}
-          sort={sort}
-          onSort={handleSort}
-        />
-      ) : (
+      {/* Lista — móvil siempre cards, desktop respeta el toggle */}
+      <div className="md:hidden">
         <PermitCardsGrid permits={filtered} />
-      )}
+      </div>
+      <div className="hidden md:block">
+        {viewMode === "table" && (
+          <PermitTable
+            permits={filtered}
+            selected={selected}
+            onToggle={toggleSelect}
+            onToggleAll={toggleAll}
+            onDelete={handleDelete}
+            sort={sort}
+            onSort={handleSort}
+            userId={userId}
+            userRol={userRol}
+            editableIds={editableIds}
+          />
+        )}
+        {viewMode === "grid" && (
+          <PermitCardsGrid permits={filtered} />
+        )}
+        {viewMode === "location" && (
+          <PermitLocationView permits={filtered} userId={userId} userRol={userRol} />
+        )}
+      </div>
 
       {/* Barra de acciones en bulk */}
       {selected.length > 0 && (

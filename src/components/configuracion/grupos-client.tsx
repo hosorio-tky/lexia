@@ -94,18 +94,19 @@ function GrupoForm({
 // ─── Diálogo de miembros ──────────────────────────────────────
 function MiembrosDialog({
   grupo,
-  miembros: initialMiembros,
+  miembros,
+  setMiembros,
   usuarios,
   open,
   onOpenChange,
 }: {
   grupo: Grupo;
   miembros: GrupoMiembro[];
+  setMiembros: React.Dispatch<React.SetStateAction<GrupoMiembro[]>>;
   usuarios: UserProfile[];
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
-  const [miembros, setMiembros]   = useState<GrupoMiembro[]>(initialMiembros);
   const [addUserId, setAddUserId] = useState("");
   const [isPending, start]        = useTransition();
 
@@ -254,22 +255,27 @@ function GrupoRow({
   const [membersOpen, setMembersOpen] = useState(false);
   const [miembros, setMiembros]       = useState<GrupoMiembro[]>([]);
   const [loadingMembers, setLoading]  = useState(false);
+  const [countLoaded, setCountLoaded] = useState(false);
 
   async function openMembers() {
     setLoading(true);
     try {
-      // Fetch group members inline via client-side fetch
       const res = await fetch(`/api/grupos/${grupo.id}/miembros`);
-      if (res.ok) setMiembros(await res.json());
-    } catch {
-      // If API route doesn't exist yet, show empty list — members can still be added
+      if (res.ok) {
+        setMiembros(await res.json());
+        setCountLoaded(true);
+      } else {
+        console.error("[GrupoRow] miembros fetch failed:", res.status, await res.text());
+      }
+    } catch (err) {
+      console.error("[GrupoRow] miembros fetch error:", err);
     } finally {
       setLoading(false);
       setMembersOpen(true);
     }
   }
 
-  const count = grupo.miembros_count ?? 0;
+  const count = countLoaded ? miembros.length : (grupo.miembros_count ?? 0);
 
   return (
     <>
@@ -345,13 +351,16 @@ function GrupoRow({
         </div>
       </Card>
 
-      <MiembrosDialog
-        grupo={grupo}
-        miembros={miembros}
-        usuarios={usuarios}
-        open={membersOpen}
-        onOpenChange={setMembersOpen}
-      />
+      {membersOpen && (
+        <MiembrosDialog
+          grupo={grupo}
+          miembros={miembros}
+          setMiembros={setMiembros}
+          usuarios={usuarios}
+          open={membersOpen}
+          onOpenChange={setMembersOpen}
+        />
+      )}
     </>
   );
 }

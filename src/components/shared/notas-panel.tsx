@@ -8,6 +8,11 @@ import {
 import { formatDistanceToNow, format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel,
+  AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
+  AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { RichTextEditor, RichTextView } from "./rich-text-editor";
 import { crearNota, editarNota, eliminarNota, eliminarDocumentoDeNota } from "@/app/actions/notas";
 import type { Nota } from "@/lib/repositories/notas";
@@ -94,11 +99,13 @@ function DocRow({
   modulo,
   recursoId,
   onDelete,
+  canModify,
 }: {
   doc: Documento;
   modulo: string;
   recursoId: string;
   onDelete: (doc: Documento) => void;
+  canModify: boolean;
 }) {
   const [rowError, setRowError] = useState<string | null>(null);
 
@@ -157,14 +164,33 @@ function DocRow({
           >
             <Download className="h-3 w-3 text-muted-foreground" />
           </button>
-          <button
-            type="button"
-            onClick={() => onDelete(doc)}
-            className="grid h-6 w-6 place-items-center rounded hover:bg-background"
-            title="Eliminar"
-          >
-            <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
-          </button>
+          {canModify && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button
+                  type="button"
+                  className="grid h-6 w-6 place-items-center rounded hover:bg-background"
+                  title="Eliminar"
+                >
+                  <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Eliminar archivo?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Se eliminará <strong>{doc.nombre}</strong>. Esta acción no se puede deshacer.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => onDelete(doc)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Eliminar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
         </div>
       </div>
       {rowError && (
@@ -241,13 +267,17 @@ function NotaCard({
   nota,
   modulo,
   recursoId,
+  recursoDesc = "",
   onDelete,
+  canModify,
   users = [],
 }: {
   nota: Nota;
   modulo: string;
   recursoId: string;
+  recursoDesc?: string;
   onDelete: (id: string) => void;
+  canModify: boolean;
   users?: MentionUser[];
 }) {
   const [editing, setEditing]         = useState(false);
@@ -264,10 +294,11 @@ function NotaCard({
   function handleSaveEdit() {
     if (!editContent.trim() || editContent === "<p></p>") return;
     const fd = new FormData();
-    fd.set("contenido",   editContent);
-    fd.set("modulo",      modulo);
-    fd.set("recurso_id",  recursoId);
-    fd.set("mention_ids", extractMentionIds(editContent).join(","));
+    fd.set("contenido",    editContent);
+    fd.set("modulo",       modulo);
+    fd.set("recurso_id",   recursoId);
+    fd.set("recurso_desc", recursoDesc);
+    fd.set("mention_ids",  extractMentionIds(editContent).join(","));
     startTransition(() => { editarNota(nota.id, null, fd); });
     setEditing(false);
   }
@@ -321,26 +352,45 @@ function NotaCard({
             <span className="text-xs text-muted-foreground" title={absTime}>{relTime}</span>
           </div>
         </div>
-        <div className="flex items-center gap-0.5 shrink-0">
-          {!editing && (
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="grid h-7 w-7 place-items-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-              title="Editar"
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => onDelete(nota.id)}
-            className="grid h-7 w-7 place-items-center rounded hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
-            title="Eliminar nota"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        </div>
+        {canModify && (
+          <div className="flex items-center gap-0.5 shrink-0">
+            {!editing && (
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="grid h-7 w-7 place-items-center rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                title="Editar"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button
+                  type="button"
+                  className="grid h-7 w-7 place-items-center rounded hover:bg-muted text-muted-foreground hover:text-destructive transition-colors"
+                  title="Eliminar nota"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Eliminar nota?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Se eliminará la nota y todos sus archivos adjuntos. Esta acción no se puede deshacer.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => onDelete(nota.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                    Eliminar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        )}
       </div>
 
       {/* Contenido */}
@@ -369,7 +419,7 @@ function NotaCard({
       </div>
 
       {/* Documentos adjuntos */}
-      {(docs.length > 0 || true) && (
+      {(docs.length > 0 || canModify) && (
         <div className="border-t bg-muted/20 px-4 py-2.5">
           <div className="flex items-center justify-between mb-1.5">
             <button
@@ -381,19 +431,23 @@ function NotaCard({
               {docs.length > 0 ? `${docs.length} archivo${docs.length !== 1 ? "s" : ""}` : "Sin archivos"}
               {docsOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             </button>
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-              title="Adjuntar archivo"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Adjuntar
-            </button>
-            <input ref={fileInputRef} type="file" className="hidden"
-              accept=".pdf,.docx,.xlsx,.doc,.xls,.jpg,.jpeg,.png,.webp"
-              onChange={handleAddFile}
-            />
+            {canModify && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  title="Adjuntar archivo"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Adjuntar
+                </button>
+                <input ref={fileInputRef} type="file" className="hidden"
+                  accept=".pdf,.docx,.xlsx,.doc,.xls,.jpg,.jpeg,.png,.webp"
+                  onChange={handleAddFile}
+                />
+              </>
+            )}
           </div>
           {docsOpen && docs.length > 0 && (
             <div className="space-y-1.5">
@@ -404,6 +458,7 @@ function NotaCard({
                   modulo={modulo}
                   recursoId={recursoId}
                   onDelete={handleDeleteDoc}
+                  canModify={canModify}
                 />
               ))}
             </div>
@@ -419,12 +474,14 @@ function NotaCard({
 function NuevaNotaForm({
   modulo,
   recursoId,
+  recursoDesc = "",
   onCreated,
   onCancel,
   users = [],
 }: {
   modulo: string;
   recursoId: string;
+  recursoDesc?: string;
   onCreated: (nota: Nota) => void;
   onCancel: () => void;
   users?: MentionUser[];
@@ -445,10 +502,11 @@ function NuevaNotaForm({
 
     try {
       const fd = new FormData();
-      fd.set("modulo",      modulo);
-      fd.set("recurso_id",  recursoId);
-      fd.set("contenido",   contenido);
-      fd.set("mention_ids", extractMentionIds(contenido).join(","));
+      fd.set("modulo",       modulo);
+      fd.set("recurso_id",   recursoId);
+      fd.set("recurso_desc", recursoDesc);
+      fd.set("contenido",    contenido);
+      fd.set("mention_ids",  extractMentionIds(contenido).join(","));
 
       const res = await crearNota(null, fd);
 
@@ -526,11 +584,14 @@ function NuevaNotaForm({
 interface NotasPanelProps {
   modulo:       string;
   recursoId:    string;
+  recursoDesc?: string;
   initialNotas: Nota[];
+  userId?:      string;
+  userRol?:     string;
   users?:       MentionUser[];
 }
 
-export function NotasPanel({ modulo, recursoId, initialNotas, users = [] }: NotasPanelProps) {
+export function NotasPanel({ modulo, recursoId, recursoDesc = "", initialNotas, userId = "", userRol = "usuario", users = [] }: NotasPanelProps) {
   const [notas, setNotas]   = useState<Nota[]>(initialNotas);
   const [adding, setAdding] = useState(false);
   const [, startTransition] = useTransition();
@@ -558,6 +619,7 @@ export function NotasPanel({ modulo, recursoId, initialNotas, users = [] }: Nota
         <NuevaNotaForm
           modulo={modulo}
           recursoId={recursoId}
+          recursoDesc={recursoDesc}
           onCreated={handleCreated}
           onCancel={() => setAdding(false)}
           users={users}
@@ -577,7 +639,9 @@ export function NotasPanel({ modulo, recursoId, initialNotas, users = [] }: Nota
               nota={nota}
               modulo={modulo}
               recursoId={recursoId}
+              recursoDesc={recursoDesc}
               onDelete={handleDelete}
+              canModify={userRol === "admin" || nota.user_id === userId}
               users={users}
             />
           ))}
