@@ -33,18 +33,32 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const YEAR = 2026;
-  const MONTH = 7;
+  const url    = new URL(request.url);
+  const now    = new Date();
+  const YEAR   = parseInt(url.searchParams.get("year")  ?? String(now.getFullYear()), 10);
+  const MONTH  = parseInt(url.searchParams.get("month") ?? String(now.getMonth() + 1), 10);
+  const DAY    = url.searchParams.get("day") ? parseInt(url.searchParams.get("day")!, 10) : null;
 
   try {
     const client = createAdminClient();
     const storageUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-    // 1. Fetch available editions from Diario Oficial for July 2026
-    const ediciones = await fetchEdicionesDisponibles(YEAR, MONTH);
+    // 1. Fetch available editions from Diario Oficial for the given year/month
+    let ediciones = await fetchEdicionesDisponibles(YEAR, MONTH);
     if (!ediciones.length) {
-      return NextResponse.json({ ok: true, mensaje: "Sin ediciones disponibles para julio 2026" });
+      return NextResponse.json({ ok: true, mensaje: `Sin ediciones disponibles para ${YEAR}-${MONTH}` });
+    }
+
+    // Filter by day if provided (API only supports year+month; day filter is client-side)
+    if (DAY !== null) {
+      ediciones = ediciones.filter((e) => {
+        const d = new Date(`${e.FechaInicio}T12:00:00Z`);
+        return d.getUTCDate() === DAY;
+      });
+      if (!ediciones.length) {
+        return NextResponse.json({ ok: true, mensaje: `Sin ediciones para ${YEAR}-${MONTH}-${DAY}` });
+      }
     }
 
     // 2. Get all tenants

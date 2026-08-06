@@ -3,6 +3,7 @@ import { ContratoFormClient } from "@/components/contratos/contrato-form-client"
 import { crearContrato } from "@/app/actions/contratos";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createResponsablesRepository } from "@/lib/repositories/responsables";
+import { createContratoPlantillasRepository } from "@/lib/repositories/contrato-plantillas";
 import { getSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -10,7 +11,10 @@ export const dynamic = "force-dynamic";
 export default async function NuevoContratoPage() {
   const session      = await getSession();
   const client       = createAdminClient();
-  const responsables = await createResponsablesRepository(client, session.tenant_id).list();
+  const [responsables, plantillas] = await Promise.all([
+    createResponsablesRepository(client, session.tenant_id).list(),
+    createContratoPlantillasRepository(client, session.tenant_id).list(),
+  ]);
 
   return (
     <AppShell
@@ -27,6 +31,7 @@ export default async function NuevoContratoPage() {
         action={crearContrato}
         mode="create"
         responsables={responsables}
+        plantillas={plantillas}
       />
     </AppShell>
   );

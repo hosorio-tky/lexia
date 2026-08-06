@@ -60,7 +60,14 @@ export function PermitFormClient({
   const [estado, setEstado]         = useState(defaultValues?.estado ?? "Creado");
   const [entidad, setEntidad]       = useState(defaultValues?.entidad_reguladora ?? "");
   const [responsableId, setResponsableId] = useState(defaultValues?.responsable_id ?? "__none__");
-  const [ubicacionId, setUbicacionId]     = useState(defaultValues?.ubicacion_id ?? "__none__");
+  const [ubicacionId, setUbicacionId]     = useState(() => {
+    if (defaultValues?.ubicacion_id) return defaultValues.ubicacion_id;
+    if (defaultValues?.ubicacion) {
+      const match = ubicaciones.find((u) => u.nombre === defaultValues.ubicacion);
+      if (match) return match.id;
+    }
+    return "__none__";
+  });
   const [moneda, setMoneda]         = useState(defaultValues?.moneda ?? "USD");
   const [tieneProvisional, setTieneProvisional] = useState(
     defaultValues?.tiene_provisional ?? false

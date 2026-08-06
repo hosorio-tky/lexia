@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft, Calendar, ChevronDown, ChevronUp, Edit, RefreshCw, Trash2,
+  ArrowLeft, Calendar, ChevronDown, ChevronUp, Edit, FileDown, RefreshCw, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -225,9 +225,22 @@ export function ContratoDetailClient({
             </div>
           </Section>
 
-          {/* Documento */}
-          <Section title="Documento" defaultOpen={!!(contrato.storage_path || contrato.contenido_html)}>
-            {contrato.storage_path ? (
+          {/* Contenido del contrato */}
+          <Section title="Contenido" defaultOpen={!!contrato.contenido_html}>
+            {contrato.contenido_html ? (
+              <div className="rounded-lg border bg-muted/10 p-4">
+                <RichTextView html={contrato.contenido_html} />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground italic">
+                Sin contenido. Edita el contrato para agregar texto o carga un PDF para extraerlo automáticamente.
+              </p>
+            )}
+          </Section>
+
+          {/* Documento adjunto original */}
+          {contrato.storage_path && (
+            <Section title="Documento adjunto (original)" defaultOpen={false}>
               <div className="space-y-3">
                 <iframe
                   src={`/api/contratos/file?path=${encodeURIComponent(contrato.storage_path)}`}
@@ -239,19 +252,11 @@ export function ContratoDetailClient({
                   className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
                   download
                 >
-                  Descargar PDF
+                  Descargar PDF original
                 </a>
               </div>
-            ) : contrato.contenido_html ? (
-              <div className="rounded-lg border bg-muted/10 p-4">
-                <RichTextView html={contrato.contenido_html} />
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground italic">
-                Sin documento adjunto ni contenido HTML. Edita el contrato para agregar contenido.
-              </p>
-            )}
-          </Section>
+            </Section>
+          )}
 
           {/* Versiones */}
           <Section title={`Versiones del contenido${versiones.length > 0 ? ` (${versiones.length})` : ""}`} defaultOpen={false}>
@@ -369,6 +374,16 @@ export function ContratoDetailClient({
                   Editar contrato
                 </Button>
               </Link>
+              <a
+                href={`/contratos/${contrato.id}/imprimir`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button variant="outline" className="w-full">
+                  <FileDown className="mr-2 h-4 w-4" />
+                  Exportar PDF
+                </Button>
+              </a>
               <Button
                 variant="outline"
                 className="w-full text-destructive hover:text-destructive"

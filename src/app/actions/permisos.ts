@@ -12,16 +12,19 @@ import type { PermitStatus } from "@/types/permits";
 
 // Campos legibles para el diff
 const FIELD_LABELS: Record<string, string> = {
-  nombre:             "Nombre",
-  tipo:               "Tipo",
-  numero_expediente:  "Nº Expediente",
-  entidad_reguladora: "Entidad reguladora",
-  ubicacion:          "Ubicación",
-  descripcion:        "Descripción",
-  fecha_solicitud:    "Fecha solicitud",
-  fecha_emision:      "Fecha emisión",
-  fecha_vencimiento:  "Fecha vencimiento",
-  responsable_nombre: "Responsable",
+  nombre:                    "Nombre",
+  tipo:                      "Tipo",
+  numero_expediente:         "Nº Expediente",
+  entidad_reguladora:        "Entidad reguladora",
+  ubicacion:                 "Ubicación",
+  descripcion:               "Descripción",
+  fecha_solicitud:           "Fecha solicitud",
+  fecha_emision:             "Fecha emisión",
+  fecha_vencimiento:         "Fecha vencimiento",
+  responsable_nombre:        "Responsable",
+  base_legal:                "Base legal",
+  riesgo_incumplimiento:     "Riesgo de incumplimiento",
+  base_legal_incumplimiento: "Base legal de incumplimiento",
 };
 
 // ─── Crear permiso ─────────────────────────────────────────────

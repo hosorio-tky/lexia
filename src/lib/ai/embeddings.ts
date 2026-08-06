@@ -11,12 +11,21 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   return response.data[0].embedding;
 }
 
-/** Genera embeddings para múltiples textos en una sola llamada (más eficiente) */
+/** Genera embeddings para múltiples textos, procesando en lotes para no superar el límite de 300k tokens */
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
-  const response = await openai.embeddings.create({
-    model: "text-embedding-3-small",
-    input: texts.map((t) => t.replace(/\n/g, " ").slice(0, 8000)),
-  });
-  return response.data.map((d) => d.embedding);
+
+  const BATCH_SIZE = 100;
+  const results: number[][] = [];
+
+  for (let i = 0; i < texts.length; i += BATCH_SIZE) {
+    const batch = texts.slice(i, i + BATCH_SIZE);
+    const response = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: batch.map((t) => t.replace(/\n/g, " ").slice(0, 8000)),
+    });
+    results.push(...response.data.map((d) => d.embedding));
+  }
+
+  return results;
 }

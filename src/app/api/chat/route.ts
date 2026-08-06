@@ -59,6 +59,8 @@ export async function POST(req: Request) {
       query
     );
 
+    console.log("[chat] tenant:", session.tenant_id, "| docContext chars:", documentContext.length, "| lexbase fragments:", (documentContext.match(/Lexbase legal/g) ?? []).length);
+
     const systemPrompt = `Eres Lexia AI, el asistente de cumplimiento legal de la plataforma Lexia.
 Ayudas a los equipos legales y de cumplimiento a gestionar permisos, contratos y obligaciones regulatorias.
 
@@ -68,13 +70,15 @@ Fecha de hoy: ${new Date().toLocaleDateString("es-SV", { weekday: "long", year: 
 ## Instrucciones
 - Responde siempre en español, de forma clara y concisa.
 - Usa la información del contexto para dar respuestas precisas.
-- Si la información no está en el contexto, dilo claramente en lugar de inventar.
+- Los fragmentos de documentos que recibes a continuación SON el contenido real de esos documentos. Úsalos para responder con detalle.
+- NUNCA digas que "no tienes acceso" a un documento si sus fragmentos aparecen en el contexto.
+- Si la información no está en ningún fragmento del contexto, dilo claramente en lugar de inventar.
 - Para fechas y plazos, sé específico y menciona los días restantes.
 - Puedes usar Markdown para estructurar tus respuestas (listas, negritas, tablas).
 
 ${structuredContext ? `## Datos actuales del sistema\n${structuredContext}` : ""}
 
-${documentContext ? `## Fragmentos relevantes de documentos adjuntos\n${documentContext}` : ""}
+${documentContext ? `## Fragmentos de documentos indexados (usa esta información para responder)\n${documentContext}` : ""}
 `.trim();
 
     const coreMessages: CoreMessage[] = incoming

@@ -13,6 +13,11 @@ const BUCKET = "documentos";
 // ─── Subir documento ──────────────────────────────────────────
 export async function subirDocumento(formData: FormData) {
   const session = await getSession();
+
+  let docId: string | undefined;
+  let indexStoragePath: string | undefined;
+  let indexMimeType:    string | undefined;
+
   try {
     const client = createAdminClient();
     const repo   = createLexbaseRepository(client, session.tenant_id);
@@ -73,21 +78,9 @@ export async function subirDocumento(formData: FormData) {
       created_by_nombre:    session.nombre_completo || session.nombre,
     });
 
-    // 3. Indexar documento de forma asíncrona (fire-and-forget)
-    if (storage_path && tipo_mime) {
-      indexLexbaseDocument({
-        documentoId: doc.id,
-        tenantId:    session.tenant_id,
-        storagePath: storage_path,
-        mimeType:    tipo_mime,
-      }).catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[lexbase] Error indexando ${doc.id}:`, msg);
-      });
-    }
-
-    revalidatePath("/lexbase");
-    redirect(`/lexbase/${doc.id}`);
+    docId            = doc.id;
+    indexStoragePath = storage_path;
+    indexMimeType    = tipo_mime;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await logError(msg, {
@@ -99,6 +92,23 @@ export async function subirDocumento(formData: FormData) {
     });
     throw err;
   }
+
+  // 3. Indexar — awaited after a successful DB insert so redirect() doesn't kill the Lambda
+  if (indexStoragePath && indexMimeType && docId) {
+    try {
+      await indexLexbaseDocument({
+        documentoId: docId,
+        tenantId:    session.tenant_id,
+        storagePath: indexStoragePath,
+        mimeType:    indexMimeType,
+      });
+    } catch (err) {
+      console.error(`[lexbase] Error indexando ${docId}:`, err instanceof Error ? err.message : err);
+    }
+  }
+
+  revalidatePath("/lexbase");
+  redirect(`/lexbase/${docId!}`);
 }
 
 // ─── Actualizar documento ──────────────────────────────────────

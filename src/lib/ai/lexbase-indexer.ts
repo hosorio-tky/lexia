@@ -68,6 +68,31 @@ export function parseToc(text: string): TocEntry[] {
   return entries.slice(0, 200);
 }
 
+/**
+ * Limpia artefactos de extracción PDF comunes en documentos oficiales:
+ *   - Marcas de agua (ej. "DIARIO OFICIAL SOLO PARA CONSULTA NO TIENE VALIDEZ LEGAL")
+ *   - Números de página solos
+ *   - Líneas de puntos de tabla de contenido (.........)
+ */
+function cleanExtractedText(text: string): string {
+  return text
+    // Watermark del Diario Oficial de El Salvador (cada palabra en línea propia)
+    .replace(/DIARIO\s*\r?\n\s*OFICIAL\s*\r?\n\s*SOLO\s*\r?\n\s*PARA\s*\r?\n\s*CONSULTA\s*\r?\n\s*NO\s*\r?\n\s*TIENE\s*\r?\n\s*VALIDEZ\s*\r?\n\s*LEGAL/gi, "")
+    // Misma watermark en una sola línea
+    .replace(/DIARIO\s+OFICIAL\s+SOLO\s+PARA\s+CONSULTA\s+NO\s+TIENE\s+VALIDEZ\s+LEGAL/gi, "")
+    // Encabezados de página repetitivos del Diario Oficial (header derecho: fecha)
+    .replace(/DIARIO\s+OFICIAL\.-?\s+San\s+Salvador,\s+\d{1,2}\s+de\s+\w+\s+de\s+\d{4}\.\s*/gi, "")
+    // Encabezados de página repetitivos del Diario Oficial (header izquierdo: tomo/número)
+    .replace(/DIARIO\s+OFICIAL\s+Tomo\s+N[oº°]\s*\.?\s*\d+\s*/gi, "")
+    // Números de página solos en línea (1–4 dígitos rodeados de saltos de línea)
+    .replace(/^\s*\d{1,4}\s*$/gm, "")
+    // Líneas de puntos de TOC (.........)
+    .replace(/\.{5,}/g, " ")
+    // Normalizar múltiples saltos de línea en párrafos
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 /** Indexa un documento legal en lexbase_chunks y retorna chunks + TOC */
 export async function indexLexbaseDocument(input: {
   documentoId: string;
@@ -95,10 +120,14 @@ export async function indexLexbaseDocument(input: {
 
   const buffer = await res.arrayBuffer();
 
-  // 2. Extraer texto
-  const text = await extractText(buffer, input.mimeType);
-  if (!text || text.trim().length < 50) {
-    return { skipped: `texto insuficiente (${text?.trim().length ?? 0} chars)` };
+  // 2. Extraer texto y limpiar artefactos de PDF
+  const rawText = await extractText(buffer, input.mimeType);
+  if (!rawText || rawText.trim().length < 50) {
+    return { skipped: `texto insuficiente (${rawText?.trim().length ?? 0} chars)` };
+  }
+  const text = cleanExtractedText(rawText);
+  if (text.length < 50) {
+    return { skipped: "texto insuficiente tras limpieza" };
   }
 
   // 3. Parsear TOC

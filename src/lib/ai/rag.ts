@@ -26,7 +26,7 @@ function stripHtml(html: string): string {
 export async function searchLexbaseChunks(
   tenantId: string,
   query: string,
-  matchCount = 4
+  matchCount = 8
 ): Promise<ChunkResult[]> {
   const client = createAdminClient();
   const embedding = await generateEmbedding(query);
@@ -41,11 +41,20 @@ export async function searchLexbaseChunks(
 
   let { data, error } = await client.rpc("match_lexbase_chunks", rpcParams(0.10));
 
-  if (error) return [];
+  console.log("[rag:lexbase] threshold=0.10 →", { rows: (data as unknown[])?.length ?? 0, error: error?.message });
+
+  if (error) {
+    console.error("[rag] match_lexbase_chunks error:", error.message ?? error);
+    return [];
+  }
 
   // Fallback sin threshold para queries meta (igual que document_chunks)
   if (!data || (data as unknown[]).length === 0) {
     ({ data, error } = await client.rpc("match_lexbase_chunks", rpcParams(0.0)));
+    console.log("[rag:lexbase] fallback threshold=0.0 →", { rows: (data as unknown[])?.length ?? 0, error: error?.message });
+    if (error) {
+      console.error("[rag] match_lexbase_chunks fallback error:", error.message ?? error);
+    }
     if (error || !data) return [];
   }
 

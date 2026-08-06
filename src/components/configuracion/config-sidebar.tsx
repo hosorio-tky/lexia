@@ -11,6 +11,7 @@ import {
   Users,
   MapPin,
   Activity,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -49,6 +50,13 @@ const NAV_ITEMS: ConfigNavItem[] = [
     label:       "Ubicaciones",
     description: "Plantas, sedes y oficinas",
     icon:        <MapPin className="h-4 w-4" />,
+    adminOnly:   true,
+  },
+  {
+    href:        "/configuracion/plantillas",
+    label:       "Plantillas de Contratos",
+    description: "Textos base para generar contratos con IA",
+    icon:        <FileText className="h-4 w-4" />,
     adminOnly:   true,
   },
   {
