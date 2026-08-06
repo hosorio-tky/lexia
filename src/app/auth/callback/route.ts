@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * Callback de Supabase Auth — intercambia el código por una sesión.
- * Usado por el flujo de recuperación de contraseña.
+ * Usado por invitaciones, recuperación de contraseña y confirmación de email.
  */
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
@@ -31,7 +32,16 @@ export async function GET(request: Request) {
       }
     );
 
-    await supabase.auth.exchangeCodeForSession(code);
+    const { data } = await supabase.auth.exchangeCodeForSession(code);
+
+    // Actualizar ultimo_acceso para que el estado deje de aparecer como "Pendiente"
+    if (data.user) {
+      const admin = createAdminClient();
+      await admin
+        .from("profiles")
+        .update({ ultimo_acceso: new Date().toISOString() })
+        .eq("id", data.user.id);
+    }
   }
 
   return NextResponse.redirect(new URL(next, requestUrl.origin));
