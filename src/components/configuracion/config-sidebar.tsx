@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   ScrollText,
   Users,
+  UsersRound,
   MapPin,
   Activity,
   FileText,
@@ -43,6 +44,13 @@ const NAV_ITEMS: ConfigNavItem[] = [
     label:       "Responsables",
     description: "Personas asignables a permisos",
     icon:        <Users className="h-4 w-4" />,
+    adminOnly:   true,
+  },
+  {
+    href:        "/configuracion/grupos",
+    label:       "Grupos",
+    description: "Grupos de usuarios para control de acceso",
+    icon:        <UsersRound className="h-4 w-4" />,
     adminOnly:   true,
   },
   {
