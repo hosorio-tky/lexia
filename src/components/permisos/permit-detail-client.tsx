@@ -30,11 +30,13 @@ import { RelatedTasksWidget } from "@/components/shared/related-tasks-widget";
 import { ComentariosPanel } from "@/components/shared/comentarios-panel";
 import { NotasPanel } from "@/components/shared/notas-panel";
 import { AuditLogPanel } from "@/components/shared/audit-log-panel";
+import { AccesoPanel } from "@/components/shared/acceso-panel";
 import type { UserProfile } from "@/types/users";
 import type { Task } from "@/types/tasks";
 import type { Comentario } from "@/lib/repositories/comentarios";
 import type { Nota } from "@/lib/repositories/notas";
 import type { ActividadEntry } from "@/lib/repositories/actividad";
+import type { RecursoAcceso, Grupo } from "@/types/access-control";
 
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
   return (
@@ -88,7 +90,10 @@ export function PermitDetailClient({
   comentarios = [],
   notas = [],
   actividad = [],
+  accesos = [],
+  grupos = [],
   userId = "",
+  userRol = "usuario",
 }: {
   permit: Permit;
   timeline: TimelineEvent[];
@@ -98,7 +103,10 @@ export function PermitDetailClient({
   comentarios?: Comentario[];
   notas?: Nota[];
   actividad?: ActividadEntry[];
+  accesos?: RecursoAcceso[];
+  grupos?: Grupo[];
   userId?: string;
+  userRol?: string;
 }) {
   const [permit, setPermit]     = useState(initialPermit);
   const [timeline, setTimeline] = useState(initialTimeline);
@@ -293,6 +301,20 @@ export function PermitDetailClient({
               recursoDesc={permit.nombre}
               initialTasks={tareas}
               usuarios={usuarios}
+            />
+          </Section>
+
+          {/* Acceso */}
+          <Section title="Control de acceso" defaultOpen={false}>
+            <AccesoPanel
+              resourceType="permiso"
+              resourceId={permit.id}
+              resourceName={permit.nombre}
+              visibilidad={permit.visibilidad ?? "publico"}
+              accesos={accesos}
+              usuarios={usuarios}
+              grupos={grupos}
+              canManage={userRol === "admin" || permit.created_by === userId}
             />
           </Section>
 

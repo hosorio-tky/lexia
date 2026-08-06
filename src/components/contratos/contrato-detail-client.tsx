@@ -20,6 +20,7 @@ import { ComentariosPanel } from "@/components/shared/comentarios-panel";
 import { NotasPanel } from "@/components/shared/notas-panel";
 import { AuditLogPanel } from "@/components/shared/audit-log-panel";
 import { RichTextView } from "@/components/shared/rich-text-editor";
+import { AccesoPanel } from "@/components/shared/acceso-panel";
 import { cambiarEstadoContrato, eliminarContrato } from "@/app/actions/contratos";
 import {
   CONTRACT_ESTADOS,
@@ -34,6 +35,7 @@ import type { Task } from "@/types/tasks";
 import type { Comentario } from "@/lib/repositories/comentarios";
 import type { Nota } from "@/lib/repositories/notas";
 import type { ActividadEntry } from "@/lib/repositories/actividad";
+import type { RecursoAcceso, Grupo } from "@/types/access-control";
 
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
   return (
@@ -127,7 +129,10 @@ export function ContratoDetailClient({
   actividad,
   tareas  = [],
   usuarios = [],
+  accesos = [],
+  grupos = [],
   userId = "",
+  userRol = "usuario",
 }: {
   contrato:    Contrato;
   versiones:   ContratoVersion[];
@@ -136,7 +141,10 @@ export function ContratoDetailClient({
   actividad:   ActividadEntry[];
   tareas?:     Task[];
   usuarios?:   UserProfile[];
+  accesos?:    RecursoAcceso[];
+  grupos?:     Grupo[];
   userId?:     string;
+  userRol?:    string;
 }) {
   const [contrato, setContrato]         = useState(initialContrato);
   const [workflowOpen, setWorkflowOpen] = useState(false);
@@ -271,6 +279,20 @@ export function ContratoDetailClient({
               recursoDesc={contrato.titulo}
               initialTasks={tareas}
               usuarios={usuarios}
+            />
+          </Section>
+
+          {/* Acceso */}
+          <Section title="Control de acceso" defaultOpen={false}>
+            <AccesoPanel
+              resourceType="contrato"
+              resourceId={contrato.id}
+              resourceName={contrato.titulo}
+              visibilidad={contrato.visibilidad ?? "publico"}
+              accesos={accesos}
+              usuarios={usuarios}
+              grupos={grupos}
+              canManage={userRol === "admin" || contrato.created_by === userId}
             />
           </Section>
 

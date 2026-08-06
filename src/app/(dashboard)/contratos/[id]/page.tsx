@@ -8,6 +8,8 @@ import { createNotasRepository } from "@/lib/repositories/notas";
 import { createActividadRepository } from "@/lib/repositories/actividad";
 import { createTareasRepository } from "@/lib/repositories/tareas";
 import { createUsuariosRepository } from "@/lib/repositories/usuarios";
+import { createAccesoRepository } from "@/lib/repositories/acceso";
+import { createGruposRepository } from "@/lib/repositories/grupos";
 import { getSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +23,7 @@ export default async function ContratoDetallePage({
   const client = createAdminClient();
   const repo   = createContratosRepository(client, session.tenant_id);
 
-  const [contrato, versiones, comentarios, notas, actividad, tareas, usuarios] = await Promise.all([
+  const [contrato, versiones, comentarios, notas, actividad, tareas, usuarios, accesos, grupos] = await Promise.all([
     repo.getById(id),
     repo.getVersiones(id),
     createComentariosRepository(client, session.tenant_id).list("contratos", id),
@@ -32,6 +34,8 @@ export default async function ContratoDetallePage({
       recurso_id:    id,
     }),
     createUsuariosRepository(client, session.tenant_id).list(),
+    createAccesoRepository(client, session.tenant_id).listByResource("contrato", id),
+    createGruposRepository(client, session.tenant_id).list(),
   ]);
 
   if (!contrato) notFound();
@@ -56,7 +60,10 @@ export default async function ContratoDetallePage({
         actividad={actividad}
         tareas={tareas}
         usuarios={usuarios}
+        accesos={accesos}
+        grupos={grupos}
         userId={session.user_id}
+        userRol={session.rol}
       />
     </AppShell>
   );

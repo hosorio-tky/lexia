@@ -8,6 +8,8 @@ import { createTareasRepository } from "@/lib/repositories/tareas";
 import { createComentariosRepository } from "@/lib/repositories/comentarios";
 import { createNotasRepository } from "@/lib/repositories/notas";
 import { createActividadRepository } from "@/lib/repositories/actividad";
+import { createAccesoRepository } from "@/lib/repositories/acceso";
+import { createGruposRepository } from "@/lib/repositories/grupos";
 import { getSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +24,7 @@ export default async function PermisoDetallePage({
 
   const repo = createPermisosRepository(client, session.tenant_id);
 
-  const [permit, timeline, fechasHistorial, usuarios, tareas, comentarios, notas, actividad] =
+  const [permit, timeline, fechasHistorial, usuarios, tareas, comentarios, notas, actividad, accesos, grupos] =
     await Promise.all([
       repo.getById(id),
       repo.getTimeline(id),
@@ -35,6 +37,8 @@ export default async function PermisoDetallePage({
       createComentariosRepository(client, session.tenant_id).list("permisos", id),
       createNotasRepository(client, session.tenant_id).list("permisos", id),
       createActividadRepository(client, session.tenant_id).listByRecurso(id),
+      createAccesoRepository(client, session.tenant_id).listByResource("permiso", id),
+      createGruposRepository(client, session.tenant_id).list(),
     ]);
 
   if (!permit) notFound();
@@ -60,7 +64,10 @@ export default async function PermisoDetallePage({
         comentarios={comentarios}
         notas={notas}
         actividad={actividad}
+        accesos={accesos}
+        grupos={grupos}
         userId={session.user_id}
+        userRol={session.rol}
       />
     </AppShell>
   );
