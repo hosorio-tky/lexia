@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { Suspense, useState, useEffect, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { KeyRound, Loader2 } from "lucide-react";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
-export default function MfaChallengePage() {
+function MfaChallengeInner() {
   const router       = useRouter();
   const searchParams = useSearchParams();
   const next         = searchParams.get("next") || "/permisos";
@@ -43,7 +43,6 @@ export default function MfaChallengePage() {
       const { error: vErr } = await supabase.auth.mfa.verify({ factorId, challengeId, code });
       if (vErr) {
         setError("Código incorrecto. Inténtalo de nuevo.");
-        // Re-crear el challenge para el siguiente intento
         supabase.auth.mfa.challenge({ factorId }).then(({ data: ch }) => {
           if (ch) setChallengeId(ch.id);
         });
@@ -107,5 +106,17 @@ export default function MfaChallengePage() {
         </div>
       )}
     </Card>
+  );
+}
+
+export default function MfaChallengePage() {
+  return (
+    <Suspense fallback={
+      <Card className="p-6 shadow-sm flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </Card>
+    }>
+      <MfaChallengeInner />
+    </Suspense>
   );
 }
