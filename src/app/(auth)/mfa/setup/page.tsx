@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect, useTransition, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ShieldCheck, Copy, Check, Loader2, Smartphone } from "lucide-react";
@@ -22,8 +22,12 @@ export default function MfaSetupPage() {
   const [copied,    setCopied]    = useState(false);
   const [step,      setStep]      = useState<"loading" | "enroll" | "verifying">("loading");
   const [, startTransition] = useTransition();
+  const initRan = useRef(false);
 
   useEffect(() => {
+    if (initRan.current) return;
+    initRan.current = true;
+
     const init = async () => {
       // Limpiar todos los factores TOTP existentes antes de crear uno nuevo.
       // listFactors() solo devuelve verified, pero mfa.enroll() falla si ya existe
