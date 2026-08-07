@@ -29,14 +29,26 @@ export default function MfaSetupPage() {
     initRan.current = true;
 
     const init = async () => {
-      // Limpiar todos los factores TOTP existentes antes de crear uno nuevo.
-      // listFactors() solo devuelve verified, pero mfa.enroll() falla si ya existe
-      // alguno con el mismo friendly_name (incluso unverified). Unenrolling todo
-      // garantiza un estado limpio — el middleware no llega aquí si hay un factor
-      // verified activo, así que es seguro hacerlo.
+      // Obtener el user_id para la clave de localStorage
+      const { data: { user } } = await supabase.auth.getUser();
+      const pendingKey = user ? `lexia_mfa_pending_${user.id}` : null;
+
+      // Si el usuario abandonó un setup anterior, el factorId quedó guardado en
+      // localStorage. listFactors() solo devuelve verified, por lo que esta es
+      // la única forma de limpiar el factor unverified sin usar la Admin API.
+      if (pendingKey) {
+        const pendingId = localStorage.getItem(pendingKey);
+        if (pendingId) {
+          await supabase.auth.mfa.unenroll({ factorId: pendingId });
+          localStorage.removeItem(pendingKey);
+        }
+      }
+
+      // Limpiar también factores verified (no debería haber, pero por si acaso)
       const { data: factors } = await supabase.auth.mfa.listFactors();
-      const existing = factors?.totp ?? [];
-      await Promise.all(existing.map((f) => supabase.auth.mfa.unenroll({ factorId: f.id })));
+      await Promise.all((factors?.totp ?? []).map((f) =>
+        supabase.auth.mfa.unenroll({ factorId: f.id })
+      ));
 
       const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp" });
       if (error || !data) {
@@ -44,6 +56,10 @@ export default function MfaSetupPage() {
         setStep("enroll");
         return;
       }
+
+      // Guardar el factorId para poder limpiarlo si el usuario abandona
+      if (pendingKey) localStorage.setItem(pendingKey, data.id);
+
       setFactorId(data.id);
       setQrCode(data.totp.qr_code);
       setSecret(data.totp.secret);
@@ -86,6 +102,10 @@ export default function MfaSetupPage() {
         setStep("enroll");
         return;
       }
+
+      // Setup completado — limpiar el factor pendiente del localStorage
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) localStorage.removeItem(`lexia_mfa_pending_${user.id}`);
 
       router.push("/permisos");
       router.refresh();
