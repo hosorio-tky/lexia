@@ -139,7 +139,7 @@ export function createConfiguracionRepository(
         if (error.code === "PGRST116") return null;
         throw error;
       }
-      return mapTenant(data as TenantRow);
+      return mapTenant(data as unknown as TenantRow);
     },
 
     async updateTenantSettings(
@@ -160,7 +160,7 @@ export function createConfiguracionRepository(
         .select("id, nombre, slug, logo_url, descripcion, sitio_web, industria_id, industria_cat:catalogos!industria_id(id, valor), pais_id, pais_cat:catalogos!pais_id(id, valor), color_marca")
         .single();
       if (error) throw error;
-      return mapTenant(data as TenantRow);
+      return mapTenant(data as unknown as TenantRow);
     },
 
     // ── T06-F01: Catálogos ─────────────────────────────────────
