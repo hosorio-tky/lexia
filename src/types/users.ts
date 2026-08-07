@@ -27,6 +27,7 @@ export interface UserProfile {
   avatar_url?: string;
   activo: boolean;
   cargo?: string;
+  departamento_id?: string;
   departamento?: string;
   telefono?: string;
   ultimo_acceso?: string;

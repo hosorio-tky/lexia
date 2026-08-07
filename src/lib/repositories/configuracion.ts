@@ -10,6 +10,8 @@ import type {
 import type { ActivityEvent } from "@/types/users";
 
 // ─── Tipos de filas DB ────────────────────────────────────────
+interface CatalogoRef { id: string; valor: string; }
+
 interface TenantRow {
   id: string;
   nombre: string;
@@ -17,8 +19,10 @@ interface TenantRow {
   logo_url: string | null;
   descripcion: string | null;
   sitio_web: string | null;
-  industria: string | null;
-  pais: string | null;
+  industria_id: string | null;
+  industria_cat: CatalogoRef | null;
+  pais_id: string | null;
+  pais_cat: CatalogoRef | null;
   color_marca: string | null;
 }
 
@@ -62,15 +66,17 @@ interface ActivityRow {
 // ─── Mappers ──────────────────────────────────────────────────
 function mapTenant(row: TenantRow): TenantSettings {
   return {
-    id:          row.id,
-    nombre:      row.nombre,
-    slug:        row.slug,
-    logo_url:    row.logo_url    ?? undefined,
-    descripcion: row.descripcion ?? undefined,
-    sitio_web:   row.sitio_web   ?? undefined,
-    industria:   row.industria   ?? undefined,
-    pais:        row.pais        ?? "El Salvador",
-    color_marca: row.color_marca ?? "#6366f1",
+    id:           row.id,
+    nombre:       row.nombre,
+    slug:         row.slug,
+    logo_url:     row.logo_url    ?? undefined,
+    descripcion:  row.descripcion ?? undefined,
+    sitio_web:    row.sitio_web   ?? undefined,
+    industria:    row.industria_cat?.valor ?? undefined,
+    industria_id: row.industria_id ?? undefined,
+    pais:         row.pais_cat?.valor ?? "El Salvador",
+    pais_id:      row.pais_id ?? undefined,
+    color_marca:  row.color_marca ?? "#6366f1",
   };
 }
 
@@ -126,7 +132,7 @@ export function createConfiguracionRepository(
     async getTenantSettings(): Promise<TenantSettings | null> {
       const { data, error } = await client
         .from("tenants")
-        .select("id, nombre, slug, logo_url, descripcion, sitio_web, industria, pais, color_marca")
+        .select("id, nombre, slug, logo_url, descripcion, sitio_web, industria_id, industria_cat:catalogos!industria_id(id, valor), pais_id, pais_cat:catalogos!pais_id(id, valor), color_marca")
         .eq("id", tenantId)
         .single();
       if (error) {
@@ -142,8 +148,8 @@ export function createConfiguracionRepository(
         logo_url: string;
         descripcion: string;
         sitio_web: string;
-        industria: string;
-        pais: string;
+        industria_id: string | null;
+        pais_id: string | null;
         color_marca: string;
       }>
     ): Promise<TenantSettings> {
@@ -151,7 +157,7 @@ export function createConfiguracionRepository(
         .from("tenants")
         .update(input)
         .eq("id", tenantId)
-        .select("id, nombre, slug, logo_url, descripcion, sitio_web, industria, pais, color_marca")
+        .select("id, nombre, slug, logo_url, descripcion, sitio_web, industria_id, industria_cat:catalogos!industria_id(id, valor), pais_id, pais_cat:catalogos!pais_id(id, valor), color_marca")
         .single();
       if (error) throw error;
       return mapTenant(data as TenantRow);
@@ -192,7 +198,7 @@ export function createConfiguracionRepository(
 
     async updateCatalogo(
       id: string,
-      input: Partial<{ etiqueta: string; orden: number; activo: boolean }>
+      input: Partial<{ valor: string; etiqueta: string; orden: number; activo: boolean }>
     ): Promise<CatalogoItem> {
       const { data, error } = await client
         .from("catalogos")

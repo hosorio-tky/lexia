@@ -7,7 +7,9 @@ export interface TenantSettings {
   descripcion?: string;
   sitio_web?: string;
   industria?: string;
+  industria_id?: string;
   pais: string;
+  pais_id?: string;
   color_marca: string;
 }
 

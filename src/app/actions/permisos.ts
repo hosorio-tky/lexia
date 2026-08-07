@@ -13,9 +13,9 @@ import type { PermitStatus } from "@/types/permits";
 // Campos legibles para el diff
 const FIELD_LABELS: Record<string, string> = {
   nombre:                    "Nombre",
-  tipo:                      "Tipo",
+  tipo:                      "Tipo",          // populated from JOIN, still usable for diff
   numero_expediente:         "Nº Expediente",
-  entidad_reguladora:        "Entidad reguladora",
+  entidad_reguladora:        "Entidad reguladora",  // populated from JOIN
   ubicacion:                 "Ubicación",
   descripcion:               "Descripción",
   fecha_solicitud:           "Fecha solicitud",
@@ -40,9 +40,9 @@ export async function crearPermiso(formData: FormData) {
     const input = {
       tenant_id:                  session.tenant_id,
       nombre:                     formData.get("nombre") as string,
-      tipo:                       formData.get("tipo") as string,
+      tipo_id:                    (formData.get("tipo_id") as string) || undefined,
       numero_expediente:          (formData.get("numero_expediente") as string) || undefined,
-      entidad_reguladora:         (formData.get("entidad_reguladora") as string) || undefined,
+      entidad_reguladora_id:      (formData.get("entidad_reguladora_id") as string) || undefined,
       responsable_ids:            (formData.getAll("responsable_ids[]") as string[]).filter(Boolean),
       responsable_id:             (formData.get("responsable_id") as string) || undefined,
       responsable_nombre:         (formData.get("responsable_nombre") as string) || undefined,
@@ -63,8 +63,8 @@ export async function crearPermiso(formData: FormData) {
       base_legal_incumplimiento:  (formData.get("base_legal_incumplimiento") as string) || undefined,
     };
 
-    if (!input.nombre || !input.tipo) {
-      throw new Error("Nombre y tipo son obligatorios");
+    if (!input.nombre) {
+      throw new Error("Nombre es obligatorio");
     }
 
     const permiso = await repo.create(input);
@@ -109,9 +109,9 @@ export async function editarPermiso(id: string, formData: FormData) {
 
   const input: Record<string, string | number | boolean | null | undefined> = {
     nombre:                     formData.get("nombre") as string,
-    tipo:                       formData.get("tipo") as string,
+    tipo_id:                    (formData.get("tipo_id") as string) || null,
     numero_expediente:          (formData.get("numero_expediente") as string) || undefined,
-    entidad_reguladora:         (formData.get("entidad_reguladora") as string) || undefined,
+    entidad_reguladora_id:      (formData.get("entidad_reguladora_id") as string) || null,
     responsable_id:             (formData.get("responsable_id") as string) || null,
     responsable_nombre:         (formData.get("responsable_nombre") as string) || undefined,
     ubicacion_id:               (formData.get("ubicacion_id") as string) || null,

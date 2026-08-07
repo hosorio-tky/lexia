@@ -20,8 +20,8 @@ export async function invitarUsuario(
   const nombre   = formData.get("nombre") as string;
   const apellido = (formData.get("apellido") as string) || undefined;
   const rol      = (formData.get("rol") as UserRole) ?? "usuario";
-  const cargo       = (formData.get("cargo")       as string) || undefined;
-  const departamento = (formData.get("departamento") as string) || undefined;
+  const cargo           = (formData.get("cargo")           as string) || undefined;
+  const departamento_id = (formData.get("departamento_id") as string) || undefined;
 
   if (!email || !nombre) return { error: "Email y nombre son obligatorios" };
 
@@ -54,9 +54,9 @@ export async function invitarUsuario(
     id:          userData.user.id,
     tenant_id:   session.tenant_id,
     nombre,
-    apellido:    apellido ?? null,
-    cargo:       cargo ?? null,
-    departamento: departamento ?? null,
+    apellido:       apellido ?? null,
+    cargo:          cargo ?? null,
+    departamento_id: departamento_id ?? null,
     email,
     rol,
     invited_by:  session.user_id,
@@ -210,11 +210,11 @@ export async function editarUsuario(
   const repo  = createUsuariosRepository(admin, session.tenant_id);
 
   const input: Parameters<typeof repo.update>[1] = {
-    nombre:       formData.get("nombre") as string,
-    apellido:     (formData.get("apellido") as string) || undefined,
-    cargo:        (formData.get("cargo") as string) || undefined,
-    departamento: (formData.get("departamento") as string) || undefined,
-    telefono:     (formData.get("telefono") as string) || undefined,
+    nombre:          formData.get("nombre") as string,
+    apellido:        (formData.get("apellido") as string) || null,
+    cargo:           (formData.get("cargo") as string) || null,
+    departamento_id: (formData.get("departamento_id") as string) || null,
+    telefono:        (formData.get("telefono") as string) || null,
   };
 
   // Solo admin puede cambiar el rol de otros

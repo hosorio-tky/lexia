@@ -1,30 +1,23 @@
 "use client";
 
-import { useActionState } from "react";
-import { Building2, Save } from "lucide-react";
+import { useState, useActionState } from "react";
+import { Building2, Save, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { CatalogAddDialog } from "@/components/shared/catalog-add-dialog";
 import { actualizarEmpresa } from "@/app/actions/configuracion";
-import type { TenantSettings } from "@/types/settings";
-
-const INDUSTRIAS = [
-  "Alimentos y Bebidas",
-  "Manufactura",
-  "Servicios Financieros",
-  "Salud y Farmacéutica",
-  "Construcción y Inmobiliaria",
-  "Tecnología",
-  "Comercio y Retail",
-  "Transporte y Logística",
-  "Energía y Utilities",
-  "Educación",
-  "Agropecuario",
-  "Otro",
-];
+import type { TenantSettings, CatalogoItem } from "@/types/settings";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -37,10 +30,21 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 export function EmpresaFormClient({
   settings,
+  industrias: industriasProp = [],
+  paises: paisesProp = [],
 }: {
   settings: TenantSettings | null;
+  industrias?: CatalogoItem[];
+  paises?: CatalogoItem[];
 }) {
   const [state, action, isPending] = useActionState(actualizarEmpresa, null);
+
+  const [industriaItems, setIndustriaItems] = useState<CatalogoItem[]>(industriasProp);
+  const [paisItems,      setPaisItems]      = useState<CatalogoItem[]>(paisesProp);
+  const [industriaId,    setIndustriaId]    = useState(settings?.industria_id ?? "");
+  const [paisId,         setPaisId]         = useState(settings?.pais_id ?? "");
+  const [addIndustriaOpen, setAddIndustriaOpen] = useState(false);
+  const [addPaisOpen,      setAddPaisOpen]      = useState(false);
 
   return (
     <div className="space-y-6">
@@ -52,6 +56,10 @@ export function EmpresaFormClient({
       </div>
 
       <form action={action} className="space-y-6">
+        {/* Hidden inputs para los selects controlados */}
+        <input type="hidden" name="industria_id" value={industriaId} />
+        <input type="hidden" name="pais_id"      value={paisId} />
+
         <Card className="p-6 space-y-5">
           <div className="flex items-center gap-3">
             <div className="grid h-12 w-12 place-items-center rounded-xl bg-primary/10 ring-1 ring-primary/20">
@@ -77,23 +85,70 @@ export function EmpresaFormClient({
             </div>
 
             <Field label="Industria">
-              <select
-                name="industria"
-                defaultValue={settings?.industria ?? ""}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              <Select
+                value={industriaId || "__none__"}
+                onValueChange={(v) => {
+                  if (v === "__add__") { setAddIndustriaOpen(true); return; }
+                  setIndustriaId(v === "__none__" ? "" : v);
+                }}
               >
-                <option value="">Seleccionar industria</option>
-                {INDUSTRIAS.map((i) => (
-                  <option key={i} value={i}>{i}</option>
-                ))}
-              </select>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar industria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sin especificar</SelectItem>
+                  {industriaItems.map((i) => (
+                    <SelectItem key={i.id} value={i.id}>{i.valor}</SelectItem>
+                  ))}
+                  <SelectItem value="__add__" className="text-primary font-medium">
+                    <Plus className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />Agregar industria…
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <CatalogAddDialog
+                open={addIndustriaOpen}
+                onOpenChange={setAddIndustriaOpen}
+                title="Industrias"
+                modulo="global"
+                tipo="industria"
+                onItemAdded={(item) => {
+                  setIndustriaItems((prev) => [...prev, item]);
+                  setIndustriaId(item.id);
+                }}
+              />
             </Field>
 
             <Field label="País">
-              <Input
-                name="pais"
-                defaultValue={settings?.pais ?? "El Salvador"}
-                placeholder="País de operación"
+              <Select
+                value={paisId || "__none__"}
+                onValueChange={(v) => {
+                  if (v === "__add__") { setAddPaisOpen(true); return; }
+                  setPaisId(v === "__none__" ? "" : v);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar país" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sin especificar</SelectItem>
+                  {paisItems.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.valor}</SelectItem>
+                  ))}
+                  <SelectItem value="__add__" className="text-primary font-medium">
+                    <Plus className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />Agregar país…
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <CatalogAddDialog
+                open={addPaisOpen}
+                onOpenChange={setAddPaisOpen}
+                title="Países"
+                modulo="global"
+                tipo="pais"
+                onItemAdded={(item) => {
+                  setPaisItems((prev) => [...prev, item]);
+                  setPaisId(item.id);
+                }}
               />
             </Field>
 

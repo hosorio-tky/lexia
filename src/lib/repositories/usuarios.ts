@@ -2,6 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UserProfile, ActivityEvent, UserRole } from "@/types/users";
 
 // ─── Tipos de filas DB ────────────────────────────────────────
+interface CatalogoRef { id: string; valor: string; }
+
 interface ProfileRow {
   id: string;
   tenant_id: string;
@@ -12,7 +14,8 @@ interface ProfileRow {
   avatar_url: string | null;
   activo: boolean;
   cargo: string | null;
-  departamento: string | null;
+  departamento_id: string | null;
+  depto_cat: CatalogoRef | null;
   telefono: string | null;
   ultimo_acceso: string | null;
   created_at: string;
@@ -51,9 +54,10 @@ function mapProfile(row: ProfileRow): UserProfile {
     rol:           row.rol as UserRole,
     avatar_url:    row.avatar_url ?? undefined,
     activo:        row.activo,
-    cargo:         row.cargo ?? undefined,
-    departamento:  row.departamento ?? undefined,
-    telefono:      row.telefono ?? undefined,
+    cargo:            row.cargo ?? undefined,
+    departamento_id:  row.departamento_id ?? undefined,
+    departamento:     row.depto_cat?.valor ?? undefined,
+    telefono:         row.telefono ?? undefined,
     ultimo_acceso: row.ultimo_acceso ?? undefined,
     created_at:    row.created_at,
     updated_at:    row.updated_at,
@@ -83,7 +87,7 @@ export function createUsuariosRepository(client: SupabaseClient, tenantId: strin
     async list(): Promise<UserProfile[]> {
       const { data, error } = await client
         .from("profiles")
-        .select("*")
+        .select("*, depto_cat:catalogos!departamento_id(id, valor)")
         .eq("tenant_id", tenantId)          // ← aislamiento tenant
         .order("nombre", { ascending: true });
       if (error) throw error;
@@ -94,7 +98,7 @@ export function createUsuariosRepository(client: SupabaseClient, tenantId: strin
     async getById(id: string): Promise<UserProfile | null> {
       const { data, error } = await client
         .from("profiles")
-        .select("*")
+        .select("*, depto_cat:catalogos!departamento_id(id, valor)")
         .eq("id", id)
         .eq("tenant_id", tenantId)          // ← evita acceso cross-tenant
         .single();
@@ -110,20 +114,25 @@ export function createUsuariosRepository(client: SupabaseClient, tenantId: strin
       id: string,
       input: Partial<{
         nombre: string;
-        apellido: string;
-        cargo: string;
-        departamento: string;
-        telefono: string;
+        apellido: string | null;
+        cargo: string | null;
+        departamento_id: string | null;
+        telefono: string | null;
         rol: UserRole;
         activo: boolean;
       }>
     ): Promise<UserProfile> {
-      const { data, error } = await client
+      const { error: updateError } = await client
         .from("profiles")
         .update(input)
         .eq("id", id)
-        .eq("tenant_id", tenantId)          // ← evita edición cross-tenant
-        .select()
+        .eq("tenant_id", tenantId);         // ← evita edición cross-tenant
+      if (updateError) throw updateError;
+
+      const { data, error } = await client
+        .from("profiles")
+        .select("*, depto_cat:catalogos!departamento_id(id, valor)")
+        .eq("id", id)
         .single();
       if (error) throw error;
       return mapProfile(data as ProfileRow);

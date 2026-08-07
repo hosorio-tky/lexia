@@ -9,13 +9,16 @@ import type {
 import { getAccessibleIds } from "./acceso";
 
 // ─── Tipos de filas DB (evita `any`) ─────────────────────────
+interface CatalogoRef { id: string; valor: string; }
+
 interface ContratoRow {
   id: string;
   tenant_id: string;
   numero: string | null;
   titulo: string;
   descripcion: string | null;
-  tipo: string;
+  tipo_id: string | null;
+  tipo_cat: CatalogoRef | null;
   estado: string;
   contraparte_nombre: string | null;
   contraparte_email: string | null;
@@ -55,7 +58,8 @@ function mapRow(row: ContratoRow): Contrato {
     numero:              row.numero ?? undefined,
     titulo:              row.titulo,
     descripcion:         row.descripcion ?? undefined,
-    tipo:                row.tipo as ContratoTipo,
+    tipo_id:             row.tipo_id ?? "",
+    tipo:                row.tipo_cat?.valor ?? "",
     estado:              row.estado as ContratoEstado,
     contraparte_nombre:  row.contraparte_nombre ?? undefined,
     contraparte_email:   row.contraparte_email ?? undefined,
@@ -100,7 +104,7 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
     ): Promise<Contrato[]> {
       let query = client
         .from("contratos")
-        .select("*")
+        .select("*, tipo_cat:catalogos!tipo_id(id, valor)")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
 
@@ -108,7 +112,7 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
         query = query.eq("estado", filters.estado);
       }
       if (filters?.tipo) {
-        query = query.eq("tipo", filters.tipo);
+        query = query.eq("tipo_id", filters.tipo);
       }
       if (filters?.search) {
         query = query.or(
@@ -138,7 +142,7 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
     async getById(id: string, caller?: { userId: string; userRol: string }): Promise<Contrato | null> {
       const { data, error } = await client
         .from("contratos")
-        .select("*")
+        .select("*, tipo_cat:catalogos!tipo_id(id, valor)")
         .eq("id", id)
         .eq("tenant_id", tenantId)
         .single();
@@ -177,7 +181,7 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
     async create(input: {
       tenant_id: string;
       titulo: string;
-      tipo: string;
+      tipo_id?: string;
       estado?: string;
       numero?: string;
       descripcion?: string;
@@ -194,10 +198,18 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
       responsable_nombre?: string;
       created_by?: string;
     }): Promise<Contrato> {
-      const { data, error } = await client
+      const { data: inserted, error: insertError } = await client
         .from("contratos")
         .insert({ estado: "En Revisión", ...input })
-        .select()
+        .select("id")
+        .single();
+
+      if (insertError) throw insertError;
+
+      const { data, error } = await client
+        .from("contratos")
+        .select("*, tipo_cat:catalogos!tipo_id(id, valor)")
+        .eq("id", (inserted as { id: string }).id)
         .single();
 
       if (error) throw error;
@@ -209,7 +221,7 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
       id: string,
       input: Partial<{
         titulo: string;
-        tipo: string;
+        tipo_id: string | null;
         numero: string | null;
         descripcion: string | null;
         contraparte_nombre: string | null;
@@ -251,12 +263,18 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
         }
       }
 
-      const { data, error } = await client
+      const { error: updateError } = await client
         .from("contratos")
         .update(input)
         .eq("id", id)
-        .eq("tenant_id", tenantId)
-        .select()
+        .eq("tenant_id", tenantId);
+
+      if (updateError) throw updateError;
+
+      const { data, error } = await client
+        .from("contratos")
+        .select("*, tipo_cat:catalogos!tipo_id(id, valor)")
+        .eq("id", id)
         .single();
 
       if (error) throw error;
@@ -268,12 +286,18 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
       id: string,
       newEstado: ContratoEstado
     ): Promise<Contrato> {
-      const { data, error } = await client
+      const { error: updateError } = await client
         .from("contratos")
         .update({ estado: newEstado })
         .eq("id", id)
-        .eq("tenant_id", tenantId)
-        .select()
+        .eq("tenant_id", tenantId);
+
+      if (updateError) throw updateError;
+
+      const { data, error } = await client
+        .from("contratos")
+        .select("*, tipo_cat:catalogos!tipo_id(id, valor)")
+        .eq("id", id)
         .single();
 
       if (error) throw error;

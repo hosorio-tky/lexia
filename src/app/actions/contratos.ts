@@ -44,7 +44,7 @@ export async function crearContrato(
     const input = {
       tenant_id:          session.tenant_id,
       titulo:             formData.get("titulo") as string,
-      tipo:               formData.get("tipo") as string,
+      tipo_id:            (formData.get("tipo_id") as string) || undefined,
       numero:             (formData.get("numero") as string) || undefined,
       descripcion:        (formData.get("descripcion") as string) || undefined,
       contraparte_nombre: (formData.get("contraparte_nombre") as string) || undefined,
@@ -62,8 +62,8 @@ export async function crearContrato(
       created_by:         session.user_id,
     };
 
-    if (!input.titulo || !input.tipo) {
-      return { error: "Título y tipo son obligatorios" };
+    if (!input.titulo) {
+      return { error: "Título es obligatorio" };
     }
 
     const contrato = await repo.create(input);
@@ -119,7 +119,7 @@ export async function editarContrato(
 
     const input: Record<string, string | number | null | undefined> = {
       titulo:             formData.get("titulo") as string,
-      tipo:               formData.get("tipo") as string,
+      tipo_id:            (formData.get("tipo_id") as string) || null,
       numero:             (formData.get("numero") as string) || null,
       descripcion:        (formData.get("descripcion") as string) || null,
       contraparte_nombre: (formData.get("contraparte_nombre") as string) || null,

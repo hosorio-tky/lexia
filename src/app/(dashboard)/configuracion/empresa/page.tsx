@@ -9,7 +9,12 @@ export default async function EmpresaPage() {
   const session  = await getSession();
   const client   = createAdminClient();
   const repo     = createConfiguracionRepository(client, session.tenant_id);
-  const settings = await repo.getTenantSettings();
 
-  return <EmpresaFormClient settings={settings} />;
+  const [settings, industrias, paises] = await Promise.all([
+    repo.getTenantSettings(),
+    repo.getCatalogos("global", "industria"),
+    repo.getCatalogos("global", "pais"),
+  ]);
+
+  return <EmpresaFormClient settings={settings} industrias={industrias} paises={paises} />;
 }

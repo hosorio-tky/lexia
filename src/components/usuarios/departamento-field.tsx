@@ -1,58 +1,37 @@
 "use client";
 
 import { useState } from "react";
-import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import type { CatalogoItem } from "@/types/settings";
 
-const OTRO    = "__otro__";
 const NINGUNO = "__ninguno__";
 
 export function DepartamentoField({
-  name = "departamento",
   defaultValue,
   departamentos,
-  placeholder = "Ej. Legal",
 }: {
-  name?: string;
-  defaultValue?: string;
-  departamentos: string[];
-  placeholder?: string;
+  defaultValue?: string;  // departamento_id (UUID)
+  departamentos: CatalogoItem[];
 }) {
-  const isInList = departamentos.includes(defaultValue ?? "");
-  const [selected, setSelected] = useState<string>(
-    isInList ? (defaultValue ?? NINGUNO) : (defaultValue ? OTRO : NINGUNO)
-  );
-  const [custom, setCustom] = useState<string>((!isInList && defaultValue) ? defaultValue : "");
-
-  const hiddenValue = selected === NINGUNO ? "" : selected === OTRO ? custom : selected;
+  const [value, setValue] = useState(defaultValue ?? NINGUNO);
 
   return (
-    <div className="space-y-2">
-      <Select value={selected} onValueChange={setSelected}>
+    <>
+      {/* Hidden input envía "" cuando es Ninguno, para que || null en la action funcione */}
+      <input type="hidden" name="departamento_id" value={value === NINGUNO ? "" : value} />
+      <Select value={value} onValueChange={setValue}>
         <SelectTrigger>
           <SelectValue placeholder="Selecciona un departamento…" />
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={NINGUNO}>— Ninguno —</SelectItem>
           {departamentos.map((d) => (
-            <SelectItem key={d} value={d}>{d}</SelectItem>
+            <SelectItem key={d.id} value={d.id}>{d.valor}</SelectItem>
           ))}
-          <SelectItem value={OTRO}>Otro (escribir)</SelectItem>
         </SelectContent>
       </Select>
-
-      {selected === OTRO && (
-        <Input
-          value={custom}
-          onChange={(e) => setCustom(e.target.value)}
-          placeholder={placeholder}
-          autoFocus
-        />
-      )}
-
-      <input type="hidden" name={name} value={hiddenValue} />
-    </div>
+    </>
   );
 }

@@ -7,7 +7,7 @@ import { createUsuariosRepository } from "@/lib/repositories/usuarios";
 import { getSession, requireRole } from "@/lib/auth/session";
 import { indexDocument } from "@/lib/ai/indexer";
 import { indexContrato } from "@/lib/ai/contrato-indexer";
-import type { PlantillaAlerta } from "@/types/settings";
+import type { PlantillaAlerta, CatalogoItem } from "@/types/settings";
 
 // ─── T06-F03: Personalización empresa ─────────────────────────
 export async function actualizarEmpresa(
@@ -21,13 +21,13 @@ export async function actualizarEmpresa(
   const repo   = createConfiguracionRepository(client, session.tenant_id);
 
   const input = {
-    nombre:      (formData.get("nombre")      as string) || undefined,
-    descripcion: (formData.get("descripcion") as string) || undefined,
-    sitio_web:   (formData.get("sitio_web")   as string) || undefined,
-    industria:   (formData.get("industria")   as string) || undefined,
-    pais:        (formData.get("pais")        as string) || undefined,
-    color_marca: (formData.get("color_marca") as string) || undefined,
-    logo_url:    (formData.get("logo_url")    as string) || undefined,
+    nombre:       (formData.get("nombre")       as string) || undefined,
+    descripcion:  (formData.get("descripcion") as string) || undefined,
+    sitio_web:    (formData.get("sitio_web")   as string) || undefined,
+    industria_id: (formData.get("industria_id") as string) || null,
+    pais_id:      (formData.get("pais_id")      as string) || null,
+    color_marca:  (formData.get("color_marca") as string) || undefined,
+    logo_url:     (formData.get("logo_url")    as string) || undefined,
   };
 
   // Eliminar keys undefined para no sobreescribir con null
@@ -55,7 +55,7 @@ export async function actualizarEmpresa(
 export async function crearCatalogo(
   _prevState: unknown,
   formData: FormData
-): Promise<{ error?: string; success?: boolean }> {
+): Promise<{ error?: string; item?: CatalogoItem }> {
   const session = await getSession();
   requireRole(session, ["admin"]);
 
@@ -71,7 +71,7 @@ export async function crearCatalogo(
   const client = createAdminClient();
   const repo   = createConfiguracionRepository(client, session.tenant_id);
 
-  await repo.createCatalogo({ modulo, tipo, valor, etiqueta });
+  const item = await repo.createCatalogo({ modulo, tipo, valor, etiqueta });
 
   const uRepo = createUsuariosRepository(client, session.tenant_id);
   await uRepo.logActivity({
@@ -84,36 +84,95 @@ export async function crearCatalogo(
   });
 
   revalidatePath("/configuracion/catalogos");
-  return { success: true };
+  return { item };
 }
 
 export async function editarCatalogo(
   id: string,
-  formData: FormData
-): Promise<void> {
+  valor: string
+): Promise<{ item?: CatalogoItem; error?: string }> {
   const session = await getSession();
   requireRole(session, ["admin"]);
 
+  const trimmed = valor.trim();
+  if (!trimmed) return { error: "El valor no puede estar vacío" };
+
   const client = createAdminClient();
   const repo   = createConfiguracionRepository(client, session.tenant_id);
-
-  await repo.updateCatalogo(id, {
-    etiqueta: formData.get("etiqueta") as string,
-  });
+  const item   = await repo.updateCatalogo(id, { valor: trimmed, etiqueta: trimmed });
 
   revalidatePath("/configuracion/catalogos");
+  return { item };
 }
 
-export async function eliminarCatalogo(id: string): Promise<void> {
+// Tablas que tienen FK hacia catalogos(id), con su módulo visible al usuario
+const CATALOGO_FK_REFS = [
+  { table: "profiles",  column: "departamento_id",       tenantCol: "tenant_id", label: "Usuarios" },
+  { table: "permisos",  column: "tipo_id",               tenantCol: "tenant_id", label: "Permisos" },
+  { table: "permisos",  column: "entidad_reguladora_id", tenantCol: "tenant_id", label: "Permisos" },
+  { table: "contratos", column: "tipo_id",               tenantCol: "tenant_id", label: "Contratos" },
+  { table: "tenants",   column: "industria_id",          tenantCol: "id",        label: "Empresa" },
+  { table: "tenants",   column: "pais_id",               tenantCol: "id",        label: "Empresa" },
+] as const;
+
+async function getCatalogoUsage(
+  client: ReturnType<typeof createAdminClient>,
+  catalogoId: string,
+  tenantId: string
+): Promise<{ modulo: string; count: number }[]> {
+  const results = await Promise.all(
+    CATALOGO_FK_REFS.map(async (ref) => {
+      const { count } = await client
+        .from(ref.table)
+        .select("*", { count: "exact", head: true })
+        .eq(ref.column, catalogoId)
+        .eq(ref.tenantCol, tenantId);
+      return { label: ref.label, count: count ?? 0 };
+    })
+  );
+
+  const totals = new Map<string, number>();
+  for (const { label, count } of results) {
+    if (count > 0) totals.set(label, (totals.get(label) ?? 0) + count);
+  }
+  return Array.from(totals.entries()).map(([modulo, count]) => ({ modulo, count }));
+}
+
+export async function eliminarCatalogo(id: string): Promise<{ error?: string }> {
   const session = await getSession();
   requireRole(session, ["admin"]);
 
   const client = createAdminClient();
-  const repo   = createConfiguracionRepository(client, session.tenant_id);
 
-  await repo.deleteCatalogo(id);
+  const { data: item } = await client
+    .from("catalogos")
+    .select("valor")
+    .eq("id", id)
+    .eq("tenant_id", session.tenant_id)
+    .single();
+
+  const repo = createConfiguracionRepository(client, session.tenant_id);
+  try {
+    await repo.deleteCatalogo(id);
+  } catch (err) {
+    const code = (err as { code?: string })?.code ?? "";
+    const msg  = (err as { message?: string })?.message ?? String(err);
+    if (code === "23503" || msg.includes("foreign key") || msg.includes("violates")) {
+      const usages = await getCatalogoUsage(client, id, session.tenant_id);
+      const total  = usages.reduce((s, u) => s + u.count, 0);
+      const detalle = usages.map((u) => `${u.modulo} (${u.count})`).join(", ");
+      const nombre  = item?.valor ?? "este ítem";
+      return {
+        error: total > 0
+          ? `No se puede eliminar '${nombre}': lo usan ${total} registro${total !== 1 ? "s" : ""} en ${detalle}. Reasígnalos antes de eliminar.`
+          : `No se puede eliminar '${nombre}': hay registros que lo usan. Reasígnalos antes de eliminar.`,
+      };
+    }
+    throw err;
+  }
 
   revalidatePath("/configuracion/catalogos");
+  return {};
 }
 
 // ─── T06-F02: Plantillas de alerta ────────────────────────────

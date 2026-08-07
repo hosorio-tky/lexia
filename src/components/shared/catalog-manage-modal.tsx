@@ -55,7 +55,8 @@ export function CatalogManageModal({
 
   function handleRemove(item: CatalogoItem) {
     start(async () => {
-      await eliminarCatalogo(item.id);
+      const res = await eliminarCatalogo(item.id);
+      if (res.error) { setError(res.error); return; }
       onItemRemoved(item.valor);
     });
   }

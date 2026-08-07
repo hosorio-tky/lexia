@@ -3,14 +3,18 @@ import type { Permit, PermitType, TimelineEvent, PermitFilters, PermitStatus, Pe
 import { getAccessibleIds } from "./acceso";
 
 // ─── Tipos de filas DB (evita `any`) ─────────────────────────
+interface CatalogoRef { id: string; valor: string; }
+
 interface PermisoRow {
   id: string;
   tenant_id: string;
   numero_expediente: string | null;
   nombre: string;
   descripcion: string | null;
-  tipo: string;
-  entidad_reguladora: string | null;
+  tipo_id: string | null;
+  tipo_cat: CatalogoRef | null;
+  entidad_reguladora_id: string | null;
+  entidad_cat: CatalogoRef | null;
   ubicacion_id: string | null;
   ubicacion: string | null;
   estado: string;
@@ -63,8 +67,10 @@ function mapRow(row: PermisoRow): Permit {
     numero_expediente:          row.numero_expediente ?? undefined,
     nombre:                     row.nombre,
     descripcion:                row.descripcion ?? undefined,
-    tipo:                       row.tipo as PermitType,
-    entidad_reguladora:         row.entidad_reguladora ?? undefined,
+    tipo_id:                    row.tipo_id ?? "",
+    tipo:                       row.tipo_cat?.valor ?? "",
+    entidad_reguladora_id:      row.entidad_reguladora_id ?? undefined,
+    entidad_reguladora:         row.entidad_cat?.valor ?? undefined,
     ubicacion_id:               row.ubicacion_id ?? undefined,
     ubicacion:                  row.ubicacion ?? undefined,
     estado:                     row.estado as PermitStatus,
@@ -129,7 +135,7 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
     ): Promise<Permit[]> {
       let query = client
         .from("permisos")
-        .select("*")
+        .select("*, tipo_cat:catalogos!tipo_id(id, valor), entidad_cat:catalogos!entidad_reguladora_id(id, valor)")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
 
@@ -137,10 +143,10 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
         query = query.eq("estado", filters.estado);
       }
       if (filters?.tipo) {
-        query = query.eq("tipo", filters.tipo);
+        query = query.eq("tipo_id", filters.tipo);
       }
       if (filters?.entidad) {
-        query = query.eq("entidad_reguladora", filters.entidad);
+        query = query.eq("entidad_reguladora_id", filters.entidad);
       }
       if (filters?.search) {
         query = query.or(
@@ -170,7 +176,7 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
     async getById(id: string, caller?: { userId: string; userRol: string }): Promise<Permit | null> {
       const { data, error } = await client
         .from("permisos")
-        .select("*")
+        .select("*, tipo_cat:catalogos!tipo_id(id, valor), entidad_cat:catalogos!entidad_reguladora_id(id, valor)")
         .eq("id", id)
         .eq("tenant_id", tenantId)
         .single();
@@ -246,10 +252,10 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
     async create(input: {
       tenant_id: string;
       nombre: string;
-      tipo: string;
-      estado?: string;           // opcional — defecto "Creado"
+      tipo_id?: string;
+      estado?: string;
       numero_expediente?: string;
-      entidad_reguladora?: string;
+      entidad_reguladora_id?: string;
       ubicacion_id?: string;
       ubicacion?: string;
       descripcion?: string;
@@ -267,12 +273,18 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
       riesgo_incumplimiento?: string;
       base_legal_incumplimiento?: string;
     }): Promise<Permit> {
+      const { data: inserted, error: insertError } = await client
+        .from("permisos")
+        .insert({ estado: "Creado", ...input })
+        .select("id")
+        .single();
+      if (insertError) throw insertError;
+
       const { data, error } = await client
         .from("permisos")
-        .insert({ estado: "Creado", ...input }) // input.estado sobrescribe el default si se provee
-        .select()
+        .select("*, tipo_cat:catalogos!tipo_id(id, valor), entidad_cat:catalogos!entidad_reguladora_id(id, valor)")
+        .eq("id", (inserted as { id: string }).id)
         .single();
-
       if (error) throw error;
       return mapRow(data as PermisoRow);
     },
@@ -282,9 +294,9 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
       id: string,
       input: Partial<{
         nombre: string;
-        tipo: string;
+        tipo_id: string | null;
         numero_expediente: string;
-        entidad_reguladora: string;
+        entidad_reguladora_id: string | null;
         ubicacion_id: string | null;
         ubicacion: string;
         descripcion: string;
@@ -304,14 +316,18 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
         base_legal_incumplimiento: string;
       }>
     ): Promise<Permit> {
-      const { data, error } = await client
+      const { error: updateError } = await client
         .from("permisos")
         .update(input)
         .eq("id", id)
-        .eq("tenant_id", tenantId)          // ← evita edición cross-tenant
-        .select()
-        .single();
+        .eq("tenant_id", tenantId);
+      if (updateError) throw updateError;
 
+      const { data, error } = await client
+        .from("permisos")
+        .select("*, tipo_cat:catalogos!tipo_id(id, valor), entidad_cat:catalogos!entidad_reguladora_id(id, valor)")
+        .eq("id", id)
+        .single();
       if (error) throw error;
       return mapRow(data as PermisoRow);
     },
@@ -322,15 +338,18 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
       newStatus: PermitStatus,
       comment?: string
     ): Promise<Permit> {
-      // El trigger log_permiso_estado_change registra el historial automáticamente
-      const { data, error } = await client
+      const { error: updateError } = await client
         .from("permisos")
         .update({ estado: newStatus })
         .eq("id", id)
-        .eq("tenant_id", tenantId)          // ← evita cambio de estado cross-tenant
-        .select()
-        .single();
+        .eq("tenant_id", tenantId);
+      if (updateError) throw updateError;
 
+      const { data, error } = await client
+        .from("permisos")
+        .select("*, tipo_cat:catalogos!tipo_id(id, valor), entidad_cat:catalogos!entidad_reguladora_id(id, valor)")
+        .eq("id", id)
+        .single();
       if (error) throw error;
 
       // Si hay comentario, actualizamos el último registro de historial (insertado por el trigger)
