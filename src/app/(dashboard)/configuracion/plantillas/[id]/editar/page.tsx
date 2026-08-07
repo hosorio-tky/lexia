@@ -2,6 +2,7 @@ import { notFound }           from "next/navigation";
 import { createAdminClient }  from "@/lib/supabase/admin";
 import { getSession }         from "@/lib/auth/session";
 import { createContratoPlantillasRepository } from "@/lib/repositories/contrato-plantillas";
+import { createConfiguracionRepository } from "@/lib/repositories/configuracion";
 import { PlantillaFormClient } from "@/components/configuracion/plantilla-form-client";
 import { updatePlantilla }     from "@/app/actions/contrato-plantillas";
 
@@ -14,8 +15,14 @@ export default async function EditarPlantillaPage({
 }) {
   const { id }  = await params;
   const session = await getSession();
-  const repo    = createContratoPlantillasRepository(createAdminClient(), session.tenant_id);
-  const item    = await repo.getById(id);
+  const admin   = createAdminClient();
+  const [item, tiposContrato] = await Promise.all([
+    createContratoPlantillasRepository(admin, session.tenant_id).getById(id),
+    createConfiguracionRepository(admin, session.tenant_id)
+      .getCatalogos("contratos", "tipo_contrato")
+      .then((items) => items.filter((i) => i.activo))
+      .catch(() => []),
+  ]);
 
   if (!item) notFound();
 
@@ -25,6 +32,7 @@ export default async function EditarPlantillaPage({
       action={updatePlantilla}
       defaultValues={item}
       backHref="/configuracion/plantillas"
+      tiposContrato={tiposContrato}
     />
   );
 }

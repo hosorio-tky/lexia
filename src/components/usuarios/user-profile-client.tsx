@@ -12,6 +12,7 @@ import { UserRoleBadge } from "./user-role-badge";
 import { DepartamentoField } from "./departamento-field";
 import { editarUsuario, cambiarContrasena } from "@/app/actions/usuarios";
 import type { UserProfile } from "@/types/users";
+import type { CatalogoItem } from "@/types/settings";
 
 function Field({ label, required, children }: {
   label: string; required?: boolean; children: React.ReactNode;
@@ -24,7 +25,7 @@ function Field({ label, required, children }: {
   );
 }
 
-export function UserProfileClient({ user, departamentos = [] }: { user: UserProfile; departamentos?: string[] }) {
+export function UserProfileClient({ user, departamentos = [] }: { user: UserProfile; departamentos?: CatalogoItem[] }) {
   // ── Formulario de perfil ──────────────────────────────────
   const [isPendingProfile, startProfile] = useTransition();
   const handleProfileSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -59,7 +60,7 @@ export function UserProfileClient({ user, departamentos = [] }: { user: UserProf
                 <Input name="cargo" placeholder="Ej. Gerente Legal" defaultValue={user.cargo} />
               </Field>
               <Field label="Departamento">
-                <DepartamentoField departamentos={departamentos} defaultValue={user.departamento} />
+                <DepartamentoField departamentos={departamentos} defaultValue={user.departamento_id} />
               </Field>
               <Field label="Teléfono">
                 <Input name="telefono" placeholder="Ej. +503 7000-0000" defaultValue={user.telefono} />

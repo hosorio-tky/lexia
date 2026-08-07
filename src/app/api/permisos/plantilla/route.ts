@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
-import { PERMIT_TYPES, PERMIT_STATUSES } from "@/types/permits";
+import { PERMIT_STATUSES } from "@/types/permits";
 
 export async function GET() {
   const wb = XLSX.utils.book_new();
@@ -59,7 +59,7 @@ export async function GET() {
   const refData: string[][] = [
     ["COLUMNA", "REQUERIDO", "INSTRUCCIÓN", "VALORES VÁLIDOS"],
     ["nombre",            "SÍ",  "Nombre del permiso.",                              ""],
-    ["tipo",              "SÍ",  "Debe ser exactamente uno de los valores válidos.",  PERMIT_TYPES.join(", ")],
+    ["tipo",              "SÍ",  "Debe coincidir exactamente con un tipo configurado en Configuración → Catálogos.", "Ver catálogo"],
     ["numero_expediente", "No",  "Número asignado por la entidad (ej: SNT-0001).",    ""],
     ["entidad_reguladora","No",  "Entidad que emite el permiso (ej: MARN, MINSAL).",  ""],
     ["ubicacion",         "No",  "Planta o ubicación a la que aplica.",               ""],

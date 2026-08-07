@@ -17,6 +17,7 @@ import { editarUsuario } from "@/app/actions/usuarios";
 import { DepartamentoField } from "./departamento-field";
 import { USER_ROLES, ROLE_LABELS } from "@/types/users";
 import type { UserProfile } from "@/types/users";
+import type { CatalogoItem } from "@/types/settings";
 
 function Field({ label, required, children }: {
   label: string; required?: boolean; children: React.ReactNode;
@@ -36,7 +37,7 @@ export function UserEditClient({
 }: {
   user: UserProfile;
   rolInvitador: string;
-  departamentos?: string[];
+  departamentos?: CatalogoItem[];
 }) {
   const router = useRouter();
   const [rol, setRol] = useState<string>(user.rol);
@@ -98,7 +99,7 @@ export function UserEditClient({
             <Input name="cargo" defaultValue={user.cargo ?? ""} placeholder="Ej. Gerente Legal" />
           </Field>
           <Field label="Departamento">
-            <DepartamentoField departamentos={departamentos} defaultValue={user.departamento} />
+            <DepartamentoField departamentos={departamentos} defaultValue={user.departamento_id} />
           </Field>
           <Field label="Teléfono">
             <Input name="telefono" defaultValue={user.telefono ?? ""} placeholder="Ej. +503 7000-0000" />

@@ -13,8 +13,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { RichTextEditor } from "@/components/shared/rich-text-editor";
-import { CONTRACT_TIPOS } from "@/types/contratos";
 import type { ContratoPlantilla } from "@/lib/repositories/contrato-plantillas";
+import type { CatalogoItem } from "@/types/settings";
 
 interface PlantillaFormClientProps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -22,6 +22,7 @@ interface PlantillaFormClientProps {
   mode: "create" | "edit";
   defaultValues?: Partial<ContratoPlantilla>;
   backHref: string;
+  tiposContrato?: CatalogoItem[];
 }
 
 export function PlantillaFormClient({
@@ -29,6 +30,7 @@ export function PlantillaFormClient({
   mode,
   defaultValues,
   backHref,
+  tiposContrato = [],
 }: PlantillaFormClientProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError]            = useState<string | null>(null);
@@ -105,8 +107,8 @@ export function PlantillaFormClient({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Sin tipo específico</SelectItem>
-                {CONTRACT_TIPOS.map((t) => (
-                  <SelectItem key={t} value={t}>{t}</SelectItem>
+                {tiposContrato.map((t) => (
+                  <SelectItem key={t.id} value={t.valor}>{t.valor}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

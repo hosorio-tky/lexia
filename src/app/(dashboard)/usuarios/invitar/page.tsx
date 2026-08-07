@@ -12,8 +12,8 @@ export default async function InvitarUsuarioPage() {
 
   const departamentos = await createConfiguracionRepository(createAdminClient(), session.tenant_id)
     .getCatalogos("global", "departamento")
-    .then((items) => items.filter((i) => i.activo).map((i) => i.etiqueta))
-    .catch(() => [] as string[]);
+    .then((items) => items.filter((i) => i.activo))
+    .catch(() => []);
 
   return (
     <AppShell

@@ -22,8 +22,8 @@ export default async function UsuarioEditarPage({
     createUsuariosRepository(admin, session.tenant_id).getById(id),
     createConfiguracionRepository(admin, session.tenant_id)
       .getCatalogos("global", "departamento")
-      .then((items) => items.filter((i) => i.activo).map((i) => i.etiqueta))
-      .catch(() => [] as string[]),
+      .then((items) => items.filter((i) => i.activo))
+      .catch(() => []),
   ]);
 
   if (!user) notFound();

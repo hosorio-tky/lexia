@@ -68,13 +68,10 @@ export function PermitFormClient({
   const [addEntidadOpen,   setAddEntidadOpen]   = useState(false);
   const [addUbicacionOpen, setAddUbicacionOpen] = useState(false);
 
-  const tiposList     = tipoItems.map((i) => i.valor);
-  const entidadesList = entidadItems.map((i) => i.valor);
-
   const [isPending, startTransition] = useTransition();
-  const [tipo, setTipo]             = useState(defaultValues?.tipo ?? "");
+  const [tipo, setTipo]             = useState(defaultValues?.tipo_id ?? "");
   const [estado, setEstado]         = useState(defaultValues?.estado ?? "Creado");
-  const [entidad, setEntidad]           = useState(defaultValues?.entidad_reguladora ?? "");
+  const [entidad, setEntidad]       = useState(defaultValues?.entidad_reguladora_id ?? "");
   const [responsableIds, setResponsableIds] = useState<string[]>(() => {
     if (defaultValues?.responsable_ids?.length) return defaultValues.responsable_ids;
     if (defaultValues?.responsable_id) return [defaultValues.responsable_id];
@@ -100,8 +97,8 @@ export function PermitFormClient({
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    fd.set("tipo", tipo);
-    fd.set("entidad_reguladora", entidad === "__none__" ? "" : entidad);
+    fd.set("tipo_id", tipo);
+    fd.set("entidad_reguladora_id", entidad === "__none__" ? "" : entidad);
     fd.set("moneda", moneda);
     fd.set("tiene_provisional", String(tieneProvisional));
 
@@ -175,7 +172,7 @@ export function PermitFormClient({
                   </SelectTrigger>
                   <SelectContent>
                     {tipoItems.map((t) => (
-                      <SelectItem key={t.valor} value={t.valor}>{t.etiqueta}</SelectItem>
+                      <SelectItem key={t.id} value={t.id}>{t.valor}</SelectItem>
                     ))}
                     <SelectItem value="__add__" className="text-primary font-medium">
                       <Plus className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />Agregar tipo…
@@ -188,9 +185,9 @@ export function PermitFormClient({
                   title="Tipos de permiso"
                   modulo="permisos"
                   tipo="tipo_permiso"
-                  onItemAdded={(valor, etiqueta) => {
-                    setTipoItems((prev) => [...prev, { id: valor, tenant_id: "", modulo: "permisos", tipo: "tipo_permiso", valor, etiqueta, activo: true, orden: 0, created_at: "", updated_at: "" }]);
-                    setTipo(valor);
+                  onItemAdded={(item) => {
+                    setTipoItems((prev) => [...prev, item]);
+                    setTipo(item.id);
                   }}
                 />
               </Field>
@@ -202,7 +199,7 @@ export function PermitFormClient({
                   <SelectContent>
                     <SelectItem value="__none__">Sin especificar</SelectItem>
                     {entidadItems.map((e) => (
-                      <SelectItem key={e.valor} value={e.valor}>{e.etiqueta}</SelectItem>
+                      <SelectItem key={e.id} value={e.id}>{e.valor}</SelectItem>
                     ))}
                     <SelectItem value="__add__" className="text-primary font-medium">
                       <Plus className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />Agregar entidad…
@@ -215,9 +212,9 @@ export function PermitFormClient({
                   title="Entidades reguladoras"
                   modulo="permisos"
                   tipo="entidad_reguladora"
-                  onItemAdded={(valor, etiqueta) => {
-                    setEntidadItems((prev) => [...prev, { id: valor, tenant_id: "", modulo: "permisos", tipo: "entidad_reguladora", valor, etiqueta, activo: true, orden: 0, created_at: "", updated_at: "" }]);
-                    setEntidad(valor);
+                  onItemAdded={(item) => {
+                    setEntidadItems((prev) => [...prev, item]);
+                    setEntidad(item.id);
                   }}
                 />
               </Field>

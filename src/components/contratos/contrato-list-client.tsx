@@ -29,9 +29,11 @@ import { ContratoStatCards } from "./contrato-stat-cards";
 import { ContratoStatusBadge } from "./contrato-status-badge";
 import { ContratoKanban } from "./contrato-kanban";
 import { eliminarContrato } from "@/app/actions/contratos";
-import { diasRestantes, CONTRACT_ESTADOS, CONTRACT_TIPOS, type Contrato, type ContratoFilters } from "@/types/contratos";
+import { diasRestantes, CONTRACT_ESTADOS, type Contrato, type ContratoFilters } from "@/types/contratos";
+
 import { ArrowRight, Edit, MoreHorizontal } from "lucide-react";
 import { AccesoIndicador } from "@/components/shared/acceso-indicador";
+import type { CatalogoItem } from "@/types/settings";
 
 type ViewMode = "tabla" | "kanban";
 type ContratoSortKey = "titulo" | "tipo" | "estado" | "contraparte" | "valor" | "fecha_fin" | "actividad";
@@ -73,11 +75,13 @@ export function ContratoListClient({
   userId,
   userRol,
   editableIds = [],
+  tiposContrato = [],
 }: {
   initialContratos: Contrato[];
   userId?: string;
   userRol?: string;
   editableIds?: string[];
+  tiposContrato?: CatalogoItem[];
 }) {
   const searchParams = useSearchParams();
   const router       = useRouter();
@@ -202,8 +206,8 @@ export function ContratoListClient({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">Todos los tipos</SelectItem>
-              {CONTRACT_TIPOS.map((t) => (
-                <SelectItem key={t} value={t}>{t}</SelectItem>
+              {tiposContrato.map((t) => (
+                <SelectItem key={t.id} value={t.id}>{t.valor}</SelectItem>
               ))}
             </SelectContent>
           </Select>

@@ -5,8 +5,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createPermisosRepository } from "@/lib/repositories/permisos";
 import { getSession } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
-import { PERMIT_TYPES, PERMIT_STATUSES } from "@/types/permits";
-import type { PermitType, PermitStatus } from "@/types/permits";
+import { PERMIT_STATUSES } from "@/types/permits";
+import type { PermitStatus } from "@/types/permits";
+import { createConfiguracionRepository } from "@/lib/repositories/configuracion";
 import { revalidatePath } from "next/cache";
 
 // ── Tipos de resultado ────────────────────────────────────────
@@ -92,6 +93,11 @@ export async function importarPermisos(
   const client = createAdminClient();
   const repo   = createPermisosRepository(client, session.tenant_id);
 
+  // Fetch catalog items for tipo_permiso lookup
+  const tiposCatalogo = await createConfiguracionRepository(client, session.tenant_id)
+    .getCatalogos("permisos", "tipo_permiso")
+    .catch(() => []);
+
   for (let i = 0; i < filas.length; i++) {
     const row       = filas[i];
     const numFila   = i + 3; // fila 1=headers, fila 2=ejemplo, fila 3+=datos
@@ -102,10 +108,14 @@ export async function importarPermisos(
     if (!nombre) errores.push("El campo 'nombre' es obligatorio");
 
     const tipoRaw = String(row["tipo"] ?? "").trim();
-    if (!tipoRaw) {
-      errores.push("El campo 'tipo' es obligatorio");
-    } else if (!PERMIT_TYPES.includes(tipoRaw as PermitType)) {
-      errores.push(`Tipo inválido: "${tipoRaw}". Valores válidos: ${PERMIT_TYPES.join(", ")}`);
+    let tipoId: string | undefined;
+    if (tipoRaw) {
+      const match = tiposCatalogo.find((c) => c.valor.toLowerCase() === tipoRaw.toLowerCase());
+      if (match) {
+        tipoId = match.id;
+      } else {
+        errores.push(`Tipo no encontrado en catálogo: "${tipoRaw}". Verifica los tipos configurados en Configuración → Catálogos.`);
+      }
     }
 
     const estadoRaw = String(row["estado"] ?? "").trim();
@@ -131,9 +141,8 @@ export async function importarPermisos(
       await repo.create({
         tenant_id:           session.tenant_id,
         nombre,
-        tipo:                tipoRaw as PermitType,
+        tipo_id:             tipoId,
         numero_expediente:   String(row["numero_expediente"] ?? "").trim() || undefined,
-        entidad_reguladora:  String(row["entidad_reguladora"] ?? "").trim() || undefined,
         ubicacion:           String(row["ubicacion"] ?? "").trim() || undefined,
         descripcion:         String(row["descripcion"] ?? "").trim() || undefined,
         responsable_nombre:  String(row["responsable_nombre"] ?? "").trim() || undefined,

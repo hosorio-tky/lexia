@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition, useActionState } from "react";
-import { Plus, Trash2, ChevronDown, ChevronRight, BookOpen } from "lucide-react";
+import { useState, useTransition, useActionState, useEffect } from "react";
+import { Plus, Trash2, Pencil, Check, X, ChevronDown, ChevronRight, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { crearCatalogo, eliminarCatalogo } from "@/app/actions/configuracion";
+import { crearCatalogo, editarCatalogo, eliminarCatalogo } from "@/app/actions/configuracion";
 import { TIPOS_CATALOGO, type CatalogoItem } from "@/types/settings";
 
 // Agrupa los catálogos por modulo → tipo
@@ -54,21 +54,50 @@ export function CatalogoManagerClient({
     Object.keys(agrupar(initialCatalogos))[0] ?? ""
   );
   const [isPending, startTransition] = useTransition();
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [editingId, setEditingId]     = useState<string | null>(null);
+  const [editingVal, setEditingVal]   = useState("");
   const [modulo, setModulo] = useState("permisos");
   const [tipo, setTipo]     = useState("");
   const [state, formAction, pending] = useActionState(crearCatalogo, null);
 
+  useEffect(() => {
+    if (state?.item) {
+      setCatalogos((prev) => [...prev, state.item!]);
+      setOpen(false);
+    }
+  }, [state]);
+
   const grupos = agrupar(catalogos);
 
-  function handleDelete(id: string) {
+  function handleEdit(item: CatalogoItem) {
+    setEditingId(item.id);
+    setEditingVal(item.valor);
+  }
+
+  function handleSaveEdit(id: string) {
+    if (!editingVal.trim()) return;
     startTransition(async () => {
-      await eliminarCatalogo(id);
-      setCatalogos((prev) => prev.filter((c) => c.id !== id));
+      const result = await editarCatalogo(id, editingVal);
+      if (result?.error) { setDeleteError(result.error); return; }
+      if (result?.item) {
+        setCatalogos((prev) => prev.map((c) => c.id === id ? result.item! : c));
+      }
+      setEditingId(null);
     });
   }
 
-  // Al éxito del form, recargar la lista (el server revalida el path)
-  // El componente se re-renderiza porque Next revalidó el path
+  function handleDelete(id: string) {
+    setDeleteError(null);
+    startTransition(async () => {
+      const result = await eliminarCatalogo(id);
+      if (result?.error) {
+        setDeleteError(result.error);
+        return;
+      }
+      setCatalogos((prev) => prev.filter((c) => c.id !== id));
+    });
+  }
   const tiposDisponibles = TIPOS_CATALOGO[modulo as keyof typeof TIPOS_CATALOGO] ?? [];
 
   return (
@@ -85,6 +114,19 @@ export function CatalogoManagerClient({
           Agregar valor
         </Button>
       </div>
+
+      {deleteError && (
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
+          <span>{deleteError}</span>
+          <button
+            type="button"
+            onClick={() => setDeleteError(null)}
+            className="mt-0.5 shrink-0 text-destructive/60 hover:text-destructive"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {Object.entries(grupos).length === 0 ? (
         <Card className="flex flex-col items-center gap-3 py-16 text-center">
@@ -129,18 +171,61 @@ export function CatalogoManagerClient({
                             {items.map((item) => (
                               <div
                                 key={item.id}
-                                className="group flex items-center gap-1.5 rounded-full border bg-muted/40 pl-3 pr-1.5 py-1 text-sm"
+                                className="group flex items-center gap-1 rounded-full border bg-muted/40 pl-3 pr-1.5 py-1 text-sm"
                               >
-                                <span>{item.etiqueta}</span>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDelete(item.id)}
-                                  disabled={isPending}
-                                  className="grid h-5 w-5 place-items-center rounded-full text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
-                                  title="Eliminar"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
+                                {editingId === item.id ? (
+                                  <>
+                                    <input
+                                      className="w-32 bg-transparent text-sm outline-none"
+                                      value={editingVal}
+                                      onChange={(e) => setEditingVal(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter") handleSaveEdit(item.id);
+                                        if (e.key === "Escape") setEditingId(null);
+                                      }}
+                                      autoFocus
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSaveEdit(item.id)}
+                                      disabled={isPending}
+                                      className="grid h-5 w-5 place-items-center rounded-full text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                                      title="Guardar"
+                                    >
+                                      <Check className="h-3 w-3" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setEditingId(null)}
+                                      className="grid h-5 w-5 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                                      title="Cancelar"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>{item.valor}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEdit(item)}
+                                      disabled={isPending}
+                                      className="grid h-5 w-5 place-items-center rounded-full text-muted-foreground opacity-0 transition hover:bg-muted hover:text-foreground group-hover:opacity-100"
+                                      title="Editar"
+                                    >
+                                      <Pencil className="h-3 w-3" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDelete(item.id)}
+                                      disabled={isPending}
+                                      className="grid h-5 w-5 place-items-center rounded-full text-muted-foreground opacity-0 transition hover:bg-destructive/10 hover:text-destructive group-hover:opacity-100"
+                                      title="Eliminar"
+                                    >
+                                      <Trash2 className="h-3 w-3" />
+                                    </button>
+                                  </>
+                                )}
                               </div>
                             ))}
                           </div>
@@ -198,24 +283,14 @@ export function CatalogoManagerClient({
             </div>
 
             <div className="space-y-1.5">
-              <Label>Valor</Label>
+              <Label>Valor <span className="text-destructive">*</span></Label>
               <Input
                 name="valor"
                 placeholder="Ej. Ambiental"
                 required
               />
-              <p className="text-xs text-muted-foreground">
-                El valor interno que se guardará en los registros.
-              </p>
             </div>
-
-            <div className="space-y-1.5">
-              <Label>Etiqueta (opcional)</Label>
-              <Input
-                name="etiqueta"
-                placeholder="Ej. Ambiental (igual al valor si no se indica)"
-              />
-            </div>
+            <input type="hidden" name="etiqueta" value="" />
 
             {state?.error && (
               <p className="text-sm text-destructive">{state.error}</p>

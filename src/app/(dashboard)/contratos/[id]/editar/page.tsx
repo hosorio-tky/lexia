@@ -22,7 +22,7 @@ export default async function EditarContratoPage({
     createContratosRepository(client, session.tenant_id).getById(id),
     createResponsablesRepository(client, session.tenant_id).list(),
     createConfiguracionRepository(client, session.tenant_id).getCatalogos("contratos"),
-    client.from("profiles").select("id, nombre, apellido, email, departamento, cargo")
+    client.from("profiles").select("id, nombre, apellido, email, cargo, depto_cat:catalogos!departamento_id(valor)")
       .eq("tenant_id", session.tenant_id).eq("activo", true).order("nombre"),
   ]);
 
@@ -33,7 +33,7 @@ export default async function EditarContratoPage({
     id:           p.id as string,
     nombre:       p.apellido ? `${p.nombre} ${p.apellido}` : (p.nombre as string),
     email:        p.email as string,
-    departamento: (p.departamento as string | null) ?? null,
+    departamento: ((p.depto_cat as unknown) as { valor: string } | null)?.valor ?? null,
     cargo:        (p.cargo        as string | null) ?? null,
   }));
   const boundAction = editarContrato.bind(null, id);

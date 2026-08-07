@@ -16,13 +16,14 @@ import { UserRoleBadge } from "./user-role-badge";
 import { DepartamentoField } from "./departamento-field";
 import { invitarUsuario } from "@/app/actions/usuarios";
 import { USER_ROLES, ROLE_LABELS } from "@/types/users";
+import type { CatalogoItem } from "@/types/settings";
 
 export function UserInviteForm({
   rolInvitador = "supervisor",
   departamentos = [],
 }: {
   rolInvitador?: string;
-  departamentos?: string[];
+  departamentos?: CatalogoItem[];
 }) {
   const [rol, setRol] = useState("usuario");
 

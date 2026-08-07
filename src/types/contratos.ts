@@ -1,7 +1,5 @@
-export const CONTRACT_TIPOS = [
-  'Servicio', 'Suministro', 'Laboral', 'Arrendamiento', 'Confidencialidad', 'Otro'
-] as const;
-export type ContratoTipo = (typeof CONTRACT_TIPOS)[number];
+// Tipos de contrato ahora en catálogos BD; alias para compat
+export type ContratoTipo = string;
 
 export const CONTRACT_ESTADOS = [
   'En Revisión', 'Pendiente Firma', 'Vigente', 'Vencido', 'Terminado', 'Cancelado'
@@ -36,7 +34,8 @@ export interface Contrato {
   numero?: string;
   titulo: string;
   descripcion?: string;
-  tipo: ContratoTipo;
+  tipo_id: string;
+  tipo: string;
   estado: ContratoEstado;
   contraparte_nombre?: string;
   contraparte_email?: string;
@@ -72,7 +71,7 @@ export interface ContratoVersion {
 export interface ContratoFilters {
   search: string;
   estado: ContratoEstado | '';
-  tipo: ContratoTipo | '';
+  tipo: string;
 }
 
 // Calcula el % de tiempo transcurrido entre fecha_inicio y fecha_fin

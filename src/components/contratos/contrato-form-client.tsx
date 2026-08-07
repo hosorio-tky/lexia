@@ -95,7 +95,7 @@ export function ContratoFormClient({
   const [fechaFirma,        setFechaFirma]       = useState(defaultValues?.fecha_firma ?? "");
 
   // ── Controlled fields (Select / RichText) ────────────────────
-  const [tipo,         setTipo]         = useState(defaultValues?.tipo ?? "");
+  const [tipo,         setTipo]         = useState(defaultValues?.tipo_id ?? "");
   const [moneda,       setMoneda]       = useState(defaultValues?.moneda ?? "USD");
   const [contenidoHtml, setContenidoHtml] = useState(defaultValues?.contenido_html ?? "");
   const [storagePath,  setStoragePath]  = useState(defaultValues?.storage_path ?? "");
@@ -119,7 +119,7 @@ export function ContratoFormClient({
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    fd.set("tipo",           tipo);
+    fd.set("tipo_id",        tipo);
     fd.set("moneda",         moneda);
     fd.set("contenido_html", contenidoHtml);
     fd.set("storage_path",   storagePath);
@@ -410,7 +410,7 @@ export function ContratoFormClient({
                   </SelectTrigger>
                   <SelectContent>
                     {tipoItems.map((t) => (
-                      <SelectItem key={t.valor} value={t.valor}>{t.etiqueta}</SelectItem>
+                      <SelectItem key={t.id} value={t.id}>{t.valor}</SelectItem>
                     ))}
                     <SelectItem value="__add__" className="text-primary font-medium">
                       <Plus className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />Agregar tipo…
@@ -423,9 +423,9 @@ export function ContratoFormClient({
                   title="Tipos de contrato"
                   modulo="contratos"
                   tipo="tipo_contrato"
-                  onItemAdded={(valor, etiqueta) => {
-                    setTipoItems((prev) => [...prev, { id: valor, tenant_id: "", modulo: "contratos", tipo: "tipo_contrato", valor, etiqueta, activo: true, orden: 0, created_at: "", updated_at: "" }]);
-                    setTipo(valor);
+                  onItemAdded={(item) => {
+                    setTipoItems((prev) => [...prev, item]);
+                    setTipo(item.id);
                   }}
                 />
               </Field>

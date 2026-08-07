@@ -52,29 +52,8 @@ export const VIGENCIA_COLORS: Record<VigenciaStatus, string> = {
   "Sin fecha":  "bg-slate-100 text-slate-500 border-slate-200",
 };
 
-// ─── Tipos de permiso ──────────────────────────────────────────────────────
-export const PERMIT_TYPES = [
-  "Ambiental",
-  "Sanitario",
-  "Operativo",
-  "Construcción",
-  "Importación",
-  "Laboral",
-  "Tributario",
-] as const;
-
-export type PermitType = (typeof PERMIT_TYPES)[number];
-
-// ─── Entidades reguladoras (seed El Salvador) ─────────────────────────────
-export const REGULATORY_ENTITIES = [
-  "MARN",
-  "MINSAL",
-  "Alcaldía Municipal",
-  "MTPS",
-  "MINEC",
-  "CNR",
-  "SSF",
-] as const;
+// ─── Tipos de permiso (ahora en catálogos BD; alias para compat) ──────────
+export type PermitType = string;
 
 // ─── Interfaces principales ───────────────────────────────────────────────
 export const MONEDAS = ["USD", "EUR", "GTQ", "HNL", "NIO", "CRC", "COP", "MXN"] as const;
@@ -86,7 +65,9 @@ export interface Permit {
   numero_expediente?: string;
   nombre: string;
   descripcion?: string;
-  tipo: PermitType;
+  tipo_id: string;
+  tipo: string;
+  entidad_reguladora_id?: string;
   entidad_reguladora?: string;
   // Ubicación: FK + texto desnormalizado
   ubicacion_id?: string;
@@ -144,7 +125,7 @@ export interface PermitFechaHistorial {
 export interface PermitFilters {
   search: string;
   estado: PermitStatus | "";
-  tipo: PermitType | "";
+  tipo: string;
   entidad: string;
   responsable: string;
   vigencia: VigenciaStatus | "";
