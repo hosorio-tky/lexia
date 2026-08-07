@@ -39,7 +39,10 @@ export default function MfaSetupPage() {
         supabase.auth.mfa.unenroll({ factorId: f.id })
       ));
 
-      const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp" });
+      const { data, error } = await supabase.auth.mfa.enroll({
+        factorType: "totp",
+        friendlyName: `lexia-${crypto.randomUUID()}`,
+      });
       if (error || !data) {
         setError(error?.message ?? "Error al iniciar configuración MFA");
         setStep("enroll");
