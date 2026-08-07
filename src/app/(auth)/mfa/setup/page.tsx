@@ -25,10 +25,14 @@ export default function MfaSetupPage() {
 
   useEffect(() => {
     const init = async () => {
-      // Limpiar factores unverified de intentos anteriores incompletos
+      // Limpiar todos los factores TOTP existentes antes de crear uno nuevo.
+      // listFactors() solo devuelve verified, pero mfa.enroll() falla si ya existe
+      // alguno con el mismo friendly_name (incluso unverified). Unenrolling todo
+      // garantiza un estado limpio — el middleware no llega aquí si hay un factor
+      // verified activo, así que es seguro hacerlo.
       const { data: factors } = await supabase.auth.mfa.listFactors();
-      const unverified = factors?.totp?.filter((f) => f.status === "unverified") ?? [];
-      await Promise.all(unverified.map((f) => supabase.auth.mfa.unenroll({ factorId: f.id })));
+      const existing = factors?.totp ?? [];
+      await Promise.all(existing.map((f) => supabase.auth.mfa.unenroll({ factorId: f.id })));
 
       const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp" });
       if (error || !data) {
