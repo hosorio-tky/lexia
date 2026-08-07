@@ -20,7 +20,7 @@ export default async function InvitarUsuarioPage() {
       }}
     >
       <div className="max-w-2xl">
-        <UserInviteForm />
+        <UserInviteForm rolInvitador={session.rol} />
       </div>
     </AppShell>
   );

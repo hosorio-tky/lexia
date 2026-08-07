@@ -110,11 +110,11 @@ export function LoginForm({ next }: { next?: string }) {
         </Button>
       </form>
 
-      <p className="text-center text-sm text-muted-foreground">
-        ¿No tienes cuenta?{" "}
-        <Link href="/registro" className="font-medium text-primary hover:underline">
-          Crear cuenta
-        </Link>
+      <p className="text-center text-xs text-muted-foreground">
+        El acceso a Lexia es por invitación.{" "}
+        <a href="mailto:contacto@lexia.app" className="underline hover:text-foreground transition">
+          Contáctanos
+        </a>
       </p>
     </Card>
   );

@@ -1,5 +1,5 @@
-import { RegistroForm } from "@/components/auth/registro-form";
+import { redirect } from "next/navigation";
 
 export default function RegistroPage() {
-  return <RegistroForm />;
+  redirect("/login");
 }

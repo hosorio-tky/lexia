@@ -16,7 +16,7 @@ import { UserRoleBadge } from "./user-role-badge";
 import { invitarUsuario } from "@/app/actions/usuarios";
 import { USER_ROLES, ROLE_LABELS } from "@/types/users";
 
-export function UserInviteForm() {
+export function UserInviteForm({ rolInvitador = "supervisor" }: { rolInvitador?: string }) {
   const [rol, setRol] = useState("usuario");
 
   const actionWithRol = async (_prev: unknown, formData: FormData) => {
@@ -96,7 +96,7 @@ export function UserInviteForm() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {USER_ROLES.filter((r) => r !== "admin").map((r) => (
+                {USER_ROLES.filter((r) => rolInvitador === "admin" ? true : r !== "admin").map((r) => (
                   <SelectItem key={r} value={r}>
                     <span className="flex items-center gap-2">
                       {ROLE_LABELS[r]}
@@ -117,6 +117,7 @@ export function UserInviteForm() {
           <span className="text-muted-foreground">Permisos del rol:</span>
           <UserRoleBadge rol={rol as "admin" | "supervisor" | "usuario" | "solo_lectura"} />
           <span className="text-xs text-muted-foreground">
+            {rol === "admin"       && "— acceso total, gestiona usuarios y configuración"}
             {rol === "supervisor"  && "— puede crear y editar, no eliminar"}
             {rol === "usuario"     && "— puede crear y editar permisos"}
             {rol === "solo_lectura" && "— solo puede ver información"}

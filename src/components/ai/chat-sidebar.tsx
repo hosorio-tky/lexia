@@ -30,23 +30,22 @@ export function ChatSidebar({ open, onClose }: ChatSidebarProps) {
 
   const [expanded,  setExpanded]  = useState(false);
   const [input,     setInput]     = useState("");
-  const [messages,  setMessages]  = useState<Msg[]>(() => {
-    if (typeof window === "undefined") return [];
+  const [messages,  setMessages]  = useState<Msg[]>([]);
+
+  // Cargar historial desde localStorage solo en el cliente (evita hydration mismatch)
+  useEffect(() => {
     try {
       const saved = localStorage.getItem("lexia_chat_history");
-      if (!saved) return [];
+      if (!saved) return;
       const parsed = JSON.parse(saved) as Msg[];
-      // Re-asignar IDs únicos para evitar colisiones con mensajes viejos
       const seen = new Set<string>();
-      return parsed.map((m) => {
-        if (!m.id || seen.has(m.id)) {
-          return { ...m, id: uid() };
-        }
+      setMessages(parsed.map((m) => {
+        if (!m.id || seen.has(m.id)) return { ...m, id: uid() };
         seen.add(m.id);
         return m;
-      });
-    } catch { return []; }
-  });
+      }));
+    } catch { /* historial corrupto, ignorar */ }
+  }, []);
   const [streaming, setStreaming] = useState(false);
   const [error,     setError]     = useState<string | null>(null);
 

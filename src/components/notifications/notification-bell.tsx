@@ -143,15 +143,18 @@ export function NotificationBell() {
 
   // Carga inicial + suscripción Realtime
   useEffect(() => {
-    obtenerNotificacionesRecientes().then((data) => {
-      setNotifs(data);
-      setLoaded(true);
-    });
-
+    let cancelled = false;
     const supabase = createClient();
 
-    // Obtener el usuario actual para filtrar por user_id
+    obtenerNotificacionesRecientes().then((data) => {
+      if (!cancelled) {
+        setNotifs(data);
+        setLoaded(true);
+      }
+    });
+
     supabase.auth.getUser().then(({ data }) => {
+      if (cancelled) return;
       const userId = data.user?.id;
       if (!userId) return;
 
@@ -175,9 +178,10 @@ export function NotificationBell() {
     });
 
     return () => {
+      cancelled = true;
       if (channelRef.current) {
-        const supabase = createClient();
         supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
     };
   }, []);

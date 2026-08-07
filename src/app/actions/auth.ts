@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -160,6 +161,20 @@ export async function signIn(
     }
   }
 
+  // Gestionar cookie de contraseña temporal — limpiar siempre primero para
+  // no heredar residuos de otras sesiones.
+  const cookieStore = await cookies();
+  if (data.user?.app_metadata?.must_change_password) {
+    cookieStore.set("lexia_force_pwd", "1", {
+      httpOnly: true,
+      path: "/",
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+    });
+  } else {
+    cookieStore.delete("lexia_force_pwd");
+  }
+
   redirect(next);
 }
 
@@ -167,6 +182,8 @@ export async function signIn(
 export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
+  const cookieStore = await cookies();
+  cookieStore.delete("lexia_force_pwd");
   redirect("/login");
 }
 
@@ -179,7 +196,7 @@ export async function solicitarRecuperacion(
   if (!email) return { error: "El correo es obligatorio" };
 
   const supabase = await createClient();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3002";
+  const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: `${siteUrl}/auth/callback?next=/actualizar-contrasena`,
@@ -219,5 +236,27 @@ export async function actualizarContrasena(
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password });
   if (error) return { error: error.message };
+
+  // Verificar si era cambio forzado (por app_metadata o por cookie)
+  const { data: { user: currentUser } } = await supabase.auth.getUser();
+  const cookieStore = await cookies();
+  const hasForceCookie = cookieStore.get("lexia_force_pwd")?.value === "1";
+  const wasForcedChange = !!currentUser?.app_metadata?.must_change_password || hasForceCookie;
+
+  if (wasForcedChange) {
+    // 1. Limpiar flag — usar false (no null) para garantizar que GoTrue lo
+    //    persista correctamente en el JSONB y no lo ignore como "sin cambio".
+    if (currentUser) {
+      const admin = createAdminClient();
+      await admin.auth.admin.updateUserById(currentUser.id, {
+        app_metadata: { must_change_password: false },
+      });
+    }
+    // 2. Eliminar la cookie — el middleware la usa como fuente de verdad
+    cookieStore.delete("lexia_force_pwd");
+    // 3. Redirect
+    redirect("/permisos");
+  }
+
   return { success: true };
 }

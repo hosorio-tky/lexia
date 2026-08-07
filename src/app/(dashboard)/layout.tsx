@@ -1,11 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { InactivityGuard } from "@/components/shared/inactivity-guard";
 
-/**
- * Guard de autenticación para todas las rutas del dashboard.
- * No renderiza AppShell aquí — cada página lo hace con sus propios
- * breadcrumb/title usando getSession() (deduplicado con React cache).
- */
 export default async function DashboardLayout({
   children,
 }: {
@@ -16,5 +12,10 @@ export default async function DashboardLayout({
 
   if (!user) redirect("/login");
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      <InactivityGuard />
+    </>
+  );
 }

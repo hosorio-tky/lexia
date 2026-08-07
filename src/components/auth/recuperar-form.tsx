@@ -82,8 +82,8 @@ export function RecuperarForm() {
   );
 }
 
-// ─── Actualizar contraseña (desde link de recuperación) ───────
-export function ActualizarContrasenaForm() {
+// ─── Actualizar contraseña (desde link de recuperación o primer login) ───────
+export function ActualizarContrasenaForm({ forced = false }: { forced?: boolean }) {
   const [showPassword, setShowPassword] = useState(false);
   const [state, formAction, isPending] = useActionState(actualizarContrasena, {});
 
@@ -109,9 +109,13 @@ export function ActualizarContrasenaForm() {
   return (
     <Card className="p-6 shadow-sm space-y-5">
       <div>
-        <h1 className="text-lg font-semibold">Nueva contraseña</h1>
+        <h1 className="text-lg font-semibold">
+          {forced ? "Establece tu contraseña" : "Nueva contraseña"}
+        </h1>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Elige una contraseña segura de al menos 8 caracteres
+          {forced
+            ? "Debes establecer una contraseña personal antes de continuar."
+            : "Elige una contraseña segura de al menos 8 caracteres."}
         </p>
       </div>
 
