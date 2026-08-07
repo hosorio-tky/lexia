@@ -221,6 +221,7 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
         fecha_firma: string | null;
         storage_path: string | null;
         contenido_html: string | null;
+        responsable_ids: string[];
         responsable_id: string | null;
         responsable_nombre: string | null;
         updated_by: string;

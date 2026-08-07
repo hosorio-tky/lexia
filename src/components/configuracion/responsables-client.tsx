@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Mail, Briefcase } from "lucide-react";
+import { Plus, Pencil, Trash2, ToggleLeft, ToggleRight, Mail, Briefcase, UserCheck, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,37 +15,131 @@ import {
   AlertDialogContent, AlertDialogDescription, AlertDialogFooter,
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { crearResponsable, editarResponsable, toggleResponsable, eliminarResponsable } from "@/app/actions/responsables";
 import type { Responsable } from "@/lib/repositories/responsables";
+import type { ProfileOption } from "@/app/(dashboard)/configuracion/responsables/page";
+
+type Mode = "sistema" | "externo";
 
 function ResponsableForm({
   defaultValues,
+  profiles,
   onSubmit,
   onCancel,
   isPending,
 }: {
   defaultValues?: Partial<Responsable>;
+  profiles: ProfileOption[];
   onSubmit: (fd: FormData) => void;
   onCancel: () => void;
   isPending: boolean;
 }) {
+  const initialMode: Mode = defaultValues?.user_id ? "sistema" : "externo";
+  const [mode, setMode] = useState<Mode>(initialMode);
+  const initialProfile = defaultValues?.user_id ? profiles.find((p) => p.id === defaultValues.user_id) : null;
+  const [selectedProfile, setSelectedProfile] = useState<ProfileOption | null>(initialProfile ?? null);
+  const [areaValue, setAreaValue] = useState<string>(defaultValues?.area ?? "");
+
   return (
     <form
       onSubmit={(e) => { e.preventDefault(); onSubmit(new FormData(e.currentTarget)); }}
       className="space-y-4"
     >
-      <div className="space-y-1.5">
-        <Label>Nombre <span className="text-destructive">*</span></Label>
-        <Input name="nombre" defaultValue={defaultValues?.nombre} placeholder="Ej. Ana López" required />
+      {/* Toggle */}
+      <div className="flex rounded-lg border overflow-hidden text-sm">
+        <button
+          type="button"
+          onClick={() => setMode("sistema")}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 transition ${
+            mode === "sistema"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          <UserCheck className="h-3.5 w-3.5" />
+          Usuario del sistema
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("externo")}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2 transition ${
+            mode === "externo"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-muted"
+          }`}
+        >
+          <User className="h-3.5 w-3.5" />
+          Contacto externo
+        </button>
       </div>
-      <div className="space-y-1.5">
-        <Label>Área de la empresa</Label>
-        <Input name="area" defaultValue={defaultValues?.area ?? ""} placeholder="Ej. Legal, Operaciones, HSE" />
-      </div>
-      <div className="space-y-1.5">
-        <Label>Correo electrónico</Label>
-        <Input name="email" type="email" defaultValue={defaultValues?.email ?? ""} placeholder="ana@empresa.com" />
-      </div>
+
+      {mode === "sistema" ? (
+        <>
+          <input type="hidden" name="tipo" value="sistema" />
+          <div className="space-y-1.5">
+            <Label>Usuario <span className="text-destructive">*</span></Label>
+            <Select
+              name="user_id"
+              defaultValue={defaultValues?.user_id ?? undefined}
+              required
+              onValueChange={(val) => {
+                const p = profiles.find((p) => p.id === val) ?? null;
+                setSelectedProfile(p);
+                setAreaValue(p?.departamento ?? "");
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Selecciona un usuario…" />
+              </SelectTrigger>
+              <SelectContent>
+                {profiles.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    <span>{p.nombre}</span>
+                    <span className="ml-2 text-muted-foreground text-xs">{p.email}</span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              El nombre y correo se sincronizan automáticamente desde el perfil.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Área de la empresa</Label>
+            <Input
+              name="area"
+              value={areaValue}
+              onChange={(e) => setAreaValue(e.target.value)}
+              placeholder={selectedProfile?.departamento ? "" : "Ej. Legal, Operaciones, HSE"}
+            />
+            {selectedProfile?.departamento && (
+              <p className="text-xs text-muted-foreground">
+                Pre-completado desde el perfil. Puedes modificarlo.
+              </p>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          <input type="hidden" name="tipo" value="externo" />
+          <div className="space-y-1.5">
+            <Label>Nombre <span className="text-destructive">*</span></Label>
+            <Input name="nombre" defaultValue={defaultValues?.nombre} placeholder="Ej. Ana López" required />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Área de la empresa</Label>
+            <Input name="area" defaultValue={defaultValues?.area ?? ""} placeholder="Ej. Legal, Operaciones, HSE" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Correo electrónico</Label>
+            <Input name="email" type="email" defaultValue={defaultValues?.email ?? ""} placeholder="ana@empresa.com" />
+          </div>
+        </>
+      )}
+
       <DialogFooter>
         <Button type="button" variant="ghost" onClick={onCancel}>Cancelar</Button>
         <Button type="submit" disabled={isPending}>
@@ -56,7 +150,13 @@ function ResponsableForm({
   );
 }
 
-export function ResponsablesClient({ initialItems }: { initialItems: Responsable[] }) {
+export function ResponsablesClient({
+  initialItems,
+  profiles,
+}: {
+  initialItems: Responsable[];
+  profiles: ProfileOption[];
+}) {
   const [items, setItems]   = useState<Responsable[]>(initialItems);
   const [dialog, setDialog] = useState<{ open: boolean; item?: Responsable }>({ open: false });
   const [error, setError]   = useState<string | null>(null);
@@ -72,10 +172,15 @@ export function ResponsablesClient({ initialItems }: { initialItems: Responsable
       start(async () => {
         const res = await editarResponsable(dialog.item!.id, null, fd);
         if (res.error) { setError(res.error); return; }
-        setItems((prev) => prev.map((i) => i.id === dialog.item!.id
-          ? { ...i, nombre: fd.get("nombre") as string, area: (fd.get("area") as string) || null, email: (fd.get("email") as string) || null }
-          : i
-        ));
+        const userId = (fd.get("user_id") as string) || null;
+        const profile = userId ? profiles.find((p) => p.id === userId) : null;
+        setItems((prev) => prev.map((i) => {
+          if (i.id !== dialog.item!.id) return i;
+          if (profile) {
+            return { ...i, user_id: profile.id, nombre: profile.nombre, email: profile.email, area: (fd.get("area") as string) || null };
+          }
+          return { ...i, user_id: null, nombre: fd.get("nombre") as string, area: (fd.get("area") as string) || null, email: (fd.get("email") as string) || null };
+        }));
         closeDialog();
       });
     } else {
@@ -125,13 +230,17 @@ export function ResponsablesClient({ initialItems }: { initialItems: Responsable
         <div className="space-y-6">
           {activos.length > 0 && (
             <div className="space-y-2">
-              {activos.map((item) => <ItemRow key={item.id} item={item} onEdit={openEdit} onToggle={handleToggle} onDelete={handleDelete} />)}
+              {activos.map((item) => (
+                <ItemRow key={item.id} item={item} onEdit={openEdit} onToggle={handleToggle} onDelete={handleDelete} />
+              ))}
             </div>
           )}
           {inactivos.length > 0 && (
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1">Inactivos</p>
-              {inactivos.map((item) => <ItemRow key={item.id} item={item} onEdit={openEdit} onToggle={handleToggle} onDelete={handleDelete} />)}
+              {inactivos.map((item) => (
+                <ItemRow key={item.id} item={item} onEdit={openEdit} onToggle={handleToggle} onDelete={handleDelete} />
+              ))}
             </div>
           )}
         </div>
@@ -146,6 +255,7 @@ export function ResponsablesClient({ initialItems }: { initialItems: Responsable
           <ResponsableForm
             key={dialog.item?.id ?? "new"}
             defaultValues={dialog.item}
+            profiles={profiles}
             onSubmit={handleSubmit}
             onCancel={closeDialog}
             isPending={isPending}
@@ -172,6 +282,12 @@ function ItemRow({ item, onEdit, onToggle, onDelete }: {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-medium text-sm">{item.nombre}</span>
+          {item.user_id && (
+            <Badge variant="secondary" className="text-[10px] py-0 gap-1">
+              <UserCheck className="h-2.5 w-2.5" />
+              Sistema
+            </Badge>
+          )}
           {!item.activo && <Badge variant="outline" className="text-[10px] py-0">Inactivo</Badge>}
         </div>
         <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">

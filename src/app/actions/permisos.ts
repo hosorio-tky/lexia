@@ -43,8 +43,10 @@ export async function crearPermiso(formData: FormData) {
       tipo:                       formData.get("tipo") as string,
       numero_expediente:          (formData.get("numero_expediente") as string) || undefined,
       entidad_reguladora:         (formData.get("entidad_reguladora") as string) || undefined,
+      responsable_ids:            (formData.getAll("responsable_ids[]") as string[]).filter(Boolean),
       responsable_id:             (formData.get("responsable_id") as string) || undefined,
       responsable_nombre:         (formData.get("responsable_nombre") as string) || undefined,
+
       ubicacion_id:               (formData.get("ubicacion_id") as string) || undefined,
       ubicacion:                  (formData.get("ubicacion") as string) || undefined,
       descripcion:                (formData.get("descripcion") as string) || undefined,
@@ -159,7 +161,8 @@ export async function editarPermiso(id: string, formData: FormData) {
     }
   }
 
-  await repo.update(id, input);
+  const responsableIdsEdit = (formData.getAll("responsable_ids[]") as string[]).filter(Boolean);
+  await repo.update(id, { ...input, responsable_ids: responsableIdsEdit });
 
   await logActivity({
     tenant_id:    session.tenant_id,

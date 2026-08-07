@@ -3,7 +3,7 @@
 import { useRef, useState, useTransition, useCallback } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft, Save, Upload, FileText, X, Loader2, CheckCircle2, AlertCircle, Wand2,
+  ArrowLeft, Save, Upload, FileText, X, Loader2, CheckCircle2, AlertCircle, Wand2, Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -16,13 +16,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { RichTextEditor } from "@/components/shared/rich-text-editor";
 import {
-  CONTRACT_TIPOS,
   MONEDAS_CONTRATO,
   type Contrato,
   type ContratoTipo,
 } from "@/types/contratos";
 import type { Responsable } from "@/lib/repositories/responsables";
 import type { ContratoPlantilla } from "@/lib/repositories/contrato-plantillas";
+import type { CatalogoItem } from "@/types/settings";
+import type { ProfileOption } from "@/types/users";
+import { CatalogAddDialog } from "@/components/shared/catalog-add-dialog";
+import { ResponsableMultiSelect } from "@/components/shared/responsable-multi-select";
 import { UsarPlantillaModal } from "./usar-plantilla-modal";
 
 function Field({ label, required, hint, children }: {
@@ -53,6 +56,8 @@ interface ContratoFormClientProps {
   defaultValues?: Partial<Contrato>;
   responsables?: Responsable[];
   plantillas?: ContratoPlantilla[];
+  tiposContrato?: CatalogoItem[];
+  profiles?: ProfileOption[];
   backHref?: string;
 }
 
@@ -60,10 +65,16 @@ export function ContratoFormClient({
   action,
   mode,
   defaultValues,
-  responsables = [],
+  responsables: responsablesProp = [],
   plantillas = [],
+  tiposContrato: tiposContratoProp = [],
+  profiles = [],
   backHref,
 }: ContratoFormClientProps) {
+  const [tipoItems,    setTipoItems]    = useState<CatalogoItem[]>(tiposContratoProp);
+  const [responsables, setResponsables] = useState<Responsable[]>(responsablesProp);
+
+  const [addTipoOpen, setAddTipoOpen] = useState(false);
   const resolvedBackHref = backHref ?? (
     mode === "edit" && defaultValues?.id ? `/contratos/${defaultValues.id}` : "/contratos"
   );
@@ -88,7 +99,11 @@ export function ContratoFormClient({
   const [moneda,       setMoneda]       = useState(defaultValues?.moneda ?? "USD");
   const [contenidoHtml, setContenidoHtml] = useState(defaultValues?.contenido_html ?? "");
   const [storagePath,  setStoragePath]  = useState(defaultValues?.storage_path ?? "");
-  const [responsableId, setResponsableId] = useState(defaultValues?.responsable_id ?? "__none__");
+  const [responsableIds, setResponsableIds] = useState<string[]>(() => {
+    if (defaultValues?.responsable_ids?.length) return defaultValues.responsable_ids;
+    if (defaultValues?.responsable_id) return [defaultValues.responsable_id];
+    return [];
+  });
 
   // ── PDF extraction state ─────────────────────────────────────
   const [extractState, setExtractState] = useState<ExtractState>({ status: "idle" });
@@ -97,7 +112,7 @@ export function ContratoFormClient({
   // ── Plantilla modal state ─────────────────────────────────────
   const [plantillaModalOpen, setPlantillaModalOpen] = useState(false);
 
-  const selectedResponsable = responsables.find((r) => r.id === responsableId);
+  const tiposList = tipoItems.map((i) => i.valor);
   const isEditing           = mode === "edit";
 
   // ── Form submit ───────────────────────────────────────────────
@@ -109,14 +124,13 @@ export function ContratoFormClient({
     fd.set("contenido_html", contenidoHtml);
     fd.set("storage_path",   storagePath);
 
-    if (responsableId && responsableId !== "__none__") {
-      fd.set("responsable_id", responsableId);
-      const r = responsables.find((r) => r.id === responsableId);
+    fd.delete("responsable_ids[]");
+    responsableIds.forEach((id) => fd.append("responsable_ids[]", id));
+    const primaryId = responsableIds[0] ?? "";
+    fd.set("responsable_id", primaryId);
+    if (primaryId) {
+      const r = responsables.find((r) => r.id === primaryId);
       if (r) fd.set("responsable_nombre", r.nombre);
-    } else {
-      fd.set("responsable_id", "");
-      const manual = fd.get("responsable_nombre_manual") as string;
-      if (manual) fd.set("responsable_nombre", manual);
     }
 
     startTransition(() => action(null, fd));
@@ -390,16 +404,30 @@ export function ContratoFormClient({
                 />
               </Field>
               <Field label="Tipo de contrato" required>
-                <Select value={tipo} onValueChange={setTipo}>
+                <Select value={tipo} onValueChange={(v) => { if (v === "__add__") { setAddTipoOpen(true); return; } setTipo(v); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar tipo" />
                   </SelectTrigger>
                   <SelectContent>
-                    {CONTRACT_TIPOS.map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    {tipoItems.map((t) => (
+                      <SelectItem key={t.valor} value={t.valor}>{t.etiqueta}</SelectItem>
                     ))}
+                    <SelectItem value="__add__" className="text-primary font-medium">
+                      <Plus className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />Agregar tipo…
+                    </SelectItem>
                   </SelectContent>
                 </Select>
+                <CatalogAddDialog
+                  open={addTipoOpen}
+                  onOpenChange={setAddTipoOpen}
+                  title="Tipos de contrato"
+                  modulo="contratos"
+                  tipo="tipo_contrato"
+                  onItemAdded={(valor, etiqueta) => {
+                    setTipoItems((prev) => [...prev, { id: valor, tenant_id: "", modulo: "contratos", tipo: "tipo_contrato", valor, etiqueta, activo: true, orden: 0, created_at: "", updated_at: "" }]);
+                    setTipo(valor);
+                  }}
+                />
               </Field>
               <div className="sm:col-span-2">
                 <Field label="Descripción">
@@ -565,53 +593,13 @@ export function ContratoFormClient({
           <Card className="p-5 shadow-sm space-y-4">
             <h2 className="text-sm font-semibold">Responsable</h2>
             <Separator />
-            {responsables.length > 0 ? (
-              <Field label="Asignar responsable">
-                <Select value={responsableId} onValueChange={setResponsableId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sin asignar" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Sin asignar</SelectItem>
-                    {responsables.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.nombre}
-                        {r.area && (
-                          <span className="ml-1.5 text-xs text-muted-foreground">· {r.area}</span>
-                        )}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedResponsable && (
-                  <div className="mt-2 flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2">
-                    <div className="grid h-7 w-7 place-items-center rounded-full bg-primary/10 text-primary text-xs font-bold">
-                      {selectedResponsable.nombre.split(" ").slice(0,2).map(w => w[0]).join("").toUpperCase()}
-                    </div>
-                    <div className="text-xs">
-                      <p className="font-medium">{selectedResponsable.nombre}</p>
-                      {selectedResponsable.email && (
-                        <p className="text-muted-foreground">{selectedResponsable.email}</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </Field>
-            ) : (
-              <Field label="Nombre del responsable">
-                <Input
-                  name="responsable_nombre_manual"
-                  placeholder="Ej. Ana López"
-                  defaultValue={defaultValues?.responsable_nombre}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Configura responsables en{" "}
-                  <a href="/configuracion/responsables" className="underline hover:text-foreground transition-colors">
-                    Configuración → Responsables
-                  </a>
-                </p>
-              </Field>
-            )}
+            <ResponsableMultiSelect
+              responsables={responsables}
+              profiles={profiles}
+              selectedIds={responsableIds}
+              onChange={setResponsableIds}
+              onResponsableAdded={(r) => setResponsables((prev) => [...prev, r])}
+            />
           </Card>
 
           {/* Botones */}

@@ -5,6 +5,7 @@ import { editarContrato } from "@/app/actions/contratos";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createContratosRepository } from "@/lib/repositories/contratos";
 import { createResponsablesRepository } from "@/lib/repositories/responsables";
+import { createConfiguracionRepository } from "@/lib/repositories/configuracion";
 import { getSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -17,13 +18,24 @@ export default async function EditarContratoPage({
   const [{ id }, session] = await Promise.all([params, getSession()]);
   const client = createAdminClient();
 
-  const [contrato, responsables] = await Promise.all([
+  const [contrato, responsables, catalogos, profilesResult] = await Promise.all([
     createContratosRepository(client, session.tenant_id).getById(id),
     createResponsablesRepository(client, session.tenant_id).list(),
+    createConfiguracionRepository(client, session.tenant_id).getCatalogos("contratos"),
+    client.from("profiles").select("id, nombre, apellido, email, departamento, cargo")
+      .eq("tenant_id", session.tenant_id).eq("activo", true).order("nombre"),
   ]);
 
   if (!contrato) notFound();
 
+  const tiposContrato = catalogos.filter((c) => c.tipo === "tipo_contrato" && c.activo);
+  const profiles      = (profilesResult.data ?? []).map((p) => ({
+    id:           p.id as string,
+    nombre:       p.apellido ? `${p.nombre} ${p.apellido}` : (p.nombre as string),
+    email:        p.email as string,
+    departamento: (p.departamento as string | null) ?? null,
+    cargo:        (p.cargo        as string | null) ?? null,
+  }));
   const boundAction = editarContrato.bind(null, id);
 
   return (
@@ -42,6 +54,8 @@ export default async function EditarContratoPage({
         mode="edit"
         defaultValues={contrato}
         responsables={responsables}
+        tiposContrato={tiposContrato}
+        profiles={profiles}
       />
     </AppShell>
   );

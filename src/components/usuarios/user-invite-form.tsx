@@ -13,10 +13,17 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { UserRoleBadge } from "./user-role-badge";
+import { DepartamentoField } from "./departamento-field";
 import { invitarUsuario } from "@/app/actions/usuarios";
 import { USER_ROLES, ROLE_LABELS } from "@/types/users";
 
-export function UserInviteForm({ rolInvitador = "supervisor" }: { rolInvitador?: string }) {
+export function UserInviteForm({
+  rolInvitador = "supervisor",
+  departamentos = [],
+}: {
+  rolInvitador?: string;
+  departamentos?: string[];
+}) {
   const [rol, setRol] = useState("usuario");
 
   const actionWithRol = async (_prev: unknown, formData: FormData) => {
@@ -109,6 +116,10 @@ export function UserInviteForm({ rolInvitador = "supervisor" }: { rolInvitador?:
           <div className="space-y-1.5">
             <Label htmlFor="cargo">Cargo</Label>
             <Input id="cargo" name="cargo" placeholder="Ej. Gerente Legal" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Departamento</Label>
+            <DepartamentoField departamentos={departamentos} />
           </div>
         </div>
 

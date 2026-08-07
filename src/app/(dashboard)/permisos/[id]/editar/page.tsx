@@ -19,18 +19,27 @@ export default async function EditarPermisoPage({
   const [{ id }, session] = await Promise.all([params, getSession()]);
   const client = createAdminClient();
 
-  const [permit, catalogos, responsables, ubicaciones] = await Promise.all([
+  const [permit, catalogos, responsables, ubicaciones, profilesResult] = await Promise.all([
     createPermisosRepository(client, session.tenant_id).getById(id),
     createConfiguracionRepository(client, session.tenant_id).getCatalogos("permisos"),
     createResponsablesRepository(client, session.tenant_id).list(),
     createUbicacionesRepository(client, session.tenant_id).list(),
+    client.from("profiles").select("id, nombre, apellido, email, departamento, cargo")
+      .eq("tenant_id", session.tenant_id).eq("activo", true).order("nombre"),
   ]);
 
   if (!permit) notFound();
 
-  const tiposPermiso = catalogos.filter((c) => c.tipo === "tipo_permiso" && c.activo).map((c) => c.valor);
-  const entidades    = catalogos.filter((c) => c.tipo === "entidad_reguladora" && c.activo).map((c) => c.valor);
-  const action       = editarPermiso.bind(null, id);
+  const tiposPermiso = catalogos.filter((c) => c.tipo === "tipo_permiso" && c.activo);
+  const entidades    = catalogos.filter((c) => c.tipo === "entidad_reguladora" && c.activo);
+  const profiles     = (profilesResult.data ?? []).map((p) => ({
+    id:           p.id as string,
+    nombre:       p.apellido ? `${p.nombre} ${p.apellido}` : (p.nombre as string),
+    email:        p.email as string,
+    departamento: (p.departamento as string | null) ?? null,
+    cargo:        (p.cargo        as string | null) ?? null,
+  }));
+  const action = editarPermiso.bind(null, id);
 
   return (
     <AppShell
@@ -47,10 +56,11 @@ export default async function EditarPermisoPage({
         action={action}
         defaultValues={permit}
         backHref={`/permisos/${id}`}
-        tiposPermiso={tiposPermiso.length > 0 ? tiposPermiso : undefined}
-        entidadesReguladoras={entidades.length > 0 ? entidades : undefined}
+        tiposPermiso={tiposPermiso}
+        entidadesReguladoras={entidades}
         responsables={responsables}
         ubicaciones={ubicaciones}
+        profiles={profiles}
       />
     </AppShell>
   );

@@ -101,10 +101,11 @@ export interface Permit {
   tiene_provisional?: boolean;
   fecha_emision_provisional?: string;
   fecha_vencimiento_provisional?: string;
-  // Responsable: FK + texto desnormalizado
+  // Responsable: FK + texto desnormalizado (primer responsable) + array completo
   responsable_id?: string;
   responsable_nombre?: string;
   responsable_iniciales?: string;
+  responsable_ids?: string[];
   // Valor económico
   valor_tramite?: number;
   moneda?: string;

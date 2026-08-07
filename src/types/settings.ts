@@ -26,6 +26,7 @@ export const TIPOS_CATALOGO: Record<ModuloCatalogo, { tipo: string; label: strin
   global: [
     { tipo: "industria",           label: "Industrias" },
     { tipo: "pais",                label: "Países" },
+    { tipo: "departamento",        label: "Departamentos" },
   ],
 };
 

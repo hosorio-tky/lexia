@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { UserRoleBadge } from "./user-role-badge";
+import { DepartamentoField } from "./departamento-field";
 import { editarUsuario, cambiarContrasena } from "@/app/actions/usuarios";
 import type { UserProfile } from "@/types/users";
 
@@ -23,7 +24,7 @@ function Field({ label, required, children }: {
   );
 }
 
-export function UserProfileClient({ user }: { user: UserProfile }) {
+export function UserProfileClient({ user, departamentos = [] }: { user: UserProfile; departamentos?: string[] }) {
   // ── Formulario de perfil ──────────────────────────────────
   const [isPendingProfile, startProfile] = useTransition();
   const handleProfileSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -58,7 +59,7 @@ export function UserProfileClient({ user }: { user: UserProfile }) {
                 <Input name="cargo" placeholder="Ej. Gerente Legal" defaultValue={user.cargo} />
               </Field>
               <Field label="Departamento">
-                <Input name="departamento" placeholder="Ej. Legal" defaultValue={user.departamento} />
+                <DepartamentoField departamentos={departamentos} defaultValue={user.departamento} />
               </Field>
               <Field label="Teléfono">
                 <Input name="telefono" placeholder="Ej. +503 7000-0000" defaultValue={user.telefono} />

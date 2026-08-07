@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Clock, Edit, ToggleLeft, ToggleRight,
-  Building2, Phone, Briefcase, Mail, CheckCircle,
+  Mail, CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -125,13 +125,16 @@ export function UserDetailClient({
               </div>
             </div>
             <Separator className="mb-4" />
-            <InfoRow label="Rol"         value={undefined} />
-            <div className="-mt-6 mb-2 flex justify-end"><UserRoleBadge rol={user.rol} /></div>
-            {user.cargo        && <div className="flex items-center gap-2 text-sm py-2 border-b"><Briefcase className="h-4 w-4 text-muted-foreground" />{user.cargo}</div>}
-            {user.departamento && <div className="flex items-center gap-2 text-sm py-2 border-b"><Building2 className="h-4 w-4 text-muted-foreground" />{user.departamento}</div>}
-            {user.telefono     && <div className="flex items-center gap-2 text-sm py-2 border-b"><Phone className="h-4 w-4 text-muted-foreground" />{user.telefono}</div>}
+            <div className="flex flex-col gap-0.5 sm:flex-row sm:justify-between py-2 border-b">
+              <span className="text-sm text-muted-foreground">Rol</span>
+              <UserRoleBadge rol={user.rol} />
+            </div>
+            <InfoRow label="Cargo"         value={user.cargo} />
+            <InfoRow label="Departamento"  value={user.departamento} />
+            <InfoRow label="Teléfono"      value={user.telefono} />
+            <InfoRow label="Correo"        value={user.email} />
             <InfoRow label="Miembro desde" value={formatDate(user.created_at)} />
-            <InfoRow label="Último acceso"  value={formatDate(user.ultimo_acceso)} />
+            <InfoRow label="Último acceso" value={formatDate(user.ultimo_acceso)} />
           </Card>
 
           {/* Actividad */}

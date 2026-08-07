@@ -49,6 +49,7 @@ export interface Contrato {
   contenido_html?: string;
   responsable_id?: string;
   responsable_nombre?: string;
+  responsable_ids?: string[];
   visibilidad?: 'publico' | 'restringido';
   created_by?: string;
   updated_by?: string;

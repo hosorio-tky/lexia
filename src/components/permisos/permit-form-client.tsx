@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,8 +13,13 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { PERMIT_TYPES, PERMIT_STATUSES, REGULATORY_ENTITIES, MONEDAS, type Permit } from "@/types/permits";
+import { PERMIT_STATUSES, MONEDAS, type Permit } from "@/types/permits";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
+import { CatalogAddDialog } from "@/components/shared/catalog-add-dialog";
+import { ResponsableMultiSelect } from "@/components/shared/responsable-multi-select";
+import { UbicacionAddDialog } from "@/components/shared/ubicacion-add-dialog";
+import type { CatalogoItem } from "@/types/settings";
+import type { ProfileOption } from "@/types/users";
 import type { Responsable } from "@/lib/repositories/responsables";
 import type { Ubicacion } from "@/lib/repositories/ubicaciones";
 
@@ -37,30 +42,45 @@ interface PermitFormClientProps {
   action: (formData: FormData) => Promise<void>;
   defaultValues?: Partial<Permit>;
   backHref?: string;
-  tiposPermiso?: string[];
-  entidadesReguladoras?: string[];
+  tiposPermiso?: CatalogoItem[];
+  entidadesReguladoras?: CatalogoItem[];
   responsables?: Responsable[];
   ubicaciones?: Ubicacion[];
+  profiles?: ProfileOption[];
 }
 
 export function PermitFormClient({
   action,
   defaultValues,
   backHref = "/permisos",
-  tiposPermiso: tiposPermisoProp,
-  entidadesReguladoras: entidadesProp,
-  responsables = [],
-  ubicaciones = [],
+  tiposPermiso: tiposPermisoProp = [],
+  entidadesReguladoras: entidadesProp = [],
+  responsables: responsablesProp = [],
+  ubicaciones: ubicacionesProp = [],
+  profiles = [],
 }: PermitFormClientProps) {
-  const tiposList     = tiposPermisoProp ?? ([...PERMIT_TYPES] as string[]);
-  const entidadesList = entidadesProp    ?? ([...REGULATORY_ENTITIES] as string[]);
+  const [tipoItems,      setTipoItems]      = useState<CatalogoItem[]>(tiposPermisoProp);
+  const [entidadItems,   setEntidadItems]   = useState<CatalogoItem[]>(entidadesProp);
+  const [responsables,   setResponsables]   = useState<Responsable[]>(responsablesProp);
+  const [ubicaciones,    setUbicaciones]    = useState<Ubicacion[]>(ubicacionesProp);
+
+  const [addTipoOpen,      setAddTipoOpen]      = useState(false);
+  const [addEntidadOpen,   setAddEntidadOpen]   = useState(false);
+  const [addUbicacionOpen, setAddUbicacionOpen] = useState(false);
+
+  const tiposList     = tipoItems.map((i) => i.valor);
+  const entidadesList = entidadItems.map((i) => i.valor);
 
   const [isPending, startTransition] = useTransition();
   const [tipo, setTipo]             = useState(defaultValues?.tipo ?? "");
   const [estado, setEstado]         = useState(defaultValues?.estado ?? "Creado");
-  const [entidad, setEntidad]       = useState(defaultValues?.entidad_reguladora ?? "");
-  const [responsableId, setResponsableId] = useState(defaultValues?.responsable_id ?? "__none__");
-  const [ubicacionId, setUbicacionId]     = useState(() => {
+  const [entidad, setEntidad]           = useState(defaultValues?.entidad_reguladora ?? "");
+  const [responsableIds, setResponsableIds] = useState<string[]>(() => {
+    if (defaultValues?.responsable_ids?.length) return defaultValues.responsable_ids;
+    if (defaultValues?.responsable_id) return [defaultValues.responsable_id];
+    return [];
+  });
+  const [ubicacionId, setUbicacionId]   = useState(() => {
     if (defaultValues?.ubicacion_id) return defaultValues.ubicacion_id;
     if (defaultValues?.ubicacion) {
       const match = ubicaciones.find((u) => u.nombre === defaultValues.ubicacion);
@@ -85,16 +105,14 @@ export function PermitFormClient({
     fd.set("moneda", moneda);
     fd.set("tiene_provisional", String(tieneProvisional));
 
-    // Responsable: id + nombre desnormalizado
-    if (responsableId && responsableId !== "__none__") {
-      fd.set("responsable_id", responsableId);
-      const r = responsables.find((r) => r.id === responsableId);
+    // Responsables: array + primer ID/nombre desnormalizado para compatibilidad
+    fd.delete("responsable_ids[]");
+    responsableIds.forEach((id) => fd.append("responsable_ids[]", id));
+    const primaryId = responsableIds[0] ?? "";
+    fd.set("responsable_id", primaryId);
+    if (primaryId) {
+      const r = responsables.find((r) => r.id === primaryId);
       if (r) fd.set("responsable_nombre", r.nombre);
-    } else {
-      fd.set("responsable_id", "");
-      // Fallback a campo manual si no hay lista
-      const manual = fd.get("responsable_nombre_manual") as string;
-      if (manual) fd.set("responsable_nombre", manual);
     }
 
     // Ubicación: id + nombre desnormalizado
@@ -109,9 +127,8 @@ export function PermitFormClient({
     startTransition(() => action(fd));
   };
 
-  const isEditing           = !!defaultValues?.id;
-  const selectedResponsable = responsables.find((r) => r.id === responsableId);
-  const selectedUbicacion   = ubicaciones.find((u) => u.id === ubicacionId);
+  const isEditing         = !!defaultValues?.id;
+  const selectedUbicacion = ubicaciones.find((u) => u.id === ubicacionId);
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-6">
@@ -152,29 +169,57 @@ export function PermitFormClient({
                 />
               </Field>
               <Field label="Tipo de permiso" required>
-                <Select value={tipo} onValueChange={setTipo}>
+                <Select value={tipo} onValueChange={(v) => { if (v === "__add__") { setAddTipoOpen(true); return; } setTipo(v); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccionar tipo" />
                   </SelectTrigger>
                   <SelectContent>
-                    {tiposList.map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    {tipoItems.map((t) => (
+                      <SelectItem key={t.valor} value={t.valor}>{t.etiqueta}</SelectItem>
                     ))}
+                    <SelectItem value="__add__" className="text-primary font-medium">
+                      <Plus className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />Agregar tipo…
+                    </SelectItem>
                   </SelectContent>
                 </Select>
+                <CatalogAddDialog
+                  open={addTipoOpen}
+                  onOpenChange={setAddTipoOpen}
+                  title="Tipos de permiso"
+                  modulo="permisos"
+                  tipo="tipo_permiso"
+                  onItemAdded={(valor, etiqueta) => {
+                    setTipoItems((prev) => [...prev, { id: valor, tenant_id: "", modulo: "permisos", tipo: "tipo_permiso", valor, etiqueta, activo: true, orden: 0, created_at: "", updated_at: "" }]);
+                    setTipo(valor);
+                  }}
+                />
               </Field>
               <Field label="Entidad reguladora">
-                <Select value={entidad || "__none__"} onValueChange={setEntidad}>
+                <Select value={entidad || "__none__"} onValueChange={(v) => { if (v === "__add__") { setAddEntidadOpen(true); return; } setEntidad(v); }}>
                   <SelectTrigger>
                     <SelectValue placeholder="Sin especificar" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Sin especificar</SelectItem>
-                    {entidadesList.map((e) => (
-                      <SelectItem key={e} value={e}>{e}</SelectItem>
+                    {entidadItems.map((e) => (
+                      <SelectItem key={e.valor} value={e.valor}>{e.etiqueta}</SelectItem>
                     ))}
+                    <SelectItem value="__add__" className="text-primary font-medium">
+                      <Plus className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />Agregar entidad…
+                    </SelectItem>
                   </SelectContent>
                 </Select>
+                <CatalogAddDialog
+                  open={addEntidadOpen}
+                  onOpenChange={setAddEntidadOpen}
+                  title="Entidades reguladoras"
+                  modulo="permisos"
+                  tipo="entidad_reguladora"
+                  onItemAdded={(valor, etiqueta) => {
+                    setEntidadItems((prev) => [...prev, { id: valor, tenant_id: "", modulo: "permisos", tipo: "entidad_reguladora", valor, etiqueta, activo: true, orden: 0, created_at: "", updated_at: "" }]);
+                    setEntidad(valor);
+                  }}
+                />
               </Field>
 
               {/* Estado del trámite (only shown when editing) */}
@@ -351,92 +396,48 @@ export function PermitFormClient({
           <Card className="p-5 shadow-sm space-y-4">
             <h2 className="text-sm font-semibold">Responsable</h2>
             <Separator />
-            {responsables.length > 0 ? (
-              <Field label="Asignar responsable">
-                <Select value={responsableId} onValueChange={setResponsableId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sin asignar" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Sin asignar</SelectItem>
-                    {responsables.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.nombre}
-                        {r.area && <span className="ml-1.5 text-xs text-muted-foreground">· {r.area}</span>}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedResponsable && (
-                  <div className="mt-2 flex items-center gap-2 rounded-lg bg-muted/40 px-3 py-2">
-                    <div className="grid h-7 w-7 place-items-center rounded-full bg-primary/10 text-primary text-xs font-bold">
-                      {selectedResponsable.nombre.split(" ").slice(0,2).map(w=>w[0]).join("").toUpperCase()}
-                    </div>
-                    <div className="text-xs">
-                      <p className="font-medium">{selectedResponsable.nombre}</p>
-                      {selectedResponsable.email && <p className="text-muted-foreground">{selectedResponsable.email}</p>}
-                    </div>
-                  </div>
-                )}
-              </Field>
-            ) : (
-              <Field label="Nombre del responsable">
-                <Input
-                  name="responsable_nombre_manual"
-                  placeholder="Ej. Ana López"
-                  defaultValue={defaultValues?.responsable_nombre}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Configura responsables en{" "}
-                  <a href="/configuracion/responsables" className="underline hover:text-foreground transition-colors">
-                    Configuración → Responsables
-                  </a>
-                </p>
-              </Field>
-            )}
+            <ResponsableMultiSelect
+              responsables={responsables}
+              profiles={profiles}
+              selectedIds={responsableIds}
+              onChange={setResponsableIds}
+              onResponsableAdded={(r) => setResponsables((prev) => [r, ...prev])}
+            />
           </Card>
 
           {/* Ubicación */}
           <Card className="p-5 shadow-sm space-y-4">
             <h2 className="text-sm font-semibold">Ubicación</h2>
             <Separator />
-            {ubicaciones.length > 0 ? (
-              <Field label="Seleccionar ubicación">
-                <Select value={ubicacionId} onValueChange={setUbicacionId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sin especificar" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Sin especificar</SelectItem>
-                    {ubicaciones.map((u) => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.nombre}
-                        {u.ciudad && <span className="ml-1 text-xs text-muted-foreground">· {u.ciudad}</span>}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {selectedUbicacion && (selectedUbicacion.direccion || selectedUbicacion.ciudad) && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {[selectedUbicacion.direccion, selectedUbicacion.ciudad, selectedUbicacion.departamento].filter(Boolean).join(", ")}
-                  </p>
-                )}
-              </Field>
-            ) : (
-              <Field label="Ubicación / Planta">
-                <Input
-                  name="ubicacion"
-                  placeholder="Ej. Planta Norte — San Salvador"
-                  defaultValue={defaultValues?.ubicacion}
-                />
+            <Field label="Seleccionar ubicación">
+              <Select value={ubicacionId} onValueChange={(v) => { if (v === "__add__") { setAddUbicacionOpen(true); return; } setUbicacionId(v); }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sin especificar" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sin especificar</SelectItem>
+                  {ubicaciones.filter((u) => u.activo).map((u) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.nombre}
+                      {u.ciudad && <span className="ml-1 text-xs text-muted-foreground">· {u.ciudad}</span>}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="__add__" className="text-primary font-medium">
+                    <Plus className="inline h-3.5 w-3.5 mr-1 -mt-0.5" />Agregar ubicación…
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              <UbicacionAddDialog
+                open={addUbicacionOpen}
+                onOpenChange={setAddUbicacionOpen}
+                onItemAdded={(u) => { setUbicaciones((prev) => [u, ...prev]); setUbicacionId(u.id); }}
+              />
+              {selectedUbicacion && (selectedUbicacion.direccion || selectedUbicacion.ciudad) && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Configura ubicaciones en{" "}
-                  <a href="/configuracion/ubicaciones" className="underline hover:text-foreground transition-colors">
-                    Configuración → Ubicaciones
-                  </a>
+                  {[selectedUbicacion.direccion, selectedUbicacion.ciudad, selectedUbicacion.departamento].filter(Boolean).join(", ")}
                 </p>
-              </Field>
-            )}
+              )}
+            </Field>
           </Card>
 
           {/* Botones */}

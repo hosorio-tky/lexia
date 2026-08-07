@@ -8,6 +8,7 @@ export interface Responsable {
   email:      string | null;
   activo:     boolean;
   created_at: string;
+  user_id:    string | null;
 }
 
 export function createResponsablesRepository(client: SupabaseClient, tenantId: string) {
@@ -20,7 +21,7 @@ export function createResponsablesRepository(client: SupabaseClient, tenantId: s
       return (data ?? []) as Responsable[];
     },
 
-    async create(input: { nombre: string; area?: string; email?: string }): Promise<Responsable> {
+    async create(input: { nombre: string; area?: string; email?: string; user_id?: string }): Promise<Responsable> {
       const { data, error } = await client
         .from("responsables")
         .insert({ tenant_id: tenantId, ...input })
@@ -30,7 +31,7 @@ export function createResponsablesRepository(client: SupabaseClient, tenantId: s
       return data as Responsable;
     },
 
-    async update(id: string, input: { nombre?: string; area?: string | null; email?: string | null; activo?: boolean }): Promise<void> {
+    async update(id: string, input: { nombre?: string; area?: string | null; email?: string | null; activo?: boolean; user_id?: string | null }): Promise<void> {
       const { error } = await client
         .from("responsables")
         .update(input)

@@ -30,11 +30,13 @@ export function PermitListClient({
   userId,
   userRol,
   editableIds = [],
+  tiposPermiso = [],
 }: {
   initialPermits: Permit[];
   userId?: string;
   userRol?: string;
   editableIds?: string[];
+  tiposPermiso?: string[];
 }) {
   const searchParams = useSearchParams();
   const router       = useRouter();
@@ -146,6 +148,7 @@ export function PermitListClient({
           onFiltersChange={setFilters}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
+          tiposPermiso={tiposPermiso}
           responsables={responsables}
           ubicaciones={ubicaciones}
         />

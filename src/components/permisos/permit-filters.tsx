@@ -13,7 +13,6 @@ import {
 import { User } from "lucide-react";
 import {
   PERMIT_STATUSES,
-  PERMIT_TYPES,
   VIGENCIA_COLORS,
   type PermitFilters,
   type VigenciaStatus,
@@ -29,6 +28,7 @@ interface PermitFiltersBarProps {
   onFiltersChange: (filters: PermitFilters) => void;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
+  tiposPermiso?: string[];
   responsables?: string[];
   ubicaciones?: string[];
 }
@@ -38,6 +38,7 @@ export function PermitFiltersBar({
   onFiltersChange,
   viewMode,
   onViewModeChange,
+  tiposPermiso = [],
   responsables = [],
   ubicaciones = [],
 }: PermitFiltersBarProps) {
@@ -113,7 +114,7 @@ export function PermitFiltersBar({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">Todos los tipos</SelectItem>
-            {PERMIT_TYPES.map((t) => (
+            {tiposPermiso.map((t) => (
               <SelectItem key={t} value={t}>{t}</SelectItem>
             ))}
           </SelectContent>

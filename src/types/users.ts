@@ -37,6 +37,15 @@ export interface UserProfile {
   iniciales: string;
 }
 
+// ─── Profile option (selector ligero) ────────────────────────────────────────
+export interface ProfileOption {
+  id:           string;
+  nombre:       string;
+  email:        string;
+  departamento: string | null;
+  cargo:        string | null;
+}
+
 // ─── Activity log ─────────────────────────────────────────────────────────
 export interface ActivityEvent {
   id: string;
