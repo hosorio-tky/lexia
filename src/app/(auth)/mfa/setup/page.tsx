@@ -24,7 +24,13 @@ export default function MfaSetupPage() {
   const [, startTransition] = useTransition();
 
   useEffect(() => {
-    supabase.auth.mfa.enroll({ factorType: "totp" }).then(({ data, error }) => {
+    const init = async () => {
+      // Limpiar factores unverified de intentos anteriores incompletos
+      const { data: factors } = await supabase.auth.mfa.listFactors();
+      const unverified = factors?.totp?.filter((f) => f.status === "unverified") ?? [];
+      await Promise.all(unverified.map((f) => supabase.auth.mfa.unenroll({ factorId: f.id })));
+
+      const { data, error } = await supabase.auth.mfa.enroll({ factorType: "totp" });
       if (error || !data) {
         setError(error?.message ?? "Error al iniciar configuración MFA");
         setStep("enroll");
@@ -34,7 +40,8 @@ export default function MfaSetupPage() {
       setQrCode(data.totp.qr_code);
       setSecret(data.totp.secret);
       setStep("enroll");
-    });
+    };
+    init();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
