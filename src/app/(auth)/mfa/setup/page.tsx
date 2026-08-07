@@ -29,20 +29,9 @@ export default function MfaSetupPage() {
     initRan.current = true;
 
     const init = async () => {
-      // Obtener el user_id para la clave de localStorage
-      const { data: { user } } = await supabase.auth.getUser();
-      const pendingKey = user ? `lexia_mfa_pending_${user.id}` : null;
-
-      // Si el usuario abandonó un setup anterior, el factorId quedó guardado en
-      // localStorage. listFactors() solo devuelve verified, por lo que esta es
-      // la única forma de limpiar el factor unverified sin usar la Admin API.
-      if (pendingKey) {
-        const pendingId = localStorage.getItem(pendingKey);
-        if (pendingId) {
-          await supabase.auth.mfa.unenroll({ factorId: pendingId });
-          localStorage.removeItem(pendingKey);
-        }
-      }
+      // Borrar factores unverified via RPC con SECURITY DEFINER — accede a
+      // auth.mfa_factors directamente en la DB sin exponer el service role key.
+      await supabase.rpc("unenroll_pending_mfa_factors");
 
       // Limpiar también factores verified (no debería haber, pero por si acaso)
       const { data: factors } = await supabase.auth.mfa.listFactors();
@@ -56,10 +45,6 @@ export default function MfaSetupPage() {
         setStep("enroll");
         return;
       }
-
-      // Guardar el factorId para poder limpiarlo si el usuario abandona
-      if (pendingKey) localStorage.setItem(pendingKey, data.id);
-
       setFactorId(data.id);
       setQrCode(data.totp.qr_code);
       setSecret(data.totp.secret);
@@ -102,10 +87,6 @@ export default function MfaSetupPage() {
         setStep("enroll");
         return;
       }
-
-      // Setup completado — limpiar el factor pendiente del localStorage
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) localStorage.removeItem(`lexia_mfa_pending_${user.id}`);
 
       router.push("/permisos");
       router.refresh();
