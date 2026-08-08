@@ -91,7 +91,7 @@ export default function MfaSetupPage() {
         return;
       }
 
-      router.push("/permisos");
+      router.push("/dashboard");
       router.refresh();
     });
   };

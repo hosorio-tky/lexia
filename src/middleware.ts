@@ -47,7 +47,7 @@ export async function middleware(request: NextRequest) {
 
   // Usuario autenticado intenta acceder a login/registro/recuperar
   if (user && REDIRECT_IF_AUTHED.some((r) => pathname.startsWith(r))) {
-    return NextResponse.redirect(new URL("/permisos", request.url));
+    return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   // MFA y contraseña obligatoria — el orden importa:
