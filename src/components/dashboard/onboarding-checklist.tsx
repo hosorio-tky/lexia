@@ -2,8 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { CheckCircle2, Circle, X, ChevronRight, Rocket } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { CheckCheck, X, ArrowRight, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -13,18 +12,17 @@ import { toggleOnboardingStep, dismissOnboarding } from "@/app/actions/onboardin
 interface OnboardingStep {
   id:       string;
   label:    string;
-  desc:     string;
   href:     string;
   optional: boolean;
 }
 
 const STEPS: OnboardingStep[] = [
-  { id: "empresa",         label: "Completa el perfil de tu empresa",   desc: "Nombre, industria, país y logo",                href: "/configuracion/empresa",      optional: false },
-  { id: "catalogos",       label: "Configura los catálogos básicos",     desc: "Tipos de permiso, contrato y departamentos",    href: "/configuracion/catalogos",    optional: false },
-  { id: "usuarios",        label: "Invita a tu equipo",                  desc: "Agrega los usuarios que usarán el sistema",     href: "/usuarios/invitar",           optional: false },
-  { id: "responsables",    label: "Agrega responsables",                 desc: "Personas asignables a permisos y contratos",    href: "/configuracion/responsables", optional: false },
-  { id: "ubicaciones",     label: "Crea tu primera ubicación",           desc: "Plantas, sedes u oficinas (opcional)",           href: "/configuracion/ubicaciones",  optional: true  },
-  { id: "primer_registro", label: "Crea tu primer permiso o contrato",   desc: "Empieza a registrar tu cumplimiento legal",     href: "/permisos/nuevo",            optional: false },
+  { id: "empresa",         label: "Perfil de empresa",      href: "/configuracion/empresa",      optional: false },
+  { id: "catalogos",       label: "Catálogos básicos",       href: "/configuracion/catalogos",    optional: false },
+  { id: "usuarios",        label: "Invita tu equipo",        href: "/usuarios/invitar",           optional: false },
+  { id: "responsables",    label: "Responsables",            href: "/configuracion/responsables", optional: false },
+  { id: "ubicaciones",     label: "Ubicaciones",             href: "/configuracion/ubicaciones",  optional: true  },
+  { id: "primer_registro", label: "Primer permiso",          href: "/permisos/nuevo",            optional: false },
 ];
 
 const REQUIRED_STEPS = STEPS.filter((s) => !s.optional).map((s) => s.id);
@@ -34,13 +32,14 @@ interface Props {
 }
 
 export function OnboardingChecklist({ initialSteps }: Props) {
-  const [steps, setSteps]         = useState<Record<string, boolean>>(initialSteps);
+  const [steps, setSteps]             = useState<Record<string, boolean>>(initialSteps);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isPending, startTransition]  = useTransition();
 
-  const completed = STEPS.filter((s) => steps[s.id]).length;
-  const total     = STEPS.length;
-  const pct       = Math.round((completed / total) * 100);
+  const completed       = STEPS.filter((s) => steps[s.id]).length;
+  const total           = STEPS.length;
+  const pct             = Math.round((completed / total) * 100);
+  const nextIncomplete  = STEPS.find((s) => !steps[s.id]);
   const allRequiredDone = REQUIRED_STEPS.every((id) => steps[id]);
 
   function handleToggle(stepId: string, current: boolean) {
@@ -48,7 +47,6 @@ export function OnboardingChecklist({ initialSteps }: Props) {
     setSteps(next);
     startTransition(async () => {
       await toggleOnboardingStep(stepId, !current);
-      // Auto-dismiss when all required steps are done
       if (REQUIRED_STEPS.every((id) => next[id])) {
         await dismissOnboarding();
       }
@@ -64,83 +62,97 @@ export function OnboardingChecklist({ initialSteps }: Props) {
 
   return (
     <>
-      <Card className="p-5 shadow-sm border-primary/20 bg-primary/[0.02]">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-primary/10">
-              <Rocket className="h-4 w-4 text-primary" />
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        {/* Accent bar */}
+        <div className="h-1 w-full bg-gradient-to-r from-primary via-primary/70 to-primary/20" style={{ width: `${pct}%`, transition: "width 0.5s ease" }} />
+        <div className="h-1 w-full bg-muted -mt-1" />
+
+        <div className="px-5 py-4">
+          {/* Header row */}
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-primary/10">
+                <Rocket className="h-3.5 w-3.5 text-primary" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold">Guía de inicio</span>
+                <span className="text-xs text-muted-foreground">·</span>
+                <span className="text-xs text-muted-foreground">
+                  {completed} de {total} pasos completados
+                </span>
+                {allRequiredDone && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                    <CheckCheck className="h-3 w-3" />¡Listo!
+                  </span>
+                )}
+              </div>
             </div>
-            <div>
-              <h2 className="text-sm font-semibold leading-tight">Guía de inicio</h2>
-              <p className="text-xs text-muted-foreground">
-                {completed} de {total} pasos completados
-              </p>
-            </div>
+            <button
+              type="button"
+              onClick={() => setConfirmOpen(true)}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition"
+              title="Cerrar guía"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setConfirmOpen(true)}
-            className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition"
-            title="Cerrar guía"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
 
-        {/* Progress bar */}
-        <div className="mb-4 h-1.5 w-full rounded-full bg-muted overflow-hidden">
-          <div
-            className="h-full rounded-full bg-primary transition-all duration-500"
-            style={{ width: `${pct}%` }}
-          />
-        </div>
+          {/* Chips row */}
+          <div className="flex flex-wrap gap-2">
+            {STEPS.map((step) => {
+              const done    = !!steps[step.id];
+              const isCurrent = !done && step.id === nextIncomplete?.id;
 
-        {/* Steps */}
-        <ol className="space-y-1">
-          {STEPS.map((step) => {
-            const done = !!steps[step.id];
-            return (
-              <li key={step.id}>
-                <div className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-muted/60 transition group">
-                  {/* Checkbox */}
+              return (
+                <div key={step.id} className="flex items-center gap-1">
+                  {/* Toggle button */}
                   <button
                     type="button"
-                    onClick={() => handleToggle(step.id, done)}
                     disabled={isPending}
-                    className="shrink-0 text-muted-foreground hover:text-primary transition"
-                    title={done ? "Marcar como pendiente" : "Marcar como completado"}
+                    onClick={() => handleToggle(step.id, done)}
+                    title={done ? "Marcar como pendiente" : "Marcar como hecho"}
+                    className={[
+                      "inline-flex items-center gap-1.5 rounded-l-full border pl-3 pr-2 py-1.5 text-xs font-medium transition",
+                      done
+                        ? "bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-400"
+                        : isCurrent
+                        ? "bg-primary/10 border-primary/30 text-primary"
+                        : "bg-muted/50 border-border text-muted-foreground",
+                    ].join(" ")}
                   >
                     {done
-                      ? <CheckCircle2 className="h-5 w-5 text-primary" />
-                      : <Circle className="h-5 w-5" />
+                      ? <CheckCheck className="h-3.5 w-3.5 shrink-0" />
+                      : <span className={`h-3.5 w-3.5 shrink-0 rounded-full border-2 flex items-center justify-center ${isCurrent ? "border-primary" : "border-muted-foreground/40"}`} />
                     }
+                    <span className={done ? "line-through opacity-60" : ""}>
+                      {step.label}
+                    </span>
+                    {step.optional && (
+                      <span className="opacity-50 font-normal">*</span>
+                    )}
                   </button>
 
-                  {/* Text + link */}
-                  <Link href={step.href} className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium leading-tight truncate ${done ? "line-through text-muted-foreground" : ""}`}>
-                      {step.label}
-                      {step.optional && (
-                        <span className="ml-1.5 text-[10px] font-normal text-muted-foreground">(opcional)</span>
-                      )}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">{step.desc}</p>
+                  {/* Link arrow */}
+                  <Link
+                    href={step.href}
+                    title={`Ir a ${step.label}`}
+                    className={[
+                      "inline-flex h-[30px] w-6 items-center justify-center rounded-r-full border-y border-r transition",
+                      done
+                        ? "border-emerald-200 text-emerald-600 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400"
+                        : isCurrent
+                        ? "border-primary/30 text-primary hover:bg-primary/10"
+                        : "border-border text-muted-foreground hover:bg-muted/60",
+                    ].join(" ")}
+                  >
+                    <ArrowRight className="h-3 w-3" />
                   </Link>
-
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition" />
                 </div>
-              </li>
-            );
-          })}
-        </ol>
-
-        {allRequiredDone && (
-          <p className="mt-3 text-center text-xs text-emerald-600 font-medium">
-            ¡Completaste todos los pasos requeridos!
-          </p>
-        )}
-      </Card>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
       {/* Confirm dismiss dialog */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
