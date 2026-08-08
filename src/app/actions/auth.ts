@@ -117,7 +117,7 @@ export async function registrar(
     redirect("/login?registered=1");
   }
 
-  redirect("/permisos");
+  redirect("/dashboard");
 }
 
 // ─── Iniciar sesión ───────────────────────────────────────────
@@ -127,7 +127,7 @@ export async function signIn(
 ): Promise<{ error: string } | null> {
   const email    = formData.get("email") as string;
   const password = formData.get("password") as string;
-  const next     = (formData.get("next") as string | null)?.trim() || "/permisos";
+  const next     = (formData.get("next") as string | null)?.trim() || "/dashboard";
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -255,7 +255,7 @@ export async function actualizarContrasena(
     // 2. Eliminar la cookie — el middleware la usa como fuente de verdad
     cookieStore.delete("lexia_force_pwd");
     // 3. Redirect
-    redirect("/permisos");
+    redirect("/dashboard");
   }
 
   return { success: true };
