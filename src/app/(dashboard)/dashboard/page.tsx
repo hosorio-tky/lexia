@@ -14,6 +14,7 @@ import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createDashboardRepository } from "@/lib/repositories/dashboard";
 import { getSession } from "@/lib/auth/session";
+import { OnboardingChecklist } from "@/components/dashboard/onboarding-checklist";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +22,21 @@ export default async function DashboardPage() {
   const session = await getSession();
   const client  = createAdminClient();
   const repo    = createDashboardRepository(client, session.tenant_id);
-  const stats   = await repo.getStats(session.user_id);
+
+  const [stats, tenantRow] = await Promise.all([
+    repo.getStats(session.user_id),
+    session.rol === "admin"
+      ? client.from("tenants").select("onboarding_steps, onboarding_dismissed_at").eq("id", session.tenant_id).single()
+      : Promise.resolve({ data: null }),
+  ]);
+
+  const showOnboarding =
+    session.rol === "admin" &&
+    tenantRow.data &&
+    !tenantRow.data.onboarding_dismissed_at;
+
+  const onboardingSteps =
+    (tenantRow.data?.onboarding_steps as Record<string, boolean>) ?? {};
 
   const { permisos, tareas, notificaciones, actividad } = stats;
 
@@ -48,6 +63,11 @@ export default async function DashboardPage() {
       }}
     >
       <div className="flex flex-col gap-6">
+
+        {/* ── Onboarding ─────────────────────────────────────── */}
+        {showOnboarding && (
+          <OnboardingChecklist initialSteps={onboardingSteps} />
+        )}
 
         {/* ── Saludo ─────────────────────────────────────────── */}
         <div>
