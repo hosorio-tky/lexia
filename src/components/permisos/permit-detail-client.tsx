@@ -374,7 +374,10 @@ export function PermitDetailClient({
                   </div>
                   <div>
                     <div className="text-sm font-medium">{permit.responsable_nombre}</div>
-                    <div className="text-xs text-muted-foreground">Responsable</div>
+                    {permit.responsable_area
+                      ? <div className="text-xs text-muted-foreground">{permit.responsable_area}</div>
+                      : <div className="text-xs text-muted-foreground">Responsable</div>
+                    }
                   </div>
                 </div>
               )}

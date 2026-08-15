@@ -77,6 +77,9 @@ export function ResponsableMultiSelect({
             ) : (
               active.map((r) => {
                 const checked = selectedIds.includes(r.id);
+                const profile = getProfileForResponsable(r, profiles);
+                const dept  = profile?.departamento || null;
+                const cargo = profile ? (profile.cargo || null) : (r.area || null);
                 return (
                   <button
                     key={r.id}
@@ -93,7 +96,11 @@ export function ResponsableMultiSelect({
                     </div>
                     <div className="min-w-0 text-left">
                       <p className="font-medium truncate">{r.nombre}</p>
-                      {r.area && <p className="text-xs text-muted-foreground truncate">{r.area}</p>}
+                      {(dept || cargo) && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {[dept, cargo].filter(Boolean).join(" · ")}
+                        </p>
+                      )}
                     </div>
                   </button>
                 );
@@ -117,6 +124,8 @@ export function ResponsableMultiSelect({
         <div className="space-y-1.5">
           {selected.map((r) => {
             const profile = getProfileForResponsable(r, profiles);
+            const dept  = profile?.departamento || null;
+            const cargo = profile ? (profile.cargo || null) : (r.area || null);
             return (
               <div key={r.id} className="flex items-start gap-2 rounded-lg border bg-muted/30 px-3 py-2">
                 <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-primary/10 text-primary text-xs font-bold mt-0.5">
@@ -124,14 +133,9 @@ export function ResponsableMultiSelect({
                 </div>
                 <div className="flex-1 min-w-0 text-xs">
                   <p className="font-medium truncate">{r.nombre}</p>
-                  {(profile?.cargo || r.area) && (
+                  {(dept || cargo) && (
                     <p className="text-muted-foreground truncate">
-                      {profile?.cargo ?? r.area}
-                    </p>
-                  )}
-                  {(profile?.departamento || (!profile && r.area && r.email)) && (
-                    <p className="text-muted-foreground truncate">
-                      {profile?.departamento ?? ""}
+                      {[dept, cargo].filter(Boolean).join(" · ")}
                     </p>
                   )}
                   {r.email && <p className="text-muted-foreground truncate">{r.email}</p>}

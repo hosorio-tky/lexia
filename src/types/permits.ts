@@ -86,6 +86,7 @@ export interface Permit {
   responsable_id?: string;
   responsable_nombre?: string;
   responsable_iniciales?: string;
+  responsable_area?: string;
   responsable_ids?: string[];
   // Valor económico
   valor_tramite?: number;

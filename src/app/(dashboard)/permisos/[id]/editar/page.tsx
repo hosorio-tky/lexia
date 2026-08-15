@@ -25,7 +25,7 @@ export default async function EditarPermisoPage({
     createResponsablesRepository(client, session.tenant_id).list(),
     createUbicacionesRepository(client, session.tenant_id).list(),
     client.from("profiles").select("id, nombre, apellido, email, cargo, depto_cat:catalogos!departamento_id(valor)")
-      .eq("tenant_id", session.tenant_id).eq("activo", true).order("nombre"),
+      .eq("tenant_id", session.tenant_id).order("nombre"),
   ]);
 
   if (!permit) notFound();

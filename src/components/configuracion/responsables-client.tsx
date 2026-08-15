@@ -37,7 +37,7 @@ function ResponsableForm({
   onCancel: () => void;
   isPending: boolean;
 }) {
-  const initialMode: Mode = defaultValues?.user_id ? "sistema" : "externo";
+  const initialMode: Mode = defaultValues?.user_id ? "sistema" : defaultValues?.id ? "externo" : "sistema";
   const [mode, setMode] = useState<Mode>(initialMode);
   const initialProfile = defaultValues?.user_id ? profiles.find((p) => p.id === defaultValues.user_id) : null;
   const [selectedProfile, setSelectedProfile] = useState<ProfileOption | null>(initialProfile ?? null);
@@ -107,35 +107,42 @@ function ResponsableForm({
               El nombre y correo se sincronizan automáticamente desde el perfil.
             </p>
           </div>
-          <div className="space-y-1.5">
-            <Label>Área de la empresa</Label>
-            <Input
-              name="area"
-              value={areaValue}
-              onChange={(e) => setAreaValue(e.target.value)}
-              placeholder={selectedProfile?.departamento ? "" : "Ej. Legal, Operaciones, HSE"}
-            />
-            {selectedProfile?.departamento && (
-              <p className="text-xs text-muted-foreground">
-                Pre-completado desde el perfil. Puedes modificarlo.
-              </p>
-            )}
-          </div>
+          {selectedProfile?.departamento && (
+            <div className="rounded-lg border bg-muted/40 px-3 py-2.5 flex items-center gap-2 text-sm">
+              <Briefcase className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span className="text-muted-foreground">Departamento:</span>
+              <span className="font-medium">{selectedProfile.departamento}</span>
+            </div>
+          )}
         </>
       ) : (
         <>
           <input type="hidden" name="tipo" value="externo" />
           <div className="space-y-1.5">
             <Label>Nombre <span className="text-destructive">*</span></Label>
-            <Input name="nombre" defaultValue={defaultValues?.nombre} placeholder="Ej. Ana López" required />
+            <Input
+              name="nombre"
+              defaultValue={initialMode === "externo" ? defaultValues?.nombre : undefined}
+              placeholder="Ej. Ana López"
+              required
+            />
           </div>
           <div className="space-y-1.5">
-            <Label>Área de la empresa</Label>
-            <Input name="area" defaultValue={defaultValues?.area ?? ""} placeholder="Ej. Legal, Operaciones, HSE" />
+            <Label>Cargo / Área</Label>
+            <Input
+              name="area"
+              defaultValue={initialMode === "externo" ? (defaultValues?.area ?? "") : ""}
+              placeholder="Ej. Jefe de Permisos, Ministerio de Salud"
+            />
           </div>
           <div className="space-y-1.5">
             <Label>Correo electrónico</Label>
-            <Input name="email" type="email" defaultValue={defaultValues?.email ?? ""} placeholder="ana@empresa.com" />
+            <Input
+              name="email"
+              type="email"
+              defaultValue={initialMode === "externo" ? (defaultValues?.email ?? "") : ""}
+              placeholder="ana@empresa.com"
+            />
           </div>
         </>
       )}
@@ -177,7 +184,7 @@ export function ResponsablesClient({
         setItems((prev) => prev.map((i) => {
           if (i.id !== dialog.item!.id) return i;
           if (profile) {
-            return { ...i, user_id: profile.id, nombre: profile.nombre, email: profile.email, area: (fd.get("area") as string) || null };
+            return { ...i, user_id: profile.id, nombre: profile.nombre, email: profile.email, area: profile.departamento ?? null };
           }
           return { ...i, user_id: null, nombre: fd.get("nombre") as string, area: (fd.get("area") as string) || null, email: (fd.get("email") as string) || null };
         }));
@@ -231,7 +238,7 @@ export function ResponsablesClient({
           {activos.length > 0 && (
             <div className="space-y-2">
               {activos.map((item) => (
-                <ItemRow key={item.id} item={item} onEdit={openEdit} onToggle={handleToggle} onDelete={handleDelete} />
+                <ItemRow key={item.id} item={item} profiles={profiles} onEdit={openEdit} onToggle={handleToggle} onDelete={handleDelete} />
               ))}
             </div>
           )}
@@ -239,7 +246,7 @@ export function ResponsablesClient({
             <div className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider px-1">Inactivos</p>
               {inactivos.map((item) => (
-                <ItemRow key={item.id} item={item} onEdit={openEdit} onToggle={handleToggle} onDelete={handleDelete} />
+                <ItemRow key={item.id} item={item} profiles={profiles} onEdit={openEdit} onToggle={handleToggle} onDelete={handleDelete} />
               ))}
             </div>
           )}
@@ -266,13 +273,16 @@ export function ResponsablesClient({
   );
 }
 
-function ItemRow({ item, onEdit, onToggle, onDelete }: {
+function ItemRow({ item, profiles, onEdit, onToggle, onDelete }: {
   item: Responsable;
+  profiles: ProfileOption[];
   onEdit: (item: Responsable) => void;
   onToggle: (item: Responsable) => void;
   onDelete: (id: string) => void;
 }) {
   const initials = item.nombre.split(" ").slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  const displayArea = item.area
+    || (item.user_id ? (profiles.find((p) => p.id === item.user_id)?.departamento ?? null) : null);
 
   return (
     <Card className={`flex items-center gap-3 px-4 py-3 ${!item.activo ? "opacity-50" : ""}`}>
@@ -291,9 +301,9 @@ function ItemRow({ item, onEdit, onToggle, onDelete }: {
           {!item.activo && <Badge variant="outline" className="text-[10px] py-0">Inactivo</Badge>}
         </div>
         <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-          {item.area && (
+          {displayArea && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Briefcase className="h-3 w-3" />{item.area}
+              <Briefcase className="h-3 w-3" />{displayArea}
             </span>
           )}
           {item.email && (

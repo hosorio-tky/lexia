@@ -18,7 +18,7 @@ export default async function NuevoContratoPage() {
     createContratoPlantillasRepository(client, session.tenant_id).list(),
     createConfiguracionRepository(client, session.tenant_id).getCatalogos("contratos"),
     client.from("profiles").select("id, nombre, apellido, email, cargo, depto_cat:catalogos!departamento_id(valor)")
-      .eq("tenant_id", session.tenant_id).eq("activo", true).order("nombre"),
+      .eq("tenant_id", session.tenant_id).order("nombre"),
   ]);
 
   const tiposContrato = catalogos.filter((c) => c.tipo === "tipo_contrato" && c.activo);

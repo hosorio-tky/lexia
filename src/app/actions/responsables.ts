@@ -6,21 +6,26 @@ import { createResponsablesRepository } from "@/lib/repositories/responsables";
 import { getSession } from "@/lib/auth/session";
 import type { Responsable } from "@/lib/repositories/responsables";
 
-async function resolveNombreEmail(
+async function resolveProfileData(
   admin: ReturnType<typeof createAdminClient>,
   tenantId: string,
   userId: string
-): Promise<{ nombre: string; email: string | undefined }> {
+): Promise<{ nombre: string; email: string | undefined; area: string | undefined }> {
   const { data } = await admin
     .from("profiles")
-    .select("nombre, apellido, email")
+    .select("nombre, apellido, email, depto_cat:catalogos!departamento_id(valor)")
     .eq("id", userId)
     .eq("tenant_id", tenantId)
     .single();
   if (!data) throw new Error("Usuario no encontrado");
   const apellido = (data.apellido as string | null) ?? "";
   const nombre = apellido ? `${data.nombre} ${apellido}` : (data.nombre as string);
-  return { nombre, email: (data.email as string) || undefined };
+  const deptoCat = data.depto_cat as unknown as { valor: string } | null;
+  return {
+    nombre,
+    email: (data.email as string) || undefined,
+    area: deptoCat?.valor || undefined,
+  };
 }
 
 export async function crearResponsable(
@@ -37,13 +42,13 @@ export async function crearResponsable(
 
   if (userId) {
     try {
-      const resolved = await resolveNombreEmail(admin, session.tenant_id, userId);
+      const resolved = await resolveProfileData(admin, session.tenant_id, userId);
       nombre = resolved.nombre;
       email  = resolved.email;
+      area   = resolved.area;
     } catch {
       return { error: "Usuario no encontrado" };
     }
-    area = (formData.get("area") as string)?.trim() || undefined;
   } else {
     nombre = (formData.get("nombre") as string)?.trim();
     area   = (formData.get("area")   as string)?.trim() || undefined;
@@ -72,13 +77,13 @@ export async function editarResponsable(
 
   if (userId) {
     try {
-      const resolved = await resolveNombreEmail(admin, session.tenant_id, userId);
+      const resolved = await resolveProfileData(admin, session.tenant_id, userId);
       nombre = resolved.nombre;
       email  = resolved.email ?? null;
+      area   = resolved.area ?? null;
     } catch {
       return { error: "Usuario no encontrado" };
     }
-    area = (formData.get("area") as string)?.trim() || null;
   } else {
     nombre = (formData.get("nombre") as string)?.trim();
     area   = (formData.get("area")   as string)?.trim() || null;

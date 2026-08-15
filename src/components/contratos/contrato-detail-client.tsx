@@ -354,7 +354,10 @@ export function ContratoDetailClient({
                   </div>
                   <div>
                     <div className="text-sm font-medium">{contrato.responsable_nombre}</div>
-                    <div className="text-xs text-muted-foreground">Responsable</div>
+                    {contrato.responsable_area
+                      ? <div className="text-xs text-muted-foreground">{contrato.responsable_area}</div>
+                      : <div className="text-xs text-muted-foreground">Responsable</div>
+                    }
                   </div>
                 </div>
               ) : (

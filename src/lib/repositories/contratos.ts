@@ -31,6 +31,7 @@ interface ContratoRow {
   contenido_html: string | null;
   responsable_id: string | null;
   responsable_nombre: string | null;
+  responsable_det: { area: string | null; user_id: string | null } | null;
   visibilidad: string | null;
   created_by: string | null;
   updated_by: string | null;
@@ -72,6 +73,7 @@ function mapRow(row: ContratoRow): Contrato {
     contenido_html:      row.contenido_html ?? undefined,
     responsable_id:      row.responsable_id ?? undefined,
     responsable_nombre:  row.responsable_nombre ?? undefined,
+    responsable_area:    row.responsable_det?.area ?? undefined,
     visibilidad:         (row.visibilidad as "publico" | "restringido") ?? "publico",
     created_by:          row.created_by ?? undefined,
     updated_by:          row.updated_by ?? undefined,
@@ -142,7 +144,7 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
     async getById(id: string, caller?: { userId: string; userRol: string }): Promise<Contrato | null> {
       const { data, error } = await client
         .from("contratos")
-        .select("*, tipo_cat:catalogos!tipo_id(id, valor)")
+        .select("*, tipo_cat:catalogos!tipo_id(id, valor), responsable_det:responsables!responsable_id(area, user_id)")
         .eq("id", id)
         .eq("tenant_id", tenantId)
         .single();
@@ -151,7 +153,7 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
         if (error.code === "PGRST116") return null; // not found
         throw error;
       }
-      const contrato = mapRow(data as ContratoRow);
+      const contrato = mapRow(data as unknown as ContratoRow);
 
       // Enforce visibility for non-admin users
       if (caller && caller.userRol !== "admin" && contrato.visibilidad === "restringido") {

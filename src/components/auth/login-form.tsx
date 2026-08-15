@@ -32,7 +32,7 @@ export function LoginForm({ next }: { next?: string }) {
         window.location.href =
           type === "recovery" || type === "invite"
             ? "/actualizar-contrasena"
-            : "/permisos";
+            : "/dashboard";
       });
   }, []);
 

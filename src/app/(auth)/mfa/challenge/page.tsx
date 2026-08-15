@@ -13,7 +13,7 @@ import { Separator } from "@/components/ui/separator";
 function MfaChallengeInner() {
   const router       = useRouter();
   const searchParams = useSearchParams();
-  const next         = searchParams.get("next") || "/permisos";
+  const next         = searchParams.get("next") || "/dashboard";
   const supabase     = createClient();
 
   const [factorId,    setFactorId]    = useState("");

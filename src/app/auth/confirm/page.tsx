@@ -46,7 +46,7 @@ export default function AuthConfirmPage() {
         if (type === "recovery" || type === "invite") {
           window.location.href = "/actualizar-contrasena";
         } else {
-          window.location.href = "/permisos";
+          window.location.href = "/dashboard";
         }
       });
   }, []);

@@ -26,6 +26,7 @@ interface PermisoRow {
   fecha_vencimiento_provisional: string | null;
   responsable_id: string | null;
   responsable_nombre: string | null;
+  responsable_det: { area: string | null; user_id: string | null } | null;
   valor_tramite: number | null;
   moneda: string | null;
   base_legal: string | null;
@@ -85,6 +86,7 @@ function mapRow(row: PermisoRow): Permit {
     responsable_iniciales:      row.responsable_nombre
       ? row.responsable_nombre.split(" ").map((w: string) => w[0]).join("").substring(0, 2).toUpperCase()
       : undefined,
+    responsable_area:           row.responsable_det?.area ?? undefined,
     valor_tramite:              row.valor_tramite ?? undefined,
     moneda:                     row.moneda ?? undefined,
     base_legal:                 row.base_legal ?? undefined,
@@ -176,7 +178,7 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
     async getById(id: string, caller?: { userId: string; userRol: string }): Promise<Permit | null> {
       const { data, error } = await client
         .from("permisos")
-        .select("*, tipo_cat:catalogos!tipo_id(id, valor), entidad_cat:catalogos!entidad_reguladora_id(id, valor)")
+        .select("*, tipo_cat:catalogos!tipo_id(id, valor), entidad_cat:catalogos!entidad_reguladora_id(id, valor), responsable_det:responsables!responsable_id(area, user_id)")
         .eq("id", id)
         .eq("tenant_id", tenantId)
         .single();
@@ -185,7 +187,7 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
         if (error.code === "PGRST116") return null; // not found
         throw error;
       }
-      const permit = mapRow(data as PermisoRow);
+      const permit = mapRow(data as unknown as PermisoRow);
 
       // Enforce visibility for non-admin users
       if (caller && caller.userRol !== "admin" && permit.visibilidad === "restringido") {
