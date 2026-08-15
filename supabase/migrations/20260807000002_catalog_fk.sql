@@ -12,16 +12,22 @@ ALTER TABLE profiles
   ADD COLUMN IF NOT EXISTS departamento_id uuid
     REFERENCES catalogos(id) ON DELETE SET NULL;
 
-UPDATE profiles p
-SET    departamento_id = (
-  SELECT c.id
-  FROM   catalogos c
-  WHERE  c.valor     = p.departamento
-    AND  c.tipo      = 'departamento'
-    AND  c.tenant_id = p.tenant_id
-  LIMIT  1
-)
-WHERE p.departamento IS NOT NULL;
+-- Backfill solo si la columna de texto aún existe (idempotente)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'profiles' AND column_name = 'departamento'
+  ) THEN
+    UPDATE profiles p
+    SET    departamento_id = (
+      SELECT c.id FROM catalogos c
+      WHERE  c.valor = p.departamento AND c.tipo = 'departamento' AND c.tenant_id = p.tenant_id
+      LIMIT  1
+    )
+    WHERE p.departamento IS NOT NULL;
+  END IF;
+END $$;
 
 ALTER TABLE profiles DROP COLUMN IF EXISTS departamento;
 
@@ -32,16 +38,21 @@ ALTER TABLE permisos
   ADD COLUMN IF NOT EXISTS tipo_id uuid
     REFERENCES catalogos(id) ON DELETE RESTRICT;
 
-UPDATE permisos p
-SET    tipo_id = (
-  SELECT c.id
-  FROM   catalogos c
-  WHERE  c.valor     = p.tipo::text
-    AND  c.tipo      = 'tipo_permiso'
-    AND  c.tenant_id = p.tenant_id
-  LIMIT  1
-)
-WHERE p.tipo IS NOT NULL;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'permisos' AND column_name = 'tipo'
+  ) THEN
+    UPDATE permisos p
+    SET    tipo_id = (
+      SELECT c.id FROM catalogos c
+      WHERE c.valor = p.tipo::text AND c.tipo = 'tipo_permiso' AND c.tenant_id = p.tenant_id
+      LIMIT 1
+    )
+    WHERE p.tipo IS NOT NULL;
+  END IF;
+END $$;
 
 -- Drop dependent view before dropping columns
 DROP VIEW IF EXISTS v_permisos;
@@ -55,16 +66,21 @@ ALTER TABLE permisos
   ADD COLUMN IF NOT EXISTS entidad_reguladora_id uuid
     REFERENCES catalogos(id) ON DELETE SET NULL;
 
-UPDATE permisos p
-SET    entidad_reguladora_id = (
-  SELECT c.id
-  FROM   catalogos c
-  WHERE  c.valor     = p.entidad_reguladora
-    AND  c.tipo      = 'entidad_reguladora'
-    AND  c.tenant_id = p.tenant_id
-  LIMIT  1
-)
-WHERE p.entidad_reguladora IS NOT NULL;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'permisos' AND column_name = 'entidad_reguladora'
+  ) THEN
+    UPDATE permisos p
+    SET    entidad_reguladora_id = (
+      SELECT c.id FROM catalogos c
+      WHERE c.valor = p.entidad_reguladora AND c.tipo = 'entidad_reguladora' AND c.tenant_id = p.tenant_id
+      LIMIT 1
+    )
+    WHERE p.entidad_reguladora IS NOT NULL;
+  END IF;
+END $$;
 
 ALTER TABLE permisos DROP COLUMN IF EXISTS entidad_reguladora;
 
@@ -119,15 +135,20 @@ ALTER TABLE contratos
   ADD COLUMN IF NOT EXISTS tipo_id uuid
     REFERENCES catalogos(id) ON DELETE RESTRICT;
 
-UPDATE contratos ct
-SET    tipo_id = (
-  SELECT c.id
-  FROM   catalogos c
-  WHERE  c.valor     = ct.tipo::text
-    AND  c.tipo      = 'tipo_contrato'
-    AND  c.tenant_id = ct.tenant_id
-  LIMIT  1
-)
-WHERE ct.tipo IS NOT NULL;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'contratos' AND column_name = 'tipo'
+  ) THEN
+    UPDATE contratos ct
+    SET    tipo_id = (
+      SELECT c.id FROM catalogos c
+      WHERE c.valor = ct.tipo::text AND c.tipo = 'tipo_contrato' AND c.tenant_id = ct.tenant_id
+      LIMIT 1
+    )
+    WHERE ct.tipo IS NOT NULL;
+  END IF;
+END $$;
 
 ALTER TABLE contratos DROP COLUMN IF EXISTS tipo;
