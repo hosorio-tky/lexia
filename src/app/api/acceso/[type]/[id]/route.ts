@@ -17,9 +17,8 @@ export async function GET(
     createAccesoRepository(client, session.tenant_id).listByResource(type as ResourceType, id),
     client
       .from("profiles")
-      .select("id, nombre, apellido, email, rol, activo, cargo, departamento, telefono, ultimo_acceso, avatar_url, created_at, updated_at")
+      .select("id, nombre, apellido, email, rol, cargo, telefono, ultimo_acceso, avatar_url, created_at, updated_at")
       .eq("tenant_id", session.tenant_id)
-      .eq("activo", true)
       .order("nombre"),
     createGruposRepository(client, session.tenant_id).list(),
   ]);

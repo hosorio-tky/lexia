@@ -18,7 +18,6 @@ export default async function ResponsablesPage() {
       .from("profiles")
       .select("id, nombre, apellido, email, cargo, depto_cat:catalogos!departamento_id(valor)")
       .eq("tenant_id", session.tenant_id)
-      .eq("activo", true)
       .order("nombre"),
   ]);
 
