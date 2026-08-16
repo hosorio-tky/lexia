@@ -137,8 +137,8 @@ export function PlantillaManagerClient({
                   <span className="text-xs text-muted-foreground">
                     {EVENTO_LABELS[p.evento] ?? p.evento}
                     {p.dias_antes != null && ` · ${p.dias_antes} días antes`}
-                    {p.canal === "email" && p.frecuencia_dias > 1 && ` · cada ${p.frecuencia_dias} días`}
-                    {p.canal === "email" && p.frecuencia_dias === 1 && ` · diariamente`}
+                    {p.frecuencia_dias > 1 && ` · cada ${p.frecuencia_dias} días`}
+                    {p.frecuencia_dias === 1 && ` · diariamente`}
                   </span>
                   <Badge variant="outline" className="h-4 px-1.5 text-[10px]">
                     {CANAL_LABELS[p.canal] ?? p.canal}
@@ -229,25 +229,23 @@ export function PlantillaManagerClient({
                   />
                 </div>
 
-                {canales.includes("email") && (
-                  <div className="space-y-1.5">
-                    <Label>Repetir email cada</Label>
-                    <Select
-                      value={String(frecuencia)}
-                      onValueChange={(v) => setFrecuencia(Number(v))}
-                    >
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {FRECUENCIA_OPTIONS.map((o) => (
-                          <SelectItem key={o.value} value={String(o.value)}>
-                            {o.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <input type="hidden" name="frecuencia_dias" value={frecuencia} />
-                  </div>
-                )}
+                <div className="space-y-1.5">
+                  <Label>Repetir cada</Label>
+                  <Select
+                    value={String(frecuencia)}
+                    onValueChange={(v) => setFrecuencia(Number(v))}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {FRECUENCIA_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={String(o.value)}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <input type="hidden" name="frecuencia_dias" value={frecuencia} />
+                </div>
               </div>
             )}
 

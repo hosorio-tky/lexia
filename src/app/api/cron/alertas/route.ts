@@ -76,11 +76,18 @@ export async function GET(request: Request) {
           );
 
           for (const plantilla of inAppPlantillas) {
-            const dias    = plantilla.dias_antes ?? 30;
+            const dias        = plantilla.dias_antes ?? 30;
+            const frecuencia  = plantilla.frecuencia_dias ?? 1;
             const limite  = addDays(hoy, dias).toISOString().split("T")[0];
-            const { recursos, nombreKey } = await fetchRecursos(
+            const { recursos: todosRecursos, nombreKey } = await fetchRecursos(
               client, tenantId, plantilla.modulo, hoyStr, limite
             );
+
+            // Apply frequency filter: only notify when dias_restantes % frecuencia === 0
+            const recursos = todosRecursos.filter((r) => {
+              const restantes = diasRestantes(hoy, r.fecha!);
+              return restantes % frecuencia === 0;
+            });
 
             const toInsert: Record<string, unknown>[] = [];
             for (const recurso of recursos) {
