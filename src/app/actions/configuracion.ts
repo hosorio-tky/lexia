@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createConfiguracionRepository } from "@/lib/repositories/configuracion";
 import { createUsuariosRepository } from "@/lib/repositories/usuarios";
 import { getSession, requireRole } from "@/lib/auth/session";
+import { logActivity } from "@/lib/activity";
 import { indexDocument } from "@/lib/ai/indexer";
 import { indexContrato } from "@/lib/ai/contrato-indexer";
 import type { PlantillaAlerta, CatalogoItem } from "@/types/settings";
@@ -207,14 +208,20 @@ export async function crearPlantilla(
     nuevas.push(p);
   }
 
-  const uRepo = createUsuariosRepository(client, session.tenant_id);
-  await uRepo.logActivity({
+  await logActivity({
     tenant_id:    session.tenant_id,
     user_id:      session.user_id,
     user_nombre:  session.nombre,
     accion:       "crear_plantilla_alerta",
     modulo:       "configuracion",
     recurso_desc: nombre,
+    metadata: {
+      canales,
+      modulo,
+      evento,
+      dias_antes:      dias_antes ?? null,
+      frecuencia_dias,
+    },
   });
 
   revalidatePath("/configuracion/alertas");
@@ -228,7 +235,30 @@ export async function eliminarPlantilla(id: string): Promise<void> {
   const client = createAdminClient();
   const repo   = createConfiguracionRepository(client, session.tenant_id);
 
+  // Fetch before delete so we can log a meaningful snapshot
+  const plantillas = await repo.getPlantillas();
+  const plantilla  = plantillas.find((p) => p.id === id);
+
   await repo.deletePlantilla(id);
+
+  await logActivity({
+    tenant_id:    session.tenant_id,
+    user_id:      session.user_id,
+    user_nombre:  session.nombre,
+    accion:       "eliminar_plantilla_alerta",
+    modulo:       "configuracion",
+    recurso_id:   id,
+    recurso_desc: plantilla?.nombre,
+    metadata: plantilla ? {
+      modulo:          plantilla.modulo,
+      evento:          plantilla.evento,
+      canal:           plantilla.canal,
+      dias_antes:      plantilla.dias_antes ?? null,
+      frecuencia_dias: plantilla.frecuencia_dias,
+      activo:          plantilla.activo,
+    } : undefined,
+  });
+
   revalidatePath("/configuracion/alertas");
 }
 
@@ -239,7 +269,27 @@ export async function togglePlantilla(id: string, activo: boolean): Promise<void
   const client = createAdminClient();
   const repo   = createConfiguracionRepository(client, session.tenant_id);
 
+  const plantillas = await repo.getPlantillas();
+  const plantilla  = plantillas.find((p) => p.id === id);
+
   await repo.updatePlantilla(id, { activo });
+
+  await logActivity({
+    tenant_id:    session.tenant_id,
+    user_id:      session.user_id,
+    user_nombre:  session.nombre,
+    accion:       activo ? "desactivar_plantilla_alerta" : "activar_plantilla_alerta",
+    modulo:       "configuracion",
+    recurso_id:   id,
+    recurso_desc: plantilla?.nombre,
+    metadata: plantilla ? {
+      modulo:  plantilla.modulo,
+      evento:  plantilla.evento,
+      canal:   plantilla.canal,
+      activo:  !activo,
+    } : undefined,
+  });
+
   revalidatePath("/configuracion/alertas");
 }
 
