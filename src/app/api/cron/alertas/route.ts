@@ -78,9 +78,10 @@ export async function GET(request: Request) {
           for (const plantilla of inAppPlantillas) {
             const dias        = plantilla.dias_antes ?? 30;
             const frecuencia  = plantilla.frecuencia_dias ?? 1;
-            const limite  = addDays(hoy, dias).toISOString().split("T")[0];
+            const desdeStr    = addDays(hoy, 1).toISOString().split("T")[0];
+            const limiteStr   = addDays(hoy, dias).toISOString().split("T")[0];
             const { recursos: todosRecursos, nombreKey } = await fetchRecursos(
-              client, tenantId, plantilla.modulo, hoyStr, limite
+              client, tenantId, plantilla.modulo, desdeStr, limiteStr
             );
 
             // Apply frequency filter: only notify when dias_restantes % frecuencia === 0
@@ -104,9 +105,7 @@ export async function GET(request: Request) {
                   modulo:      plantilla.modulo,
                   recurso_id:  recurso.id,
                   recurso_desc: nombre,
-                  titulo:      diasRest <= 0
-                    ? `${nombre} ha vencido`
-                    : `${nombre} vence en ${diasRest} día${diasRest === 1 ? "" : "s"}`,
+                  titulo:      `${nombre} vence en ${diasRest} día${diasRest === 1 ? "" : "s"}`,
                   mensaje:     `Módulo: ${plantilla.modulo === "permisos" ? "Permisos" : "Contratos"}`,
                   leida:       false,
                 });
