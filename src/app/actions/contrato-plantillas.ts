@@ -49,7 +49,8 @@ export async function createPlantilla(_prev: unknown, formData: FormData) {
 export async function updatePlantilla(_prev: unknown, formData: FormData) {
   const session = await getSession();
   requireRole(session, ["admin"]);
-  const r = createContratoPlantillasRepository(createAdminClient(), session.tenant_id);
+  const client = createAdminClient();
+  const r = createContratoPlantillasRepository(client, session.tenant_id);
 
   const id             = formData.get("id")             as string;
   const nombre         = (formData.get("nombre")         as string)?.trim();
@@ -60,6 +61,13 @@ export async function updatePlantilla(_prev: unknown, formData: FormData) {
   if (!id)     return { error: "ID requerido." };
   if (!nombre) return { error: "El nombre es requerido." };
 
+  const { data: actual } = await client
+    .from("contrato_plantillas")
+    .select("nombre, tipo, descripcion")
+    .eq("id", id)
+    .eq("tenant_id", session.tenant_id)
+    .single();
+
   try {
     await r.update(id, {
       nombre,
@@ -69,6 +77,15 @@ export async function updatePlantilla(_prev: unknown, formData: FormData) {
       updated_by:     session.user_id,
     });
 
+    const LABELS: Record<string, string> = { nombre: "Nombre", tipo: "Tipo", descripcion: "Descripción" };
+    const toStr = (v: unknown) => (v === "" || v == null ? null : String(v));
+    const newVals: Record<string, unknown> = { nombre, tipo, descripcion };
+    const cambios = actual
+      ? Object.keys(LABELS)
+          .filter((k) => toStr((actual as Record<string, unknown>)[k]) !== toStr(newVals[k]))
+          .map((k) => ({ campo: LABELS[k], de: toStr((actual as Record<string, unknown>)[k]), a: toStr(newVals[k]) }))
+      : [];
+
     await logActivity({
       tenant_id:    session.tenant_id,
       user_id:      session.user_id,
@@ -77,6 +94,7 @@ export async function updatePlantilla(_prev: unknown, formData: FormData) {
       modulo:       "configuracion",
       recurso_id:   id,
       recurso_desc: nombre,
+      metadata:     cambios.length > 0 ? { cambios } : undefined,
     });
   } catch {
     return { error: "No se pudo actualizar la plantilla." };

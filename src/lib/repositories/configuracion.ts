@@ -61,6 +61,7 @@ interface ActivityRow {
   modulo: string | null;
   recurso_id: string | null;
   recurso_desc: string | null;
+  metadata: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -120,6 +121,7 @@ function mapActivity(row: ActivityRow): ActivityEvent {
     modulo:       row.modulo       ?? undefined,
     recurso_id:   row.recurso_id   ?? undefined,
     recurso_desc: row.recurso_desc ?? undefined,
+    metadata:     row.metadata     ?? undefined,
     created_at:   row.created_at,
   };
 }
@@ -297,7 +299,7 @@ export function createConfiguracionRepository(
     }): Promise<ActivityEvent[]> {
       let query = client
         .from("user_activity_log")
-        .select("id, user_id, user_nombre, accion, modulo, recurso_id, recurso_desc, created_at")
+        .select("id, user_id, user_nombre, accion, modulo, recurso_id, recurso_desc, metadata, created_at")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false })
         .limit(filters?.limit ?? 200);

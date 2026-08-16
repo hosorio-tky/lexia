@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
-import { Search, FilterX, ScrollText } from "lucide-react";
+import { Search, FilterX, ScrollText, Eye } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,29 +15,50 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import type { ActivityEvent } from "@/types/users";
 import type { UserProfile } from "@/types/users";
 
 const MODULO_LABELS: Record<string, string> = {
   auth:          "Autenticación",
   permisos:      "Permisos",
+  contratos:     "Contratos",
+  tareas:        "Tareas",
   usuarios:      "Usuarios",
   configuracion: "Configuración",
 };
 
 const ACCION_COLORS: Record<string, string> = {
-  login:               "bg-slate-100 text-slate-700",
-  registro:            "bg-indigo-50 text-indigo-700",
-  crear_permiso:       "bg-emerald-50 text-emerald-700",
-  editar_permiso:      "bg-blue-50 text-blue-700",
-  cambiar_estado:      "bg-amber-50 text-amber-700",
-  eliminar_permiso:    "bg-red-50 text-red-700",
-  invitar_usuario:     "bg-purple-50 text-purple-700",
-  editar_usuario:      "bg-blue-50 text-blue-700",
-  activar_usuario:     "bg-emerald-50 text-emerald-700",
-  desactivar_usuario:  "bg-red-50 text-red-700",
-  actualizar_empresa:  "bg-slate-100 text-slate-700",
-  crear_catalogo:      "bg-cyan-50 text-cyan-700",
+  login:                    "bg-slate-100 text-slate-700",
+  registro:                 "bg-indigo-50 text-indigo-700",
+  crear_permiso:            "bg-emerald-50 text-emerald-700",
+  editar_permiso:           "bg-blue-50 text-blue-700",
+  cambiar_estado:           "bg-amber-50 text-amber-700",
+  eliminar_permiso:         "bg-red-50 text-red-700",
+  crear_contrato:           "bg-emerald-50 text-emerald-700",
+  editar_contrato:          "bg-blue-50 text-blue-700",
+  cambiar_estado_contrato:  "bg-amber-50 text-amber-700",
+  eliminar_contrato:        "bg-red-50 text-red-700",
+  crear_tarea:              "bg-emerald-50 text-emerald-700",
+  editar_tarea:             "bg-blue-50 text-blue-700",
+  cambiar_estado_tarea:     "bg-amber-50 text-amber-700",
+  eliminar_tarea:           "bg-red-50 text-red-700",
+  agregar_comentario_tarea: "bg-slate-100 text-slate-700",
+  invitar_usuario:          "bg-purple-50 text-purple-700",
+  editar_usuario:           "bg-blue-50 text-blue-700",
+  editar_perfil:            "bg-blue-50 text-blue-700",
+  activar_usuario:          "bg-emerald-50 text-emerald-700",
+  desactivar_usuario:       "bg-red-50 text-red-700",
+  cambiar_contrasena:       "bg-slate-100 text-slate-700",
+  actualizar_empresa:       "bg-slate-100 text-slate-700",
+  crear_catalogo:           "bg-cyan-50 text-cyan-700",
+  editar_catalogo:          "bg-blue-50 text-blue-700",
+  eliminar_catalogo:        "bg-red-50 text-red-700",
 };
 
 function accionLabel(accion: string) {
@@ -52,6 +73,78 @@ function formatDate(iso: string) {
   }
 }
 
+// ─── Modal de detalle ─────────────────────────────────────────
+function MetadataDetail({ accion, metadata }: { accion: string; metadata: Record<string, unknown> }) {
+  // Cambios de campos (editar_*)
+  if (metadata.cambios) {
+    const cambios = metadata.cambios as Array<{ campo: string; de: string | null; a: string | null }>;
+    if (cambios.length === 0) return <p className="text-sm text-muted-foreground">Sin cambios registrados.</p>;
+    return (
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b">
+            <th className="py-1.5 pr-4 text-left font-medium text-muted-foreground w-1/4">Campo</th>
+            <th className="py-1.5 pr-4 text-left font-medium text-muted-foreground w-[37.5%]">Antes</th>
+            <th className="py-1.5 text-left font-medium text-muted-foreground w-[37.5%]">Después</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {cambios.map((c, i) => (
+            <tr key={i}>
+              <td className="py-2 pr-4 font-medium">{c.campo}</td>
+              <td className="py-2 pr-4 text-muted-foreground line-through">{c.de ?? <span className="not-italic opacity-40">—</span>}</td>
+              <td className="py-2">{c.a ?? <span className="opacity-40">—</span>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  }
+
+  // Cambio de estado
+  if (metadata.estado_nuevo) {
+    const { estado_anterior, estado_nuevo, comentario } = metadata as {
+      estado_anterior?: string | null;
+      estado_nuevo: string;
+      comentario?: string | null;
+    };
+    return (
+      <div className="space-y-3 text-sm">
+        <div className="flex items-center gap-3">
+          {estado_anterior && (
+            <>
+              <span className="rounded-md bg-muted px-2 py-1 text-muted-foreground line-through">{estado_anterior}</span>
+              <span className="text-muted-foreground">→</span>
+            </>
+          )}
+          <span className="rounded-md bg-primary/10 px-2 py-1 font-medium text-primary">{estado_nuevo}</span>
+        </div>
+        {comentario && (
+          <p className="rounded-md border bg-muted/40 px-3 py-2 text-muted-foreground italic">
+            &ldquo;{comentario}&rdquo;
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  // Comentario
+  if (accion.includes("comentario") && metadata.contenido) {
+    return (
+      <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground italic">
+        &ldquo;{metadata.contenido as string}&rdquo;
+      </p>
+    );
+  }
+
+  // Genérico
+  return (
+    <pre className="rounded-md bg-muted px-3 py-2 text-xs overflow-auto max-h-64">
+      {JSON.stringify(metadata, null, 2)}
+    </pre>
+  );
+}
+
 export function AuditLogClient({
   logs,
   usuarios,
@@ -62,6 +155,7 @@ export function AuditLogClient({
   const [search,        setSearch]        = useState("");
   const [filtroModulo,  setFiltroModulo]  = useState("_todos");
   const [filtroUsuario, setFiltroUsuario] = useState("_todos");
+  const [selected,      setSelected]      = useState<ActivityEvent | null>(null);
 
   const modulos = useMemo(
     () => Array.from(new Set(logs.map((l) => l.modulo).filter(Boolean) as string[])).sort(),
@@ -169,14 +263,12 @@ export function AuditLogClient({
       ) : (
         <Card className="divide-y overflow-hidden">
           {filtered.map((log) => {
-            const colorClass =
-              ACCION_COLORS[log.accion] ?? "bg-slate-100 text-slate-700";
+            const colorClass = ACCION_COLORS[log.accion] ?? "bg-slate-100 text-slate-700";
+            const hasDetail  = !!log.metadata && Object.keys(log.metadata).length > 0;
             return (
-              <div key={log.id} className="flex items-start gap-4 px-5 py-3.5">
-                <div className="shrink-0 pt-0.5">
-                  <Badge
-                    className={`text-[11px] font-medium px-2 py-0.5 rounded-md border-0 ${colorClass}`}
-                  >
+              <div key={log.id} className="flex items-center gap-4 px-5 py-3.5">
+                <div className="shrink-0">
+                  <Badge className={`text-[11px] font-medium px-2 py-0.5 rounded-md border-0 ${colorClass}`}>
                     {accionLabel(log.accion)}
                   </Badge>
                 </div>
@@ -199,14 +291,46 @@ export function AuditLogClient({
                   )}
                 </div>
 
-                <span className="shrink-0 text-xs text-muted-foreground whitespace-nowrap">
-                  {formatDate(log.created_at)}
-                </span>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {formatDate(log.created_at)}
+                  </span>
+                  {hasDetail && (
+                    <button
+                      type="button"
+                      onClick={() => setSelected(log)}
+                      className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                      title="Ver detalle"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
         </Card>
       )}
+
+      {/* Modal de detalle */}
+      <Dialog open={!!selected} onOpenChange={(v) => { if (!v) setSelected(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-base">
+              {selected ? accionLabel(selected.accion) : ""}
+            </DialogTitle>
+            {selected?.user_nombre && (
+              <p className="text-sm text-muted-foreground">
+                {selected.user_nombre}
+                {selected.created_at && ` · ${formatDate(selected.created_at)}`}
+              </p>
+            )}
+          </DialogHeader>
+          {selected?.metadata && (
+            <MetadataDetail accion={selected.accion} metadata={selected.metadata} />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

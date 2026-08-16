@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createTareasRepository } from "@/lib/repositories/tareas";
 import { createUsuariosRepository } from "@/lib/repositories/usuarios";
 import { getSession } from "@/lib/auth/session";
+import { logActivity } from "@/lib/activity";
 import { sendTareaAsignada } from "@/lib/email/send";
 import type { TaskStatus } from "@/types/tasks";
 
@@ -95,6 +96,14 @@ export async function crearTarea(
   return { taskId: tarea.id };
 }
 
+const TAREA_FIELD_LABELS: Record<string, string> = {
+  titulo:          "Título",
+  descripcion:     "Descripción",
+  prioridad:       "Prioridad",
+  asignado_nombre: "Asignado a",
+  fecha_limite:    "Fecha límite",
+};
+
 // ─── Editar tarea ──────────────────────────────────────────────
 export async function editarTarea(
   id: string,
@@ -114,6 +123,8 @@ export async function editarTarea(
 
   if (!titulo?.trim()) return { error: "El título es obligatorio" };
 
+  const actual = await repo.getById(id);
+
   await repo.update(id, {
     titulo,
     descripcion,
@@ -121,6 +132,29 @@ export async function editarTarea(
     asignado_a,
     asignado_nombre,
     fecha_limite,
+  });
+
+  const input: Record<string, unknown> = { titulo, descripcion, prioridad, asignado_nombre, fecha_limite };
+  const cambios: Array<{ campo: string; de: string | null; a: string | null }> = [];
+  if (actual) {
+    const toStr = (v: unknown): string | null =>
+      v === "" || v === null || v === undefined ? null : String(v);
+    for (const key of Object.keys(TAREA_FIELD_LABELS)) {
+      const de = toStr((actual as unknown as Record<string, unknown>)[key]);
+      const a  = toStr(input[key]);
+      if (de !== a) cambios.push({ campo: TAREA_FIELD_LABELS[key], de, a });
+    }
+  }
+
+  await logActivity({
+    tenant_id:    session.tenant_id,
+    user_id:      session.user_id,
+    user_nombre:  session.nombre,
+    accion:       "editar_tarea",
+    modulo:       "tareas",
+    recurso_id:   id,
+    recurso_desc: titulo,
+    metadata:     cambios.length > 0 ? { cambios } : undefined,
   });
 
   revalidatePath("/tareas");
@@ -137,7 +171,22 @@ export async function cambiarEstadoTarea(
   const client  = createAdminClient();
   const repo    = createTareasRepository(client, session.tenant_id);
 
+  const actual = await repo.getById(id);
   await repo.moverEstado(id, nuevoEstado);
+
+  await logActivity({
+    tenant_id:    session.tenant_id,
+    user_id:      session.user_id,
+    user_nombre:  session.nombre,
+    accion:       "cambiar_estado_tarea",
+    modulo:       "tareas",
+    recurso_id:   id,
+    recurso_desc: actual?.titulo,
+    metadata: {
+      estado_anterior: actual?.estado ?? null,
+      estado_nuevo:    nuevoEstado,
+    },
+  });
 
   revalidatePath("/tareas");
   revalidatePath(`/tareas/${id}`);
@@ -149,7 +198,18 @@ export async function eliminarTarea(id: string): Promise<void> {
   const client  = createAdminClient();
   const repo    = createTareasRepository(client, session.tenant_id);
 
+  const actual = await repo.getById(id);
   await repo.delete(id);
+
+  await logActivity({
+    tenant_id:    session.tenant_id,
+    user_id:      session.user_id,
+    user_nombre:  session.nombre,
+    accion:       "eliminar_tarea",
+    modulo:       "tareas",
+    recurso_id:   id,
+    recurso_desc: actual?.titulo,
+  });
 
   revalidatePath("/tareas");
   redirect("/tareas");
@@ -174,6 +234,16 @@ export async function agregarComentario(
     contenido,
     user_id:     session.user_id,
     user_nombre: session.nombre,
+  });
+
+  await logActivity({
+    tenant_id:    session.tenant_id,
+    user_id:      session.user_id,
+    user_nombre:  session.nombre,
+    accion:       "agregar_comentario_tarea",
+    modulo:       "tareas",
+    recurso_id:   tareaId,
+    metadata:     { contenido },
   });
 
   revalidatePath(`/tareas/${tareaId}`);

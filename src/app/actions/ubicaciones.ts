@@ -51,8 +51,26 @@ export async function editarUbicacion(
 
   if (!nombre) return { error: "El nombre es obligatorio" };
 
-  const repo = createUbicacionesRepository(createAdminClient(), session.tenant_id);
+  const client = createAdminClient();
+
+  const { data: actual } = await client
+    .from("ubicaciones")
+    .select("nombre, direccion, ciudad, departamento")
+    .eq("id", id)
+    .eq("tenant_id", session.tenant_id)
+    .single();
+
+  const repo = createUbicacionesRepository(client, session.tenant_id);
   await repo.update(id, { nombre, direccion, ciudad, departamento });
+
+  const LABELS: Record<string, string> = { nombre: "Nombre", direccion: "Dirección", ciudad: "Ciudad", departamento: "Departamento" };
+  const toStr = (v: unknown) => (v === "" || v == null ? null : String(v));
+  const newVals: Record<string, unknown> = { nombre, direccion, ciudad, departamento };
+  const cambios = actual
+    ? Object.keys(LABELS)
+        .filter((k) => toStr((actual as Record<string, unknown>)[k]) !== toStr(newVals[k]))
+        .map((k) => ({ campo: LABELS[k], de: toStr((actual as Record<string, unknown>)[k]), a: toStr(newVals[k]) }))
+    : [];
 
   await logActivity({
     tenant_id:    session.tenant_id,
@@ -62,6 +80,7 @@ export async function editarUbicacion(
     modulo:       "configuracion",
     recurso_id:   id,
     recurso_desc: nombre,
+    metadata:     cambios.length > 0 ? { cambios } : undefined,
   });
 
   revalidatePath("/configuracion/ubicaciones");

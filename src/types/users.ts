@@ -55,6 +55,7 @@ export interface ActivityEvent {
   modulo?: string;
   recurso_id?: string;
   recurso_desc?: string;
+  metadata?: Record<string, unknown> | null;
   created_at: string;
 }
 

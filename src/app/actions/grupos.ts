@@ -54,8 +54,25 @@ export async function editarGrupo(
   if (!nombre) return { error: "El nombre es obligatorio" };
 
   const client = createAdminClient();
+
+  const { data: actual } = await client
+    .from("grupos")
+    .select("nombre, descripcion, color")
+    .eq("id", id)
+    .eq("tenant_id", session.tenant_id)
+    .single();
+
   const repo = createGruposRepository(client, session.tenant_id);
   await repo.update(id, { nombre, descripcion, color });
+
+  const LABELS: Record<string, string> = { nombre: "Nombre", descripcion: "Descripción", color: "Color" };
+  const toStr = (v: unknown) => (v === "" || v == null ? null : String(v));
+  const newVals: Record<string, unknown> = { nombre, descripcion: descripcion ?? null, color };
+  const cambios = actual
+    ? Object.keys(LABELS)
+        .filter((k) => toStr((actual as Record<string, unknown>)[k]) !== toStr(newVals[k]))
+        .map((k) => ({ campo: LABELS[k], de: toStr((actual as Record<string, unknown>)[k]), a: toStr(newVals[k]) }))
+    : [];
 
   await logActivity({
     tenant_id:    session.tenant_id,
@@ -65,6 +82,7 @@ export async function editarGrupo(
     modulo:       "configuracion",
     recurso_id:   id,
     recurso_desc: nombre,
+    metadata:     cambios.length > 0 ? { cambios } : undefined,
   });
 
   revalidatePath(PATH);

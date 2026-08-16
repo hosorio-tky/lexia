@@ -210,6 +210,8 @@ export async function editarUsuario(
   const admin = createAdminClient();
   const repo  = createUsuariosRepository(admin, session.tenant_id);
 
+  const actual = await repo.getById(id);
+
   const input: Parameters<typeof repo.update>[1] = {
     nombre:          formData.get("nombre") as string,
     apellido:        (formData.get("apellido") as string) || null,
@@ -226,14 +228,33 @@ export async function editarUsuario(
 
   await repo.update(id, input);
 
-  await repo.logActivity({
+  const USER_FIELD_LABELS: Record<string, string> = {
+    nombre:   "Nombre",
+    apellido: "Apellido",
+    cargo:    "Cargo",
+    telefono: "Teléfono",
+    rol:      "Rol",
+  };
+  const cambios: Array<{ campo: string; de: string | null; a: string | null }> = [];
+  if (actual) {
+    const toStr = (v: unknown): string | null =>
+      v === "" || v === null || v === undefined ? null : String(v);
+    for (const key of Object.keys(USER_FIELD_LABELS)) {
+      const de = toStr((actual as unknown as Record<string, unknown>)[key]);
+      const a  = toStr((input as Record<string, unknown>)[key]);
+      if (de !== a) cambios.push({ campo: USER_FIELD_LABELS[key], de, a });
+    }
+  }
+
+  await logActivity({
     tenant_id:    session.tenant_id,
     user_id:      session.user_id,
     user_nombre:  session.nombre,
     accion:       isSelf ? "editar_perfil" : "editar_usuario",
     modulo:       "usuarios",
     recurso_id:   id,
-    recurso_desc: `Actualizó perfil de usuario`,
+    recurso_desc: input.nombre as string,
+    metadata:     cambios.length > 0 ? { cambios } : undefined,
   });
 
   revalidatePath(`/usuarios/${id}`);

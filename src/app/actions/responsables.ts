@@ -105,8 +105,24 @@ export async function editarResponsable(
     if (!nombre) return { error: "El nombre es obligatorio" };
   }
 
+  const { data: actual } = await admin
+    .from("responsables")
+    .select("nombre, area, email")
+    .eq("id", id)
+    .eq("tenant_id", session.tenant_id)
+    .single();
+
   const repo = createResponsablesRepository(admin, session.tenant_id);
   await repo.update(id, { nombre, area, email, user_id: userId ?? null });
+
+  const LABELS: Record<string, string> = { nombre: "Nombre", area: "Área", email: "Email" };
+  const toStr = (v: unknown) => (v === "" || v == null ? null : String(v));
+  const newVals: Record<string, unknown> = { nombre, area, email };
+  const cambios = actual
+    ? Object.keys(LABELS)
+        .filter((k) => toStr((actual as Record<string, unknown>)[k]) !== toStr(newVals[k]))
+        .map((k) => ({ campo: LABELS[k], de: toStr((actual as Record<string, unknown>)[k]), a: toStr(newVals[k]) }))
+    : [];
 
   await logActivity({
     tenant_id:    session.tenant_id,
@@ -116,6 +132,7 @@ export async function editarResponsable(
     modulo:       "configuracion",
     recurso_id:   id,
     recurso_desc: nombre,
+    metadata:     cambios.length > 0 ? { cambios } : undefined,
   });
 
   revalidatePath("/configuracion/responsables");

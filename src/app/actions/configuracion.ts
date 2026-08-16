@@ -99,8 +99,20 @@ export async function editarCatalogo(
   if (!trimmed) return { error: "El valor no puede estar vacío" };
 
   const client = createAdminClient();
-  const repo   = createConfiguracionRepository(client, session.tenant_id);
-  const item   = await repo.updateCatalogo(id, { valor: trimmed, etiqueta: trimmed });
+
+  const { data: actual } = await client
+    .from("catalogos")
+    .select("valor")
+    .eq("id", id)
+    .eq("tenant_id", session.tenant_id)
+    .single();
+
+  const repo = createConfiguracionRepository(client, session.tenant_id);
+  const item = await repo.updateCatalogo(id, { valor: trimmed, etiqueta: trimmed });
+
+  const cambios = actual && actual.valor !== trimmed
+    ? [{ campo: "Valor", de: actual.valor as string, a: trimmed }]
+    : [];
 
   await logActivity({
     tenant_id:    session.tenant_id,
@@ -110,6 +122,7 @@ export async function editarCatalogo(
     modulo:       "configuracion",
     recurso_id:   id,
     recurso_desc: trimmed,
+    metadata:     cambios.length > 0 ? { cambios } : undefined,
   });
 
   revalidatePath("/configuracion/catalogos");
