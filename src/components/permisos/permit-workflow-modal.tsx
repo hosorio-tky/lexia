@@ -14,37 +14,39 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PermitStatusBadge } from "./permit-status-badge";
-import { STATUS_TRANSITIONS, type PermitStatus } from "@/types/permits";
+import { ESTADOS_PERMISO } from "@/lib/constants/estados";
 
 interface WorkflowModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentStatus: PermitStatus;
+  currentEstadoId: string;
+  currentLabel: string;
   permitName: string;
-  onConfirm: (newStatus: PermitStatus, comment: string) => void;
+  nextEstados: Array<{ id: string; valor: string }>;
+  onConfirm: (newEstadoId: string, newLabel: string, comment: string) => void;
 }
 
-const STATUS_ICONS: Partial<Record<PermitStatus, React.ElementType>> = {
-  "Aprobado":           CheckCircle2,
-  "Rechazado":          XCircle,
-  "Actualizar Permiso": RefreshCw,
+const STATUS_ICONS: Record<string, React.ElementType> = {
+  [ESTADOS_PERMISO.APROBADO]:           CheckCircle2,
+  [ESTADOS_PERMISO.RECHAZADO]:          XCircle,
+  [ESTADOS_PERMISO.ACTUALIZAR_PERMISO]: RefreshCw,
 };
 
 export function PermitWorkflowModal({
   open,
   onOpenChange,
-  currentStatus,
+  currentEstadoId,
+  currentLabel,
   permitName,
+  nextEstados,
   onConfirm,
 }: WorkflowModalProps) {
-  const [selectedNext, setSelectedNext] = useState<PermitStatus | null>(null);
+  const [selectedNext, setSelectedNext] = useState<{ id: string; valor: string } | null>(null);
   const [comment, setComment] = useState("");
-
-  const nextStatuses = STATUS_TRANSITIONS[currentStatus] ?? [];
 
   const handleConfirm = () => {
     if (!selectedNext) return;
-    onConfirm(selectedNext, comment);
+    onConfirm(selectedNext.id, selectedNext.valor, comment);
     setSelectedNext(null);
     setComment("");
     onOpenChange(false);
@@ -65,14 +67,12 @@ export function PermitWorkflowModal({
         </DialogHeader>
 
         <div className="space-y-5 py-2">
-          {/* Estado actual */}
           <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3">
             <div className="text-sm text-muted-foreground">Estado actual:</div>
-            <PermitStatusBadge status={currentStatus} />
+            <PermitStatusBadge estadoId={currentEstadoId} label={currentLabel} />
           </div>
 
-          {/* Seleccionar próximo estado */}
-          {nextStatuses.length === 0 ? (
+          {nextEstados.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-2">
               No hay transiciones disponibles desde este estado.
             </p>
@@ -80,13 +80,13 @@ export function PermitWorkflowModal({
             <div className="space-y-2">
               <Label>Nuevo estado</Label>
               <div className="grid gap-2">
-                {nextStatuses.map((status) => {
-                  const Icon = STATUS_ICONS[status];
-                  const isSelected = selectedNext === status;
+                {nextEstados.map((e) => {
+                  const Icon = STATUS_ICONS[e.id];
+                  const isSelected = selectedNext?.id === e.id;
                   return (
                     <button
-                      key={status}
-                      onClick={() => setSelectedNext(status)}
+                      key={e.id}
+                      onClick={() => setSelectedNext(e)}
                       className={`flex items-center justify-between rounded-lg border-2 px-4 py-3 text-sm transition-all ${
                         isSelected
                           ? "border-primary bg-primary/5"
@@ -95,7 +95,7 @@ export function PermitWorkflowModal({
                     >
                       <div className="flex items-center gap-2">
                         {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
-                        <PermitStatusBadge status={status} />
+                        <PermitStatusBadge estadoId={e.id} label={e.valor} />
                       </div>
                       {isSelected && <ArrowRight className="h-4 w-4 text-primary" />}
                     </button>
@@ -105,7 +105,6 @@ export function PermitWorkflowModal({
             </div>
           )}
 
-          {/* Comentario */}
           {selectedNext && (
             <div className="space-y-2">
               <Label htmlFor="workflow-comment">
@@ -124,10 +123,7 @@ export function PermitWorkflowModal({
 
         <DialogFooter>
           <Button variant="outline" onClick={handleClose}>Cancelar</Button>
-          <Button
-            onClick={handleConfirm}
-            disabled={!selectedNext}
-          >
+          <Button onClick={handleConfirm} disabled={!selectedNext}>
             Confirmar cambio
           </Button>
         </DialogFooter>

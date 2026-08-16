@@ -1,39 +1,20 @@
-// ─── Estados del trámite (workflow) ───────────────────────────────────────────
-export const PERMIT_STATUSES = [
-  "Creado",
-  "En Gestión",
-  "Presentado",
-  "Con Permiso Provisional",
-  "Aprobado",
-  "Actualizar Permiso",
-  "Rechazado",
-] as const;
+import { ESTADOS_PERMISO, PERMISO_TRANSITIONS } from "@/lib/constants/estados";
 
-export type PermitStatus = (typeof PERMIT_STATUSES)[number];
-
-// Transiciones permitidas por estado
-export const STATUS_TRANSITIONS: Record<PermitStatus, PermitStatus[]> = {
-  "Creado":                  ["En Gestión"],
-  "En Gestión":              ["Presentado", "Rechazado"],
-  "Presentado":              ["Con Permiso Provisional", "Aprobado", "Rechazado"],
-  "Con Permiso Provisional": ["Aprobado", "Rechazado"],
-  "Aprobado":                ["Actualizar Permiso"],
-  "Actualizar Permiso":      ["Aprobado", "Rechazado"],
-  "Rechazado":               [],
+// ─── Estado colors keyed by estado_id ────────────────────────────────────────
+export const STATUS_COLORS: Record<string, string> = {
+  [ESTADOS_PERMISO.CREADO]:                  "bg-slate-100 text-slate-700 border-slate-200",
+  [ESTADOS_PERMISO.EN_GESTION]:              "bg-blue-50 text-blue-700 border-blue-200",
+  [ESTADOS_PERMISO.PRESENTADO]:              "bg-indigo-50 text-indigo-700 border-indigo-200",
+  [ESTADOS_PERMISO.CON_PERMISO_PROVISIONAL]: "bg-amber-50 text-amber-700 border-amber-200",
+  [ESTADOS_PERMISO.APROBADO]:                "bg-emerald-50 text-emerald-700 border-emerald-200",
+  [ESTADOS_PERMISO.ACTUALIZAR_PERMISO]:      "bg-orange-50 text-orange-700 border-orange-200",
+  [ESTADOS_PERMISO.RECHAZADO]:               "bg-red-100 text-red-700 border-red-300",
 };
 
-// ─── Colores semáforo ──────────────────────────────────────────────────────
-export const STATUS_COLORS: Record<PermitStatus, string> = {
-  "Creado":                  "bg-slate-100 text-slate-700 border-slate-200",
-  "En Gestión":              "bg-blue-50 text-blue-700 border-blue-200",
-  "Presentado":              "bg-indigo-50 text-indigo-700 border-indigo-200",
-  "Con Permiso Provisional": "bg-amber-50 text-amber-700 border-amber-200",
-  "Aprobado":                "bg-emerald-50 text-emerald-700 border-emerald-200",
-  "Actualizar Permiso":      "bg-orange-50 text-orange-700 border-orange-200",
-  "Rechazado":               "bg-red-100 text-red-700 border-red-300",
-};
+// Alias for callers that import STATUS_TRANSITIONS from this module
+export const STATUS_TRANSITIONS = PERMISO_TRANSITIONS;
 
-// ─── Vigencia (calculada, nunca almacenada) ────────────────────────────────
+// ─── Vigencia (calculated, never stored) ─────────────────────────────────────
 export type VigenciaStatus = "Vigente" | "Por vencer" | "Vencido" | "Sin fecha";
 
 export function calcularVigencia(fecha?: string): VigenciaStatus {
@@ -52,7 +33,7 @@ export const VIGENCIA_COLORS: Record<VigenciaStatus, string> = {
   "Sin fecha":  "bg-slate-100 text-slate-500 border-slate-200",
 };
 
-// ─── Tipos de permiso (ahora en catálogos BD; alias para compat) ──────────
+// ─── Tipos de permiso (en catálogos BD) ──────────────────────────────────────
 export type PermitType = string;
 
 // ─── Interfaces principales ───────────────────────────────────────────────
@@ -69,29 +50,25 @@ export interface Permit {
   tipo: string;
   entidad_reguladora_id?: string;
   entidad_reguladora?: string;
-  // Ubicación: FK + texto desnormalizado
   ubicacion_id?: string;
   ubicacion?: string;
-  // Estado del workflow (trámite)
-  estado: PermitStatus;
+  // Workflow state — UUID for logic/joins, string label for display (from JOIN)
+  estado_id: string;
+  estado: string;
   // Fechas
   fecha_solicitud?: string;
   fecha_emision?: string;
   fecha_vencimiento?: string;
-  // Permiso provisional
   tiene_provisional?: boolean;
   fecha_emision_provisional?: string;
   fecha_vencimiento_provisional?: string;
-  // Responsable: FK + texto desnormalizado (primer responsable) + array completo
   responsable_id?: string;
   responsable_nombre?: string;
   responsable_iniciales?: string;
   responsable_area?: string;
   responsable_ids?: string[];
-  // Valor económico
   valor_tramite?: number;
   moneda?: string;
-  // Campos legales y riesgo
   base_legal?: string;
   riesgo_incumplimiento?: string;
   base_legal_incumplimiento?: string;
@@ -105,8 +82,10 @@ export interface Permit {
 export interface TimelineEvent {
   id: string;
   permit_id: string;
-  estado_anterior?: PermitStatus;
-  estado_nuevo: PermitStatus;
+  estado_anterior_id?: string;
+  estado_nuevo_id?: string;
+  estado_anterior?: string;
+  estado_nuevo: string;
   comentario?: string;
   changed_by_nombre?: string;
   created_at: string;
@@ -125,7 +104,7 @@ export interface PermitFechaHistorial {
 
 export interface PermitFilters {
   search: string;
-  estado: PermitStatus | "";
+  estado: string;       // estado_id UUID or empty string
   tipo: string;
   entidad: string;
   responsable: string;

@@ -11,13 +11,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ContratoStatusBadge } from "./contrato-status-badge";
 import { cambiarEstadoContrato } from "@/app/actions/contratos";
-import { ESTADO_TRANSITIONS, diasRestantes, type Contrato, type ContratoEstado } from "@/types/contratos";
+import { diasRestantes, type Contrato } from "@/types/contratos";
+import {
+  ESTADOS_CONTRATO,
+  CONTRATO_TRANSITIONS,
+  ESTADOS_CONTRATO_LABELS,
+} from "@/lib/constants/estados";
 
-const COLUMNAS: { estado: ContratoEstado; label: string; colorClass: string }[] = [
-  { estado: "En Revisión",     label: "En Revisión",     colorClass: "border-t-slate-400" },
-  { estado: "Pendiente Firma", label: "Pendiente Firma", colorClass: "border-t-amber-400" },
-  { estado: "Vigente",         label: "Vigente",          colorClass: "border-t-emerald-400" },
-  { estado: "Vencido",         label: "Vencido",          colorClass: "border-t-red-400" },
+const COLUMNAS: { estadoId: string; label: string; colorClass: string }[] = [
+  { estadoId: ESTADOS_CONTRATO.EN_REVISION,    label: "En Revisión",     colorClass: "border-t-slate-400" },
+  { estadoId: ESTADOS_CONTRATO.PENDIENTE_FIRMA,label: "Pendiente Firma", colorClass: "border-t-amber-400" },
+  { estadoId: ESTADOS_CONTRATO.VIGENTE,        label: "Vigente",          colorClass: "border-t-emerald-400" },
+  { estadoId: ESTADOS_CONTRATO.VENCIDO,        label: "Vencido",          colorClass: "border-t-red-400" },
 ];
 
 function formatValor(valor?: number, moneda?: string): string | null {
@@ -27,8 +32,8 @@ function formatValor(valor?: number, moneda?: string): string | null {
 
 function ContratoCard({ contrato, canEdit }: { contrato: Contrato; canEdit: boolean }) {
   const [isPending, startTransition] = useTransition();
-  const transiciones = ESTADO_TRANSITIONS[contrato.estado];
-  const dias         = diasRestantes(contrato.fecha_fin);
+  const transicionIds = CONTRATO_TRANSITIONS[contrato.estado_id] ?? [];
+  const dias          = diasRestantes(contrato.fecha_fin);
 
   return (
     <div className="rounded-xl border bg-card p-3 shadow-sm space-y-2 hover:shadow-md transition">
@@ -40,8 +45,7 @@ function ContratoCard({ contrato, canEdit }: { contrato: Contrato; canEdit: bool
           {contrato.titulo}
         </Link>
 
-        {/* Dropdown cambio de estado */}
-        {canEdit && transiciones.length > 0 && (
+        {canEdit && transicionIds.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -54,20 +58,23 @@ function ContratoCard({ contrato, canEdit }: { contrato: Contrato; canEdit: bool
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[160px]">
-              {transiciones.map((t) => (
-                <DropdownMenuItem
-                  key={t}
-                  onClick={() => startTransition(() => cambiarEstadoContrato(contrato.id, t))}
-                >
-                  → {t}
-                </DropdownMenuItem>
-              ))}
+              {transicionIds.map((id) => {
+                const label = ESTADOS_CONTRATO_LABELS[id] ?? id;
+                return (
+                  <DropdownMenuItem
+                    key={id}
+                    onClick={() => startTransition(() => cambiarEstadoContrato(contrato.id, id, label))}
+                  >
+                    → {label}
+                  </DropdownMenuItem>
+                );
+              })}
             </DropdownMenuContent>
           </DropdownMenu>
         )}
 
-        {(!canEdit || transiciones.length === 0) && (
-          <ContratoStatusBadge estado={contrato.estado} />
+        {(!canEdit || transicionIds.length === 0) && (
+          <ContratoStatusBadge estadoId={contrato.estado_id} label={contrato.estado} />
         )}
       </div>
 
@@ -98,21 +105,19 @@ export function ContratoKanban({ contratos, editableIds = [] }: { contratos: Con
   const editableSet = new Set(editableIds);
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {COLUMNAS.map(({ estado, label, colorClass }) => {
-        const items = contratos.filter((c) => c.estado === estado);
+      {COLUMNAS.map(({ estadoId, label, colorClass }) => {
+        const items = contratos.filter((c) => c.estado_id === estadoId);
         return (
           <div
-            key={estado}
+            key={estadoId}
             className={`flex flex-col gap-2 rounded-xl border border-t-4 bg-muted/20 p-3 ${colorClass}`}
           >
-            {/* Cabecera columna */}
             <div className="flex items-center justify-between px-1 mb-1">
               <span className="text-sm font-semibold">{label}</span>
               <span className="grid h-5 min-w-5 place-items-center rounded-full bg-muted px-1.5 text-[11px] font-medium text-muted-foreground">
                 {items.length}
               </span>
             </div>
-            {/* Cards */}
             {items.length === 0 ? (
               <p className="px-1 text-xs text-muted-foreground italic">Sin contratos</p>
             ) : (

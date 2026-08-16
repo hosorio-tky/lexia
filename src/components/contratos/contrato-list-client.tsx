@@ -29,7 +29,8 @@ import { ContratoStatCards } from "./contrato-stat-cards";
 import { ContratoStatusBadge } from "./contrato-status-badge";
 import { ContratoKanban } from "./contrato-kanban";
 import { eliminarContrato } from "@/app/actions/contratos";
-import { diasRestantes, CONTRACT_ESTADOS, type Contrato, type ContratoFilters } from "@/types/contratos";
+import { diasRestantes, type Contrato, type ContratoFilters } from "@/types/contratos";
+import { ESTADOS_CONTRATO_OPTIONS } from "@/lib/constants/estados";
 
 import { ArrowRight, Edit, MoreHorizontal } from "lucide-react";
 import { AccesoIndicador } from "@/components/shared/acceso-indicador";
@@ -116,7 +117,7 @@ export function ContratoListClient({
           !(c.contraparte_nombre ?? "").toLowerCase().includes(q)
         ) return false;
       }
-      if (filters.estado && c.estado !== filters.estado) return false;
+      if (filters.estado && c.estado_id !== filters.estado) return false;
       if (filters.tipo   && c.tipo   !== filters.tipo)   return false;
       return true;
     });
@@ -191,8 +192,8 @@ export function ContratoListClient({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="__all__">Todos los estados</SelectItem>
-              {CONTRACT_ESTADOS.map((s) => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
+              {ESTADOS_CONTRATO_OPTIONS.map((o) => (
+                <SelectItem key={o.id} value={o.id}>{o.valor}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -316,7 +317,7 @@ export function ContratoListClient({
                       </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm">{c.tipo}</td>
                       <td className="px-4 py-3">
-                        <ContratoStatusBadge estado={c.estado} />
+                        <ContratoStatusBadge estadoId={c.estado_id} label={c.estado} />
                       </td>
                       <td className="px-4 py-3 max-w-[160px] truncate text-sm text-muted-foreground">
                         {c.contraparte_nombre ?? "—"}

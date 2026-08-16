@@ -4,6 +4,7 @@ import { sendAlertaVencimiento } from "@/lib/email/send";
 import { createSuscripcionesRepository } from "@/lib/repositories/suscripciones";
 import { logError } from "@/lib/logger";
 import type { ResourceType } from "@/types/access-control";
+import { ESTADOS_PERMISO, ESTADOS_CONTRATO } from "@/lib/constants/estados";
 
 /**
  * SC-05 — Alertas de vencimiento
@@ -217,7 +218,14 @@ async function fetchRecursos(
       .eq("tenant_id", tenantId)
       .gte("fecha_vencimiento", desde)
       .lte("fecha_vencimiento", hasta)
-      .in("estado", ["activo", "en_tramite", "provisional"]);
+      .in("estado_id", [
+        ESTADOS_PERMISO.CREADO,
+        ESTADOS_PERMISO.EN_GESTION,
+        ESTADOS_PERMISO.PRESENTADO,
+        ESTADOS_PERMISO.CON_PERMISO_PROVISIONAL,
+        ESTADOS_PERMISO.APROBADO,
+        ESTADOS_PERMISO.ACTUALIZAR_PERMISO,
+      ]);
     return {
       recursos: (data ?? []).map((r) => ({ ...r, fecha: r.fecha_vencimiento })),
       nombreKey: "nombre",
@@ -229,7 +237,11 @@ async function fetchRecursos(
       .eq("tenant_id", tenantId)
       .gte("fecha_fin", desde)
       .lte("fecha_fin", hasta)
-      .in("estado", ["Vigente", "En Revisión", "Pendiente Firma"]);
+      .in("estado_id", [
+        ESTADOS_CONTRATO.EN_REVISION,
+        ESTADOS_CONTRATO.PENDIENTE_FIRMA,
+        ESTADOS_CONTRATO.VIGENTE,
+      ]);
     return {
       recursos: (data ?? []).map((r) => ({ ...r, fecha: r.fecha_fin })),
       nombreKey: "titulo",

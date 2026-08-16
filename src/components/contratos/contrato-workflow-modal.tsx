@@ -14,39 +14,41 @@ import {
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ContratoStatusBadge } from "./contrato-status-badge";
-import { ESTADO_TRANSITIONS, type ContratoEstado } from "@/types/contratos";
+import { ESTADOS_CONTRATO } from "@/lib/constants/estados";
 
 interface Props {
-  open:          boolean;
-  onOpenChange:  (open: boolean) => void;
-  currentEstado: ContratoEstado;
-  titulo:        string;
-  onConfirm:     (newEstado: ContratoEstado, comment: string) => void;
+  open:             boolean;
+  onOpenChange:     (open: boolean) => void;
+  currentEstadoId:  string;
+  currentLabel:     string;
+  titulo:           string;
+  nextEstados:      Array<{ id: string; valor: string }>;
+  onConfirm:        (newEstadoId: string, newLabel: string, comment: string) => void;
 }
 
-const ESTADO_ICONS: Partial<Record<ContratoEstado, React.ElementType>> = {
-  "Vigente":         CheckCircle2,
-  "Cancelado":       XCircle,
-  "Terminado":       CheckCircle2,
-  "Pendiente Firma": FileSignature,
-  "En Revisión":     Clock,
+const ESTADO_ICONS: Record<string, React.ElementType> = {
+  [ESTADOS_CONTRATO.VIGENTE]:        CheckCircle2,
+  [ESTADOS_CONTRATO.CANCELADO]:      XCircle,
+  [ESTADOS_CONTRATO.TERMINADO]:      CheckCircle2,
+  [ESTADOS_CONTRATO.PENDIENTE_FIRMA]:FileSignature,
+  [ESTADOS_CONTRATO.EN_REVISION]:    Clock,
 };
 
 export function ContratoWorkflowModal({
   open,
   onOpenChange,
-  currentEstado,
+  currentEstadoId,
+  currentLabel,
   titulo,
+  nextEstados,
   onConfirm,
 }: Props) {
-  const [selectedNext, setSelectedNext] = useState<ContratoEstado | null>(null);
+  const [selectedNext, setSelectedNext] = useState<{ id: string; valor: string } | null>(null);
   const [comment, setComment] = useState("");
-
-  const nextEstados = ESTADO_TRANSITIONS[currentEstado] ?? [];
 
   const handleConfirm = () => {
     if (!selectedNext) return;
-    onConfirm(selectedNext, comment);
+    onConfirm(selectedNext.id, selectedNext.valor, comment);
     setSelectedNext(null);
     setComment("");
     onOpenChange(false);
@@ -67,13 +69,11 @@ export function ContratoWorkflowModal({
         </DialogHeader>
 
         <div className="space-y-5 py-2">
-          {/* Estado actual */}
           <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-4 py-3">
             <div className="text-sm text-muted-foreground">Estado actual:</div>
-            <ContratoStatusBadge estado={currentEstado} />
+            <ContratoStatusBadge estadoId={currentEstadoId} label={currentLabel} />
           </div>
 
-          {/* Seleccionar próximo estado */}
           {nextEstados.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-2">
               No hay transiciones disponibles desde este estado.
@@ -82,13 +82,13 @@ export function ContratoWorkflowModal({
             <div className="space-y-2">
               <Label>Nuevo estado</Label>
               <div className="grid gap-2">
-                {nextEstados.map((estado) => {
-                  const Icon = ESTADO_ICONS[estado];
-                  const isSelected = selectedNext === estado;
+                {nextEstados.map((e) => {
+                  const Icon = ESTADO_ICONS[e.id];
+                  const isSelected = selectedNext?.id === e.id;
                   return (
                     <button
-                      key={estado}
-                      onClick={() => setSelectedNext(estado)}
+                      key={e.id}
+                      onClick={() => setSelectedNext(e)}
                       className={`flex items-center justify-between rounded-lg border-2 px-4 py-3 text-sm transition-all ${
                         isSelected
                           ? "border-primary bg-primary/5"
@@ -97,7 +97,7 @@ export function ContratoWorkflowModal({
                     >
                       <div className="flex items-center gap-2">
                         {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
-                        <ContratoStatusBadge estado={estado} />
+                        <ContratoStatusBadge estadoId={e.id} label={e.valor} />
                       </div>
                       {isSelected && <ArrowRight className="h-4 w-4 text-primary" />}
                     </button>
@@ -107,7 +107,6 @@ export function ContratoWorkflowModal({
             </div>
           )}
 
-          {/* Comentario */}
           {selectedNext && (
             <div className="space-y-2">
               <Label htmlFor="workflow-comment">

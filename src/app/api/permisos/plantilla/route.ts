@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import * as XLSX from "xlsx";
-import { PERMIT_STATUSES } from "@/types/permits";
+import { ESTADOS_PERMISO_OPTIONS } from "@/lib/constants/estados";
 
 export async function GET() {
   const wb = XLSX.utils.book_new();
@@ -68,7 +68,7 @@ export async function GET() {
     ["fecha_emision",     "No",  "Formato: DD/MM/AAAA",                              ""],
     ["fecha_vencimiento", "No",  "Formato: DD/MM/AAAA",                              ""],
     ["responsable_nombre","No",  "Nombre completo del responsable.",                  ""],
-    ["estado",            "No",  `Si se omite, se asigna "Creado" por defecto.`,     PERMIT_STATUSES.join(", ")],
+    ["estado",            "No",  `Si se omite, se asigna "Creado" por defecto.`,     ESTADOS_PERMISO_OPTIONS.map((o) => o.valor).join(", ")],
   ];
   const wsRef = XLSX.utils.aoa_to_sheet(refData);
   wsRef["!cols"] = [{ wch: 22 }, { wch: 12 }, { wch: 48 }, { wch: 60 }];

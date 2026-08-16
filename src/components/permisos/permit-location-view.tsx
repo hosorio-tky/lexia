@@ -103,7 +103,7 @@ function LocationGroup({
 
               {/* Status + vigencia */}
               <div className="flex items-center gap-2 shrink-0">
-                <PermitStatusBadge status={p.estado} />
+                <PermitStatusBadge estadoId={p.estado_id} label={p.estado} />
                 <span className="hidden sm:block">
                   <VigenciaBadge status={calcularVigencia(p.fecha_vencimiento)} />
                 </span>

@@ -1,11 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Permit, PermitType, TimelineEvent, PermitFilters, PermitStatus, PermitFechaHistorial } from "@/types/permits";
+import type { Permit, PermitType, TimelineEvent, PermitFilters, PermitFechaHistorial } from "@/types/permits";
+import { ESTADOS_PERMISO } from "@/lib/constants/estados";
 import { getAccessibleIds } from "./acceso";
 
-// ─── Tipos de filas DB (evita `any`) ─────────────────────────
+// ─── Tipos de filas DB ────────────────────────────────────────
 interface CatalogoRef { id: string; valor: string; }
-
 interface UbicacionRef { id: string; nombre: string; }
+interface EstadoRef { id: string; valor: string; }
 
 interface PermisoRow {
   id: string;
@@ -20,7 +21,8 @@ interface PermisoRow {
   ubicacion_id: string | null;
   ubicacion_ref: UbicacionRef | null;
   ubicacion: string | null;
-  estado: string;
+  estado_id: string;
+  estado_ref: EstadoRef | null;
   fecha_solicitud: string | null;
   fecha_emision: string | null;
   fecha_vencimiento: string | null;
@@ -45,8 +47,10 @@ interface PermisoRow {
 interface PermisoHistorialRow {
   id: string;
   permiso_id: string;
+  estado_anterior_id: string | null;
+  estado_nuevo_id: string | null;
   estado_anterior: string | null;
-  estado_nuevo: string;
+  estado_nuevo: string | null;
   comentario: string | null;
   changed_by_nombre: string | null;
   changed_at: string;
@@ -63,6 +67,23 @@ interface PermisoFechaHistorialRow {
   motivo: string | null;
 }
 
+const SELECT_PERMISO = [
+  "*",
+  "tipo_cat:catalogos!tipo_id(id, valor)",
+  "entidad_cat:catalogos!entidad_reguladora_id(id, valor)",
+  "ubicacion_ref:ubicaciones!ubicacion_id(id, nombre)",
+  "estado_ref:workflow_estados!estado_id(id, valor)",
+].join(", ");
+
+const SELECT_PERMISO_DETAIL = [
+  "*",
+  "tipo_cat:catalogos!tipo_id(id, valor)",
+  "entidad_cat:catalogos!entidad_reguladora_id(id, valor)",
+  "ubicacion_ref:ubicaciones!ubicacion_id(id, nombre)",
+  "estado_ref:workflow_estados!estado_id(id, valor)",
+  "responsable_det:responsables!responsable_id(area, user_id)",
+].join(", ");
+
 // ─── Mapeo DB → Permit ────────────────────────────────────────
 function mapRow(row: PermisoRow): Permit {
   return {
@@ -77,7 +98,8 @@ function mapRow(row: PermisoRow): Permit {
     entidad_reguladora:         row.entidad_cat?.valor ?? undefined,
     ubicacion_id:               row.ubicacion_id ?? undefined,
     ubicacion:                  row.ubicacion ?? row.ubicacion_ref?.nombre ?? undefined,
-    estado:                     row.estado as PermitStatus,
+    estado_id:                  row.estado_id,
+    estado:                     row.estado_ref?.valor ?? row.estado_id,
     fecha_solicitud:            row.fecha_solicitud ?? undefined,
     fecha_emision:              row.fecha_emision ?? undefined,
     fecha_vencimiento:          row.fecha_vencimiento ?? undefined,
@@ -107,8 +129,10 @@ function mapTimelineRow(row: PermisoHistorialRow): TimelineEvent {
   return {
     id:                   row.id,
     permit_id:            row.permiso_id,
-    estado_anterior:      (row.estado_anterior ?? undefined) as PermitStatus | undefined,
-    estado_nuevo:         row.estado_nuevo as PermitStatus,
+    estado_anterior_id:   row.estado_anterior_id ?? undefined,
+    estado_nuevo_id:      row.estado_nuevo_id ?? undefined,
+    estado_anterior:      row.estado_anterior ?? undefined,
+    estado_nuevo:         row.estado_nuevo ?? "",
     comentario:           row.comentario ?? undefined,
     changed_by_nombre:    row.changed_by_nombre ?? undefined,
     created_at:           row.changed_at,
@@ -129,23 +153,20 @@ function mapFechaHistorialRow(row: PermisoFechaHistorialRow): PermitFechaHistori
 }
 
 // ─── Repositorio ──────────────────────────────────────────────
-// tenantId es obligatorio cuando se usa admin client (sin RLS).
-// Garantiza aislamiento multi-tenant en todas las queries.
 export function createPermisosRepository(client: SupabaseClient, tenantId: string) {
   return {
-    // M01-F01: Listado con filtros
     async list(
       filters?: Partial<PermitFilters>,
       caller?: { userId: string; userRol: string },
     ): Promise<Permit[]> {
       let query = client
         .from("permisos")
-        .select("*, tipo_cat:catalogos!tipo_id(id, valor), entidad_cat:catalogos!entidad_reguladora_id(id, valor), ubicacion_ref:ubicaciones!ubicacion_id(id, nombre)")
+        .select(SELECT_PERMISO)
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
 
       if (filters?.estado) {
-        query = query.eq("estado", filters.estado);
+        query = query.eq("estado_id", filters.estado);
       }
       if (filters?.tipo) {
         query = query.eq("tipo_id", filters.tipo);
@@ -161,9 +182,8 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
 
       const { data, error } = await query;
       if (error) throw error;
-      let result = (data ?? []).map((row) => mapRow(row as PermisoRow));
+      let result = (data ?? []).map((row) => mapRow(row as unknown as PermisoRow));
 
-      // Enforce visibility for non-admin users
       if (caller && caller.userRol !== "admin") {
         const accessibleIds = await getAccessibleIds(client, tenantId, "permiso", caller.userId);
         result = result.filter(
@@ -177,22 +197,20 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
       return result;
     },
 
-    // M01-F02: Detalle del permiso
     async getById(id: string, caller?: { userId: string; userRol: string }): Promise<Permit | null> {
       const { data, error } = await client
         .from("permisos")
-        .select("*, tipo_cat:catalogos!tipo_id(id, valor), entidad_cat:catalogos!entidad_reguladora_id(id, valor), ubicacion_ref:ubicaciones!ubicacion_id(id, nombre), responsable_det:responsables!responsable_id(area, user_id)")
+        .select(SELECT_PERMISO_DETAIL)
         .eq("id", id)
         .eq("tenant_id", tenantId)
         .single();
 
       if (error) {
-        if (error.code === "PGRST116") return null; // not found
+        if (error.code === "PGRST116") return null;
         throw error;
       }
       const permit = mapRow(data as unknown as PermisoRow);
 
-      // Enforce visibility for non-admin users
       if (caller && caller.userRol !== "admin" && permit.visibilidad === "restringido") {
         if (permit.created_by !== caller.userId) {
           const accessibleIds = await getAccessibleIds(client, tenantId, "permiso", caller.userId);
@@ -203,20 +221,18 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
       return permit;
     },
 
-    // M01-F04: Cronología del trámite
     async getTimeline(permisoId: string): Promise<TimelineEvent[]> {
       const { data, error } = await client
         .from("permiso_estados_historial")
         .select("*")
         .eq("permiso_id", permisoId)
-        .eq("tenant_id", tenantId)          // ← aislamiento tenant
+        .eq("tenant_id", tenantId)
         .order("changed_at", { ascending: true });
 
       if (error) throw error;
       return (data ?? []).map((row) => mapTimelineRow(row as PermisoHistorialRow));
     },
 
-    // Historial de cambios de fechas
     async getFechasHistorial(permisoId: string): Promise<PermitFechaHistorial[]> {
       const { data, error } = await client
         .from("permisos_fechas_historial")
@@ -229,7 +245,6 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
       return (data ?? []).map((row) => mapFechaHistorialRow(row as PermisoFechaHistorialRow));
     },
 
-    // Registrar cambio de fechas
     async registrarCambioFechas(
       permisoId: string,
       data: {
@@ -253,12 +268,11 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
       if (error) throw error;
     },
 
-    // M01-F09: Crear permiso
     async create(input: {
       tenant_id: string;
       nombre: string;
       tipo_id?: string;
-      estado?: string;
+      estado_id?: string;
       numero_expediente?: string;
       entidad_reguladora_id?: string;
       ubicacion_id?: string;
@@ -280,21 +294,20 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
     }): Promise<Permit> {
       const { data: inserted, error: insertError } = await client
         .from("permisos")
-        .insert({ estado: "Creado", ...input })
+        .insert({ estado_id: ESTADOS_PERMISO.CREADO, ...input })
         .select("id")
         .single();
       if (insertError) throw insertError;
 
       const { data, error } = await client
         .from("permisos")
-        .select("*, tipo_cat:catalogos!tipo_id(id, valor), entidad_cat:catalogos!entidad_reguladora_id(id, valor)")
+        .select(SELECT_PERMISO)
         .eq("id", (inserted as { id: string }).id)
         .single();
       if (error) throw error;
-      return mapRow(data as PermisoRow);
+      return mapRow(data as unknown as PermisoRow);
     },
 
-    // M01-F09: Editar permiso
     async update(
       id: string,
       input: Partial<{
@@ -330,34 +343,32 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
 
       const { data, error } = await client
         .from("permisos")
-        .select("*, tipo_cat:catalogos!tipo_id(id, valor), entidad_cat:catalogos!entidad_reguladora_id(id, valor)")
+        .select(SELECT_PERMISO)
         .eq("id", id)
         .single();
       if (error) throw error;
-      return mapRow(data as PermisoRow);
+      return mapRow(data as unknown as PermisoRow);
     },
 
-    // M01-F03: Cambiar estado (workflow)
     async changeStatus(
       id: string,
-      newStatus: PermitStatus,
+      newEstadoId: string,
       comment?: string
     ): Promise<Permit> {
       const { error: updateError } = await client
         .from("permisos")
-        .update({ estado: newStatus })
+        .update({ estado_id: newEstadoId })
         .eq("id", id)
         .eq("tenant_id", tenantId);
       if (updateError) throw updateError;
 
       const { data, error } = await client
         .from("permisos")
-        .select("*, tipo_cat:catalogos!tipo_id(id, valor), entidad_cat:catalogos!entidad_reguladora_id(id, valor)")
+        .select(SELECT_PERMISO)
         .eq("id", id)
         .single();
       if (error) throw error;
 
-      // Si hay comentario, actualizamos el último registro de historial (insertado por el trigger)
       if (comment) {
         const { data: latest } = await client
           .from("permiso_estados_historial")
@@ -376,16 +387,15 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
         }
       }
 
-      return mapRow(data as PermisoRow);
+      return mapRow(data as unknown as PermisoRow);
     },
 
-    // Eliminar permiso (solo admin)
     async delete(id: string): Promise<void> {
       const { error } = await client
         .from("permisos")
         .delete()
         .eq("id", id)
-        .eq("tenant_id", tenantId);         // ← evita borrado cross-tenant
+        .eq("tenant_id", tenantId);
       if (error) throw error;
     },
   };

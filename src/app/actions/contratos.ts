@@ -9,7 +9,6 @@ import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/logger";
 import { indexContrato } from "@/lib/ai/contrato-indexer";
 import { sendCambioEstado } from "@/lib/email/send";
-import type { ContratoEstado } from "@/types/contratos";
 
 const BUCKET = "documentos";
 
@@ -199,7 +198,8 @@ export async function editarContrato(
 // ─── Cambiar estado (Kanban / workflow) ────────────────────────
 export async function cambiarEstadoContrato(
   id: string,
-  nuevoEstado: ContratoEstado
+  nuevoEstadoId: string,
+  nuevoLabel: string
 ): Promise<void> {
   const session = await getSession();
   try {
@@ -207,7 +207,7 @@ export async function cambiarEstadoContrato(
     const repo   = createContratosRepository(client, session.tenant_id);
 
     const actual = await repo.getById(id);
-    await repo.changeEstado(id, nuevoEstado);
+    await repo.changeEstado(id, nuevoEstadoId);
 
     await logActivity({
       tenant_id:    session.tenant_id,
@@ -219,7 +219,7 @@ export async function cambiarEstadoContrato(
       recurso_desc: actual?.titulo,
       metadata: {
         estado_anterior: actual?.estado ?? null,
-        estado_nuevo:    nuevoEstado,
+        estado_nuevo:    nuevoLabel,
       },
     });
 
@@ -241,7 +241,7 @@ export async function cambiarEstadoContrato(
             modulo:            "contratos",
             recursoNombre:     actual.titulo,
             estadoAnterior:    actual.estado ?? "—",
-            estadoNuevo:       nuevoEstado,
+            estadoNuevo:       nuevoLabel,
             cambiadoPorNombre: session.nombre_completo || session.nombre,
             comentario:        null,
             recursoId:         id,

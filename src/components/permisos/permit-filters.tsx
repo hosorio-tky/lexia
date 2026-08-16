@@ -12,11 +12,11 @@ import {
 } from "@/components/ui/select";
 import { User } from "lucide-react";
 import {
-  PERMIT_STATUSES,
   VIGENCIA_COLORS,
   type PermitFilters,
   type VigenciaStatus,
 } from "@/types/permits";
+import { ESTADOS_PERMISO_OPTIONS } from "@/lib/constants/estados";
 import { cn } from "@/lib/utils";
 
 export type ViewMode = "table" | "grid" | "location";
@@ -77,8 +77,8 @@ export function PermitFiltersBar({
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__all__">Todos los estados</SelectItem>
-            {PERMIT_STATUSES.map((s) => (
-              <SelectItem key={s} value={s}>{s}</SelectItem>
+            {ESTADOS_PERMISO_OPTIONS.map((o) => (
+              <SelectItem key={o.id} value={o.id}>{o.valor}</SelectItem>
             ))}
           </SelectContent>
         </Select>

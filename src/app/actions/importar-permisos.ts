@@ -5,8 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createPermisosRepository } from "@/lib/repositories/permisos";
 import { getSession } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
-import { PERMIT_STATUSES } from "@/types/permits";
-import type { PermitStatus } from "@/types/permits";
+
 import { createConfiguracionRepository } from "@/lib/repositories/configuracion";
 import { revalidatePath } from "next/cache";
 
@@ -118,10 +117,6 @@ export async function importarPermisos(
       }
     }
 
-    const estadoRaw = String(row["estado"] ?? "").trim();
-    if (estadoRaw && !PERMIT_STATUSES.includes(estadoRaw as PermitStatus)) {
-      errores.push(`Estado inválido: "${estadoRaw}". Valores válidos: ${PERMIT_STATUSES.join(", ")}`);
-    }
 
     const fechaSolicitud   = parseFecha(row["fecha_solicitud"]);
     const fechaEmision     = parseFecha(row["fecha_emision"]);
@@ -149,7 +144,6 @@ export async function importarPermisos(
         fecha_solicitud:     fechaSolicitud,
         fecha_emision:       fechaEmision,
         fecha_vencimiento:   fechaVencimiento,
-        ...(estadoRaw ? { estado: estadoRaw as PermitStatus } : {}),
       });
       result.exitosos++;
     } catch (err) {

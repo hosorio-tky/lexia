@@ -25,13 +25,17 @@ import { AccesoPanel } from "@/components/shared/acceso-panel";
 import { SuscripcionWidget } from "@/components/shared/suscripcion-widget";
 import { cambiarEstadoContrato, eliminarContrato } from "@/app/actions/contratos";
 import {
-  CONTRACT_ESTADOS,
   calcularProgresoTemporal,
   diasRestantes,
   type Contrato,
-  type ContratoEstado,
   type ContratoVersion,
 } from "@/types/contratos";
+import {
+  ESTADOS_CONTRATO,
+  CONTRATO_TRANSITIONS,
+  ESTADOS_CONTRATO_LABELS,
+  ESTADOS_CONTRATO_ORDEN,
+} from "@/lib/constants/estados";
 import type { UserProfile } from "@/types/users";
 import type { Task } from "@/types/tasks";
 import {
@@ -120,13 +124,18 @@ function ProgresoTemporal({ contrato }: { contrato: Contrato }) {
   );
 }
 
-// Estados del flujo lineal para la barra (sin Cancelado/Vencido que son terminales laterales)
-const FLUJO_LINEAL: ContratoEstado[] = ["En Revisión", "Pendiente Firma", "Vigente", "Terminado"];
+// Flujo lineal para la barra de progreso (estados terminales laterales excluidos)
+const FLUJO_LINEAL_IDS = [
+  ESTADOS_CONTRATO.EN_REVISION,
+  ESTADOS_CONTRATO.PENDIENTE_FIRMA,
+  ESTADOS_CONTRATO.VIGENTE,
+  ESTADOS_CONTRATO.TERMINADO,
+];
 
-function workflowProgress(estado: ContratoEstado): number {
-  const idx = FLUJO_LINEAL.indexOf(estado);
-  if (idx === -1) return 100; // estados terminales = 100%
-  return Math.round(((idx + 1) / FLUJO_LINEAL.length) * 100);
+function workflowProgress(estadoId: string): number {
+  const orden = ESTADOS_CONTRATO_ORDEN[estadoId];
+  if (orden === undefined) return 100; // estados terminales laterales = 100%
+  return Math.round((orden / Object.keys(ESTADOS_CONTRATO_ORDEN).length) * 100);
 }
 
 export function ContratoDetailClient({
@@ -169,15 +178,19 @@ export function ContratoDetailClient({
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const [isPending, startTransition]    = useTransition();
 
-  const handleWorkflowConfirm = (nuevoEstado: ContratoEstado, _comment: string) => {
-    setContrato((c) => ({ ...c, estado: nuevoEstado }));
-    startTransition(() => cambiarEstadoContrato(contrato.id, nuevoEstado));
+  const handleWorkflowConfirm = (nuevoEstadoId: string, nuevoLabel: string, _comment: string) => {
+    setContrato((c) => ({ ...c, estado_id: nuevoEstadoId, estado: nuevoLabel }));
+    startTransition(() => cambiarEstadoContrato(contrato.id, nuevoEstadoId, nuevoLabel));
   };
 
+  const nextIds     = CONTRATO_TRANSITIONS[contrato.estado_id] ?? [];
+  const nextEstados = nextIds.map((id) => ({
+    id,
+    valor: ESTADOS_CONTRATO_LABELS[id] ?? id,
+  }));
 
-
-  const progress        = workflowProgress(contrato.estado);
-  const tieneProgreso   = !!(contrato.fecha_inicio && contrato.fecha_fin);
+  const progress      = workflowProgress(contrato.estado_id);
+  const tieneProgreso = !!(contrato.fecha_inicio && contrato.fecha_fin);
 
   return (
     <div className="flex flex-col gap-5">
@@ -193,7 +206,7 @@ export function ContratoDetailClient({
       <Card className="px-5 py-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3 flex-wrap">
-            <ContratoStatusBadge estado={contrato.estado} />
+            <ContratoStatusBadge estadoId={contrato.estado_id} label={contrato.estado} />
             {contrato.numero && (
               <span className="font-mono text-xs text-muted-foreground">{contrato.numero}</span>
             )}
@@ -202,7 +215,9 @@ export function ContratoDetailClient({
         </div>
         <Progress value={progress} className="mt-3 h-2" />
         <div className="mt-2 flex justify-between px-0.5 text-[10px] text-muted-foreground">
-          {FLUJO_LINEAL.map((e) => <span key={e}>{e}</span>)}
+          {FLUJO_LINEAL_IDS.map((id) => (
+            <span key={id}>{ESTADOS_CONTRATO_LABELS[id]}</span>
+          ))}
         </div>
       </Card>
 
@@ -213,7 +228,6 @@ export function ContratoDetailClient({
         {/* Columna principal */}
         <div className="lg:col-span-2 flex flex-col gap-5">
 
-          {/* Info general */}
           <Section title="Información General">
             <div className="space-y-3">
               <InfoRow label="Título"      value={contrato.titulo} />
@@ -232,7 +246,6 @@ export function ContratoDetailClient({
             </div>
           </Section>
 
-          {/* Fechas */}
           <Section title="Fechas Clave">
             <div className="grid sm:grid-cols-3 gap-4">
               {[
@@ -249,7 +262,6 @@ export function ContratoDetailClient({
             </div>
           </Section>
 
-          {/* Contenido del contrato */}
           <Section title="Contenido" defaultOpen={!!contrato.contenido_html}>
             {contrato.contenido_html ? (
               <div className="rounded-lg border bg-muted/10 p-4">
@@ -262,7 +274,6 @@ export function ContratoDetailClient({
             )}
           </Section>
 
-          {/* Documento adjunto original */}
           {contrato.storage_path && (
             <Section title="Documento adjunto (original)" defaultOpen={false}>
               <div className="space-y-3">
@@ -282,12 +293,10 @@ export function ContratoDetailClient({
             </Section>
           )}
 
-          {/* Versiones */}
           <Section title={`Versiones del contenido${versiones.length > 0 ? ` (${versiones.length})` : ""}`} defaultOpen={false}>
             <ContratoVersionHistory versiones={versiones} />
           </Section>
 
-          {/* Tareas vinculadas */}
           <Section title={`Tareas vinculadas${tareas.length > 0 ? ` (${tareas.length})` : ""}`} defaultOpen={tareas.length > 0}>
             <RelatedTasksWidget
               modulo="contratos"
@@ -298,7 +307,6 @@ export function ContratoDetailClient({
             />
           </Section>
 
-          {/* Comentarios */}
           <Section title={`Comentarios${initialComentarios.length > 0 ? ` (${initialComentarios.length})` : ""}`} defaultOpen={false}>
             <ComentariosPanel
               modulo="contratos"
@@ -315,7 +323,6 @@ export function ContratoDetailClient({
             />
           </Section>
 
-          {/* Notas y Documentos */}
           <Section
             title={`Notas y Documentos${initialNotas.length > 0 ? ` (${initialNotas.length})` : ""}`}
             defaultOpen={false}
@@ -335,7 +342,6 @@ export function ContratoDetailClient({
             />
           </Section>
 
-          {/* Historial de cambios */}
           <Section title={`Historial de cambios${actividad.length > 0 ? ` (${actividad.length})` : ""}`} defaultOpen={false}>
             <AuditLogPanel entries={actividad} />
           </Section>
@@ -344,7 +350,6 @@ export function ContratoDetailClient({
         {/* Columna lateral */}
         <div className="flex flex-col gap-5">
 
-          {/* Responsable y Contraparte */}
           <Section title="Responsable y Contraparte">
             <div className="space-y-4">
               {contrato.responsable_nombre ? (
@@ -385,7 +390,6 @@ export function ContratoDetailClient({
             </div>
           </Section>
 
-          {/* Flujo de trabajo */}
           <Card className="p-4 shadow-sm border-primary/20 bg-primary/5">
             <h3 className="text-sm font-semibold mb-1">Flujo de trabajo</h3>
             <p className="text-xs text-muted-foreground mb-4">
@@ -458,7 +462,6 @@ export function ContratoDetailClient({
             </div>
           </Card>
 
-          {/* Control de acceso */}
           <Card className="p-4 shadow-sm">
             <h3 className="text-sm font-semibold mb-3">Control de acceso</h3>
             <AccesoPanel
@@ -473,7 +476,6 @@ export function ContratoDetailClient({
             />
           </Card>
 
-          {/* Alertas / Suscripciones */}
           <Card className="p-4 shadow-sm">
             <h3 className="text-sm font-semibold mb-3">Alertas de vencimiento</h3>
             <SuscripcionWidget
@@ -487,7 +489,6 @@ export function ContratoDetailClient({
             />
           </Card>
 
-          {/* Resumen económico */}
           {(contrato.valor != null || contrato.fecha_fin) && (
             <Card className="p-4 shadow-sm">
               <h3 className="text-sm font-semibold mb-3">Resumen</h3>
@@ -519,8 +520,10 @@ export function ContratoDetailClient({
       <ContratoWorkflowModal
         open={workflowOpen}
         onOpenChange={setWorkflowOpen}
-        currentEstado={contrato.estado}
+        currentEstadoId={contrato.estado_id}
+        currentLabel={contrato.estado}
         titulo={contrato.titulo}
+        nextEstados={nextEstados}
         onConfirm={handleWorkflowConfirm}
       />
     </div>

@@ -24,13 +24,17 @@ import {
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
-  PERMIT_STATUSES,
   calcularVigencia,
   type Permit,
-  type PermitStatus,
   type TimelineEvent,
   type PermitFechaHistorial,
 } from "@/types/permits";
+import {
+  ESTADOS_PERMISO,
+  PERMISO_TRANSITIONS,
+  ESTADOS_PERMISO_LABELS,
+  ESTADOS_PERMISO_ORDEN,
+} from "@/lib/constants/estados";
 import { TaskQuickCreate } from "@/components/tareas/task-quick-create";
 import { RelatedTasksWidget } from "@/components/shared/related-tasks-widget";
 import { ComentariosPanel } from "@/components/shared/comentarios-panel";
@@ -62,9 +66,9 @@ function formatDate(iso?: string) {
   });
 }
 
-function workflowProgress(status: PermitStatus): number {
-  const idx = PERMIT_STATUSES.indexOf(status);
-  return Math.round(((idx + 1) / PERMIT_STATUSES.length) * 100);
+function workflowProgress(estadoId: string): number {
+  const orden = ESTADOS_PERMISO_ORDEN[estadoId] ?? 1;
+  return Math.round((orden / Object.keys(ESTADOS_PERMISO_ORDEN).length) * 100);
 }
 
 function Section({ title, children, defaultOpen = true }: {
@@ -132,25 +136,31 @@ export function PermitDetailClient({
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const [isPending, startTransition]    = useTransition();
 
-  const handleWorkflowConfirm = (newStatus: PermitStatus, comment: string) => {
-    // Actualización optimista
+  const handleWorkflowConfirm = (newEstadoId: string, newLabel: string, comment: string) => {
     const event: TimelineEvent = {
       id: `temp-${Date.now()}`,
-      permit_id:         permit.id,
-      estado_anterior:   permit.estado,
-      estado_nuevo:      newStatus,
-      comentario:        comment || undefined,
-      changed_by_nombre: "Usuario Demo",
-      created_at:        new Date().toISOString(),
+      permit_id:          permit.id,
+      estado_anterior_id: permit.estado_id,
+      estado_nuevo_id:    newEstadoId,
+      estado_anterior:    permit.estado,
+      estado_nuevo:       newLabel,
+      comentario:         comment || undefined,
+      changed_by_nombre:  "Usuario Demo",
+      created_at:         new Date().toISOString(),
     };
-    setPermit((p) => ({ ...p, estado: newStatus }));
+    setPermit((p) => ({ ...p, estado_id: newEstadoId, estado: newLabel }));
     setTimeline((t) => [...t, event]);
 
-    // Persistir en BD
-    startTransition(() => cambiarEstado(permit.id, newStatus, comment));
+    startTransition(() => cambiarEstado(permit.id, newEstadoId, newLabel, comment));
   };
 
-  const progress = workflowProgress(permit.estado);
+  const nextIds     = PERMISO_TRANSITIONS[permit.estado_id] ?? [];
+  const nextEstados = nextIds.map((id) => ({
+    id,
+    valor: ESTADOS_PERMISO_LABELS[id] ?? id,
+  }));
+
+  const progress = workflowProgress(permit.estado_id);
   const vigencia = calcularVigencia(permit.fecha_vencimiento);
 
   // Check if provisional is still active
@@ -173,7 +183,7 @@ export function PermitDetailClient({
       <Card className="px-5 py-4 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3 flex-wrap">
-            <PermitStatusBadge status={permit.estado} />
+            <PermitStatusBadge estadoId={permit.estado_id} label={permit.estado} />
             <VigenciaBadge status={vigencia} />
             {permit.numero_expediente && (
               <span className="font-mono text-xs text-muted-foreground">
@@ -497,8 +507,10 @@ export function PermitDetailClient({
       <PermitWorkflowModal
         open={workflowOpen}
         onOpenChange={setWorkflowOpen}
-        currentStatus={permit.estado}
+        currentEstadoId={permit.estado_id}
+        currentLabel={permit.estado}
         permitName={permit.nombre}
+        nextEstados={nextEstados}
         onConfirm={handleWorkflowConfirm}
       />
     </div>

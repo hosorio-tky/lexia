@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { differenceInDays, parseISO, isBefore, addDays } from "date-fns";
+import { differenceInDays, parseISO, addDays } from "date-fns";
+import { ESTADOS_PERMISO } from "@/lib/constants/estados";
 
 // ─── Tipos de salida ──────────────────────────────────────────
 
@@ -94,7 +95,7 @@ export function createDashboardRepository(
         client
           .from("permisos")
           .select(
-            "id, nombre, numero_expediente, estado, fecha_vencimiento"
+            "id, nombre, numero_expediente, estado_id, estado_ref:workflow_estados!estado_id(valor), fecha_vencimiento"
           )
           .eq("tenant_id", tenantId),
 
@@ -136,13 +137,19 @@ export function createDashboardRepository(
       ]);
 
       // ── Permisos ──────────────────────────────────────────
-      const permisos = (permisosRes.data ?? []) as Array<{
+      type PermisoRaw = {
         id: string;
         nombre: string;
         numero_expediente: string | null;
-        estado: string;
+        estado_id: string;
+        // PostgREST returns FK joins as an array
+        estado_ref: Array<{ valor: string }> | { valor: string } | null;
         fecha_vencimiento: string | null;
-      }>;
+      };
+      const permisos = ((permisosRes.data ?? []) as unknown as PermisoRaw[]).map((p) => {
+        const ref = Array.isArray(p.estado_ref) ? p.estado_ref[0] : p.estado_ref;
+        return { ...p, estado: ref?.valor ?? p.estado_id };
+      });
 
       // Conteo por estado
       const estadoMap: Record<string, number> = {};
@@ -151,8 +158,8 @@ export function createDashboardRepository(
 
       for (const p of permisos) {
         estadoMap[p.estado] = (estadoMap[p.estado] ?? 0) + 1;
-        if (p.estado === "Vencido") vencidos++;
-        if (!["Vencido", "Suspendido"].includes(p.estado)) activos++;
+        if (p.estado_id === ESTADOS_PERMISO.RECHAZADO) vencidos++;
+        if (p.estado_id !== ESTADOS_PERMISO.RECHAZADO) activos++;
       }
 
       const porEstado: EstadoCount[] = Object.entries(estadoMap)
@@ -164,7 +171,7 @@ export function createDashboardRepository(
         .filter((p) => {
           if (!p.fecha_vencimiento) return false;
           const fv = parseISO(p.fecha_vencimiento);
-          return fv <= en90 && p.estado !== "Vencido" && p.estado !== "Suspendido";
+          return fv <= en90 && p.estado_id !== ESTADOS_PERMISO.RECHAZADO;
         })
         .map((p) => {
           const dias = differenceInDays(parseISO(p.fecha_vencimiento!), hoy);

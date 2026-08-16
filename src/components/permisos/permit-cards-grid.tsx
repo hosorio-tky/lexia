@@ -43,7 +43,7 @@ export function PermitCardsGrid({ permits }: { permits: Permit[] }) {
                     {permit.nombre}
                   </h3>
                 </div>
-                <PermitStatusBadge status={permit.estado} />
+                <PermitStatusBadge estadoId={permit.estado_id} label={permit.estado} />
               </div>
 
               <div className="text-xs text-muted-foreground space-y-1.5">

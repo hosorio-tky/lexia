@@ -175,7 +175,7 @@ export function PermitTable({
                 </td>
                 <td className="p-4 align-middle">
                   <div className="flex items-center gap-1">
-                    <PermitStatusBadge status={permit.estado} />
+                    <PermitStatusBadge estadoId={permit.estado_id} label={permit.estado} />
                     <ProvisionalIndicator permit={permit} />
                   </div>
                 </td>

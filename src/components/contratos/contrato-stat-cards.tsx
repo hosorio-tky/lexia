@@ -1,6 +1,7 @@
 import { CheckCircle2, DollarSign, FileText, TriangleAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import type { Contrato } from "@/types/contratos";
+import { ESTADOS_CONTRATO } from "@/lib/constants/estados";
 
 function StatCard({
   label,
@@ -28,18 +29,16 @@ function StatCard({
 
 export function ContratoStatCards({ contratos }: { contratos: Contrato[] }) {
   const total    = contratos.length;
-  const vigentes = contratos.filter((c) => c.estado === "Vigente").length;
+  const vigentes = contratos.filter((c) => c.estado_id === ESTADOS_CONTRATO.VIGENTE).length;
 
-  // Por vencer: vigentes con fecha_fin en los próximos 30 días
   const hoy      = Date.now();
   const en30dias = hoy + 30 * 86400000;
   const porVencer = contratos.filter((c) => {
-    if (c.estado !== "Vigente" || !c.fecha_fin) return false;
+    if (c.estado_id !== ESTADOS_CONTRATO.VIGENTE || !c.fecha_fin) return false;
     const fin = new Date(c.fecha_fin).getTime();
     return fin >= hoy && fin <= en30dias;
   }).length;
 
-  // Valor total (suma de contratos con valor definido)
   const valorTotal = contratos.reduce((sum, c) => sum + (c.valor ?? 0), 0);
   const valorFmt = valorTotal > 0
     ? `$${valorTotal.toLocaleString("es-SV", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`

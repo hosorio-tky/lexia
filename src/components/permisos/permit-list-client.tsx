@@ -88,7 +88,7 @@ export function PermitListClient({
           !(p.entidad_reguladora ?? "").toLowerCase().includes(q)
         ) return false;
       }
-      if (filters.estado    && p.estado              !== filters.estado)    return false;
+      if (filters.estado    && p.estado_id            !== filters.estado)    return false;
       if (filters.tipo      && p.tipo                !== filters.tipo)      return false;
       if (filters.entidad   && p.entidad_reguladora  !== filters.entidad)   return false;
       if (filters.responsable && p.responsable_nombre !== filters.responsable) return false;

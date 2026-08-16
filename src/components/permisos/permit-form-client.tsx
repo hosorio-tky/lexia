@@ -13,7 +13,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { PERMIT_STATUSES, MONEDAS, type Permit } from "@/types/permits";
+import { MONEDAS, type Permit } from "@/types/permits";
+import { ESTADOS_PERMISO, ESTADOS_PERMISO_OPTIONS } from "@/lib/constants/estados";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { CatalogAddDialog } from "@/components/shared/catalog-add-dialog";
 import { ResponsableMultiSelect } from "@/components/shared/responsable-multi-select";
@@ -70,7 +71,7 @@ export function PermitFormClient({
 
   const [isPending, startTransition] = useTransition();
   const [tipo, setTipo]             = useState(defaultValues?.tipo_id ?? "");
-  const [estado, setEstado]         = useState(defaultValues?.estado ?? "Creado");
+  const [estado, setEstado]         = useState(defaultValues?.estado_id ?? ESTADOS_PERMISO.CREADO);
   const [entidad, setEntidad]       = useState(defaultValues?.entidad_reguladora_id ?? "");
   const [responsableIds, setResponsableIds] = useState<string[]>(() => {
     if (defaultValues?.responsable_ids?.length) return defaultValues.responsable_ids;
@@ -91,8 +92,7 @@ export function PermitFormClient({
   );
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Show provisional section when estado is "Con Permiso Provisional"
-  const showProvisional = estado === "Con Permiso Provisional" || tieneProvisional;
+  const showProvisional = estado === ESTADOS_PERMISO.CON_PERMISO_PROVISIONAL || tieneProvisional;
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -223,16 +223,15 @@ export function PermitFormClient({
               {isEditing && (
                 <Field label="Estado del trámite">
                   <Select value={estado} onValueChange={(v) => {
-                    setEstado(v as typeof estado);
-                    // Auto-enable provisional when selecting that state
-                    if (v === "Con Permiso Provisional") setTieneProvisional(true);
+                    setEstado(v);
+                    if (v === ESTADOS_PERMISO.CON_PERMISO_PROVISIONAL) setTieneProvisional(true);
                   }}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {PERMIT_STATUSES.map((s) => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      {ESTADOS_PERMISO_OPTIONS.map((o) => (
+                        <SelectItem key={o.id} value={o.id}>{o.valor}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

@@ -1,6 +1,7 @@
 import { CheckCircle2, Clock, Library, TriangleAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import type { Permit } from "@/types/permits";
+import { ESTADOS_PERMISO } from "@/lib/constants/estados";
 
 function StatCard({
   label,
@@ -28,11 +29,16 @@ function StatCard({
 
 export function PermitStatCards({ permits }: { permits: Permit[] }) {
   const total   = permits.length;
-  const aprobados = permits.filter((p) => p.estado === "Aprobado").length;
-  const enProceso = permits.filter((p) =>
-    ["Creado", "En Gestión", "Presentado", "Con Permiso Provisional", "Actualizar Permiso"].includes(p.estado)
-  ).length;
-  const rechazados = permits.filter((p) => p.estado === "Rechazado").length;
+  const aprobados = permits.filter((p) => p.estado_id === ESTADOS_PERMISO.APROBADO).length;
+  const EN_PROCESO = new Set<string>([
+    ESTADOS_PERMISO.CREADO,
+    ESTADOS_PERMISO.EN_GESTION,
+    ESTADOS_PERMISO.PRESENTADO,
+    ESTADOS_PERMISO.CON_PERMISO_PROVISIONAL,
+    ESTADOS_PERMISO.ACTUALIZAR_PERMISO,
+  ]);
+  const enProceso = permits.filter((p) => EN_PROCESO.has(p.estado_id)).length;
+  const rechazados = permits.filter((p) => p.estado_id === ESTADOS_PERMISO.RECHAZADO).length;
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

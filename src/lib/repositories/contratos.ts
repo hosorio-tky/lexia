@@ -3,13 +3,13 @@ import type {
   Contrato,
   ContratoVersion,
   ContratoFilters,
-  ContratoTipo,
-  ContratoEstado,
 } from "@/types/contratos";
+import { ESTADOS_CONTRATO } from "@/lib/constants/estados";
 import { getAccessibleIds } from "./acceso";
 
-// ─── Tipos de filas DB (evita `any`) ─────────────────────────
+// ─── Tipos de filas DB ─────────────────────────────────────────
 interface CatalogoRef { id: string; valor: string; }
+interface EstadoRef  { id: string; valor: string; }
 
 interface ContratoRow {
   id: string;
@@ -19,7 +19,8 @@ interface ContratoRow {
   descripcion: string | null;
   tipo_id: string | null;
   tipo_cat: CatalogoRef | null;
-  estado: string;
+  estado_id: string;
+  estado_ref: EstadoRef | null;
   contraparte_nombre: string | null;
   contraparte_email: string | null;
   valor: number | null;
@@ -51,7 +52,20 @@ interface ContratoVersionRow {
   created_at: string;
 }
 
-// ─── Mapeo DB → Contrato ────────────────────────────────────
+const SELECT_CONTRATO = [
+  "*",
+  "tipo_cat:catalogos!tipo_id(id, valor)",
+  "estado_ref:workflow_estados!estado_id(id, valor)",
+].join(", ");
+
+const SELECT_CONTRATO_DETAIL = [
+  "*",
+  "tipo_cat:catalogos!tipo_id(id, valor)",
+  "estado_ref:workflow_estados!estado_id(id, valor)",
+  "responsable_det:responsables!responsable_id(area, user_id)",
+].join(", ");
+
+// ─── Mapeo DB → Contrato ──────────────────────────────────────
 function mapRow(row: ContratoRow): Contrato {
   return {
     id:                  row.id,
@@ -61,7 +75,8 @@ function mapRow(row: ContratoRow): Contrato {
     descripcion:         row.descripcion ?? undefined,
     tipo_id:             row.tipo_id ?? "",
     tipo:                row.tipo_cat?.valor ?? "",
-    estado:              row.estado as ContratoEstado,
+    estado_id:           row.estado_id,
+    estado:              row.estado_ref?.valor ?? row.estado_id,
     contraparte_nombre:  row.contraparte_nombre ?? undefined,
     contraparte_email:   row.contraparte_email ?? undefined,
     valor:               row.valor ?? undefined,
@@ -99,19 +114,18 @@ function mapVersionRow(row: ContratoVersionRow): ContratoVersion {
 // ─── Repositorio ──────────────────────────────────────────────
 export function createContratosRepository(client: SupabaseClient, tenantId: string) {
   return {
-    // M02-F01: Listado con filtros
     async list(
       filters?: Partial<ContratoFilters>,
       caller?: { userId: string; userRol: string },
     ): Promise<Contrato[]> {
       let query = client
         .from("contratos")
-        .select("*, tipo_cat:catalogos!tipo_id(id, valor)")
+        .select(SELECT_CONTRATO)
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
 
       if (filters?.estado) {
-        query = query.eq("estado", filters.estado);
+        query = query.eq("estado_id", filters.estado);
       }
       if (filters?.tipo) {
         query = query.eq("tipo_id", filters.tipo);
@@ -124,9 +138,8 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
 
       const { data, error } = await query;
       if (error) throw error;
-      let result = (data ?? []).map((row) => mapRow(row as ContratoRow));
+      let result = (data ?? []).map((row) => mapRow(row as unknown as ContratoRow));
 
-      // Enforce visibility for non-admin users
       if (caller && caller.userRol !== "admin") {
         const accessibleIds = await getAccessibleIds(client, tenantId, "contrato", caller.userId);
         result = result.filter(
@@ -140,22 +153,20 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
       return result;
     },
 
-    // M02-F06: Detalle del contrato
     async getById(id: string, caller?: { userId: string; userRol: string }): Promise<Contrato | null> {
       const { data, error } = await client
         .from("contratos")
-        .select("*, tipo_cat:catalogos!tipo_id(id, valor), responsable_det:responsables!responsable_id(area, user_id)")
+        .select(SELECT_CONTRATO_DETAIL)
         .eq("id", id)
         .eq("tenant_id", tenantId)
         .single();
 
       if (error) {
-        if (error.code === "PGRST116") return null; // not found
+        if (error.code === "PGRST116") return null;
         throw error;
       }
       const contrato = mapRow(data as unknown as ContratoRow);
 
-      // Enforce visibility for non-admin users
       if (caller && caller.userRol !== "admin" && contrato.visibilidad === "restringido") {
         if (contrato.created_by !== caller.userId) {
           const accessibleIds = await getAccessibleIds(client, tenantId, "contrato", caller.userId);
@@ -166,7 +177,6 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
       return contrato;
     },
 
-    // M02-F14: Historial de versiones
     async getVersiones(contratoId: string): Promise<ContratoVersion[]> {
       const { data, error } = await client
         .from("contrato_versiones")
@@ -179,12 +189,11 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
       return (data ?? []).map((row) => mapVersionRow(row as ContratoVersionRow));
     },
 
-    // Crear contrato
     async create(input: {
       tenant_id: string;
       titulo: string;
       tipo_id?: string;
-      estado?: string;
+      estado_id?: string;
       numero?: string;
       descripcion?: string;
       contraparte_nombre?: string;
@@ -202,7 +211,7 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
     }): Promise<Contrato> {
       const { data: inserted, error: insertError } = await client
         .from("contratos")
-        .insert({ estado: "En Revisión", ...input })
+        .insert({ estado_id: ESTADOS_CONTRATO.EN_REVISION, ...input })
         .select("id")
         .single();
 
@@ -210,15 +219,14 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
 
       const { data, error } = await client
         .from("contratos")
-        .select("*, tipo_cat:catalogos!tipo_id(id, valor)")
+        .select(SELECT_CONTRATO)
         .eq("id", (inserted as { id: string }).id)
         .single();
 
       if (error) throw error;
-      return mapRow(data as ContratoRow);
+      return mapRow(data as unknown as ContratoRow);
     },
 
-    // M02-F11: Editar contrato con snapshot de versión si contenido_html cambia
     async update(
       id: string,
       input: Partial<{
@@ -242,11 +250,9 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
       }>,
       snapshotAuthor?: { userId: string; nombre: string }
     ): Promise<Contrato> {
-      // Si el contenido_html cambia, snapshot el contenido ANTERIOR
       if (input.contenido_html !== undefined && snapshotAuthor) {
         const actual = await this.getById(id);
         if (actual && actual.contenido_html !== input.contenido_html) {
-          // Contar versiones existentes para número de versión
           const { count } = await client
             .from("contrato_versiones")
             .select("*", { count: "exact", head: true })
@@ -275,22 +281,21 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
 
       const { data, error } = await client
         .from("contratos")
-        .select("*, tipo_cat:catalogos!tipo_id(id, valor)")
+        .select(SELECT_CONTRATO)
         .eq("id", id)
         .single();
 
       if (error) throw error;
-      return mapRow(data as ContratoRow);
+      return mapRow(data as unknown as ContratoRow);
     },
 
-    // M02-F04: Cambiar estado (Kanban)
     async changeEstado(
       id: string,
-      newEstado: ContratoEstado
+      newEstadoId: string
     ): Promise<Contrato> {
       const { error: updateError } = await client
         .from("contratos")
-        .update({ estado: newEstado })
+        .update({ estado_id: newEstadoId })
         .eq("id", id)
         .eq("tenant_id", tenantId);
 
@@ -298,15 +303,14 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
 
       const { data, error } = await client
         .from("contratos")
-        .select("*, tipo_cat:catalogos!tipo_id(id, valor)")
+        .select(SELECT_CONTRATO)
         .eq("id", id)
         .single();
 
       if (error) throw error;
-      return mapRow(data as ContratoRow);
+      return mapRow(data as unknown as ContratoRow);
     },
 
-    // Eliminar contrato (solo admin)
     async delete(id: string): Promise<void> {
       const { error } = await client
         .from("contratos")

@@ -53,14 +53,14 @@ export function PermitTimeline({
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 {event.estado_anterior ? (
                   <>
-                    <PermitStatusBadge status={event.estado_anterior} />
+                    <PermitStatusBadge estadoId={event.estado_anterior_id ?? ""} label={event.estado_anterior} />
                     <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-                    <PermitStatusBadge status={event.estado_nuevo} />
+                    <PermitStatusBadge estadoId={event.estado_nuevo_id ?? ""} label={event.estado_nuevo} />
                   </>
                 ) : (
                   <>
                     <span className="text-xs text-muted-foreground">Inicio:</span>
-                    <PermitStatusBadge status={event.estado_nuevo} />
+                    <PermitStatusBadge estadoId={event.estado_nuevo_id ?? ""} label={event.estado_nuevo} />
                   </>
                 )}
               </div>

@@ -8,7 +8,6 @@ import { getSession } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/logger";
 import { sendCambioEstado } from "@/lib/email/send";
-import type { PermitStatus } from "@/types/permits";
 
 // Campos legibles para el diff
 const FIELD_LABELS: Record<string, string> = {
@@ -194,7 +193,8 @@ export async function editarPermiso(id: string, formData: FormData) {
 // ─── Cambiar estado (workflow) ─────────────────────────────────
 export async function cambiarEstado(
   id: string,
-  newStatus: PermitStatus,
+  newEstadoId: string,
+  newLabel: string,
   comment?: string
 ) {
   const session = await getSession();
@@ -204,7 +204,7 @@ export async function cambiarEstado(
 
     // Obtener estado anterior para el metadata
     const actual = await repo.getById(id);
-    await repo.changeStatus(id, newStatus, comment);
+    await repo.changeStatus(id, newEstadoId, comment);
 
     await logActivity({
       tenant_id:    session.tenant_id,
@@ -216,7 +216,7 @@ export async function cambiarEstado(
       recurso_desc: actual?.nombre,
       metadata: {
         estado_anterior: actual?.estado ?? null,
-        estado_nuevo:    newStatus,
+        estado_nuevo:    newLabel,
         comentario:      comment || null,
       },
     });
@@ -239,7 +239,7 @@ export async function cambiarEstado(
             modulo:            "permisos",
             recursoNombre:     actual.nombre,
             estadoAnterior:    actual.estado ?? "—",
-            estadoNuevo:       newStatus,
+            estadoNuevo:       newLabel,
             cambiadoPorNombre: session.nombre_completo || session.nombre,
             comentario:        comment ?? null,
             recursoId:         id,
