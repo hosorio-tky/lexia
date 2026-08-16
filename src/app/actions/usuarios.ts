@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createUsuariosRepository } from "@/lib/repositories/usuarios";
 import { getSession, requireRole } from "@/lib/auth/session";
+import { logActivity } from "@/lib/activity";
 import { sendInvitacion } from "@/lib/email/send";
 import type { UserRole } from "@/types/users";
 
@@ -276,7 +277,7 @@ export async function cambiarContrasena(
   _prevState: unknown,
   formData: FormData
 ): Promise<{ error?: string; success?: boolean }> {
-  await getSession(); // verifica auth
+  const session = await getSession();
 
   const nueva   = formData.get("nueva") as string;
   const confirma = formData.get("confirma") as string;
@@ -292,6 +293,15 @@ export async function cambiarContrasena(
   const supabase = await createClient();
   const { error } = await supabase.auth.updateUser({ password: nueva });
   if (error) return { error: error.message };
+
+  await logActivity({
+    tenant_id:    session.tenant_id,
+    user_id:      session.user_id,
+    user_nombre:  session.nombre,
+    accion:       "cambiar_contrasena",
+    modulo:       "usuarios",
+    recurso_desc: "Actualizó su contraseña",
+  });
 
   return { success: true };
 }

@@ -102,6 +102,16 @@ export async function editarCatalogo(
   const repo   = createConfiguracionRepository(client, session.tenant_id);
   const item   = await repo.updateCatalogo(id, { valor: trimmed, etiqueta: trimmed });
 
+  await logActivity({
+    tenant_id:    session.tenant_id,
+    user_id:      session.user_id,
+    user_nombre:  session.nombre,
+    accion:       "editar_catalogo",
+    modulo:       "configuracion",
+    recurso_id:   id,
+    recurso_desc: trimmed,
+  });
+
   revalidatePath("/configuracion/catalogos");
   return { item };
 }
@@ -171,6 +181,16 @@ export async function eliminarCatalogo(id: string): Promise<{ error?: string }> 
     }
     throw err;
   }
+
+  await logActivity({
+    tenant_id:    session.tenant_id,
+    user_id:      session.user_id,
+    user_nombre:  session.nombre,
+    accion:       "eliminar_catalogo",
+    modulo:       "configuracion",
+    recurso_id:   id,
+    recurso_desc: item?.valor,
+  });
 
   revalidatePath("/configuracion/catalogos");
   return {};
