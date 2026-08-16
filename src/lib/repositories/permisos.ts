@@ -5,6 +5,8 @@ import { getAccessibleIds } from "./acceso";
 // ─── Tipos de filas DB (evita `any`) ─────────────────────────
 interface CatalogoRef { id: string; valor: string; }
 
+interface UbicacionRef { id: string; nombre: string; }
+
 interface PermisoRow {
   id: string;
   tenant_id: string;
@@ -16,6 +18,7 @@ interface PermisoRow {
   entidad_reguladora_id: string | null;
   entidad_cat: CatalogoRef | null;
   ubicacion_id: string | null;
+  ubicacion_ref: UbicacionRef | null;
   ubicacion: string | null;
   estado: string;
   fecha_solicitud: string | null;
@@ -73,7 +76,7 @@ function mapRow(row: PermisoRow): Permit {
     entidad_reguladora_id:      row.entidad_reguladora_id ?? undefined,
     entidad_reguladora:         row.entidad_cat?.valor ?? undefined,
     ubicacion_id:               row.ubicacion_id ?? undefined,
-    ubicacion:                  row.ubicacion ?? undefined,
+    ubicacion:                  row.ubicacion ?? row.ubicacion_ref?.nombre ?? undefined,
     estado:                     row.estado as PermitStatus,
     fecha_solicitud:            row.fecha_solicitud ?? undefined,
     fecha_emision:              row.fecha_emision ?? undefined,
@@ -137,7 +140,7 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
     ): Promise<Permit[]> {
       let query = client
         .from("permisos")
-        .select("*, tipo_cat:catalogos!tipo_id(id, valor), entidad_cat:catalogos!entidad_reguladora_id(id, valor)")
+        .select("*, tipo_cat:catalogos!tipo_id(id, valor), entidad_cat:catalogos!entidad_reguladora_id(id, valor), ubicacion_ref:ubicaciones!ubicacion_id(id, nombre)")
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
 
@@ -178,7 +181,7 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
     async getById(id: string, caller?: { userId: string; userRol: string }): Promise<Permit | null> {
       const { data, error } = await client
         .from("permisos")
-        .select("*, tipo_cat:catalogos!tipo_id(id, valor), entidad_cat:catalogos!entidad_reguladora_id(id, valor), responsable_det:responsables!responsable_id(area, user_id)")
+        .select("*, tipo_cat:catalogos!tipo_id(id, valor), entidad_cat:catalogos!entidad_reguladora_id(id, valor), ubicacion_ref:ubicaciones!ubicacion_id(id, nombre), responsable_det:responsables!responsable_id(area, user_id)")
         .eq("id", id)
         .eq("tenant_id", tenantId)
         .single();
