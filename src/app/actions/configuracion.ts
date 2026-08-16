@@ -183,17 +183,19 @@ export async function crearPlantilla(
   const session = await getSession();
   requireRole(session, ["admin"]);
 
-  const nombre   = formData.get("nombre")     as string;
-  const modulo   = formData.get("modulo")     as string;
-  const evento   = formData.get("evento")     as string;
-  const diasStr  = formData.get("dias_antes") as string;
-  const canales  = formData.getAll("canal")   as string[];
+  const nombre        = formData.get("nombre")          as string;
+  const modulo        = formData.get("modulo")          as string;
+  const evento        = formData.get("evento")          as string;
+  const diasStr       = formData.get("dias_antes")      as string;
+  const frecuenciaStr = formData.get("frecuencia_dias") as string;
+  const canales       = formData.getAll("canal")        as string[];
 
   if (!nombre || !modulo || !evento || canales.length === 0) {
     return { error: "Todos los campos son obligatorios" };
   }
 
-  const dias_antes = diasStr ? parseInt(diasStr, 10) : undefined;
+  const dias_antes      = diasStr       ? parseInt(diasStr, 10)       : undefined;
+  const frecuencia_dias = frecuenciaStr ? parseInt(frecuenciaStr, 10) : 1;
 
   const client = createAdminClient();
   const repo   = createConfiguracionRepository(client, session.tenant_id);
@@ -201,7 +203,7 @@ export async function crearPlantilla(
   // Crear un registro por cada canal seleccionado
   const nuevas: PlantillaAlerta[] = [];
   for (const canal of canales) {
-    const p = await repo.createPlantilla({ nombre, modulo, evento, dias_antes, canal });
+    const p = await repo.createPlantilla({ nombre, modulo, evento, dias_antes, frecuencia_dias, canal });
     nuevas.push(p);
   }
 

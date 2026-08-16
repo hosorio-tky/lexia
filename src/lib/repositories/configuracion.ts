@@ -46,6 +46,7 @@ interface PlantillaRow {
   modulo: string;
   evento: string;
   dias_antes: number | null;
+  frecuencia_dias: number;
   canal: string;
   activo: boolean;
   created_at: string;
@@ -97,16 +98,17 @@ function mapCatalogo(row: CatalogoRow): CatalogoItem {
 
 function mapPlantilla(row: PlantillaRow): PlantillaAlerta {
   return {
-    id:         row.id,
-    tenant_id:  row.tenant_id,
-    nombre:     row.nombre,
-    modulo:     row.modulo,
-    evento:     row.evento as EventoAlerta,
-    dias_antes: row.dias_antes ?? undefined,
-    canal:      row.canal as CanalAlerta,
-    activo:     row.activo,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
+    id:              row.id,
+    tenant_id:       row.tenant_id,
+    nombre:          row.nombre,
+    modulo:          row.modulo,
+    evento:          row.evento as EventoAlerta,
+    dias_antes:      row.dias_antes ?? undefined,
+    frecuencia_dias: row.frecuencia_dias ?? 1,
+    canal:           row.canal as CanalAlerta,
+    activo:          row.activo,
+    created_at:      row.created_at,
+    updated_at:      row.updated_at,
   };
 }
 
@@ -241,6 +243,7 @@ export function createConfiguracionRepository(
       modulo: string;
       evento: string;
       dias_antes?: number;
+      frecuencia_dias?: number;
       canal: string;
     }): Promise<PlantillaAlerta> {
       const { data, error } = await client
@@ -259,6 +262,7 @@ export function createConfiguracionRepository(
         modulo: string;
         evento: string;
         dias_antes: number;
+        frecuencia_dias: number;
         canal: string;
         activo: boolean;
       }>

@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     // ── 1. Leer todas las plantillas activas de vencimiento_proximo ──
     const { data: plantillaRows, error: pErr } = await client
       .from("plantillas_alerta")
-      .select("id, tenant_id, modulo, canal, dias_antes")
+      .select("id, tenant_id, modulo, canal, dias_antes, frecuencia_dias")
       .eq("evento", "vencimiento_proximo")
       .eq("activo", true);
     if (pErr) throw pErr;
@@ -117,23 +117,33 @@ export async function GET(request: Request) {
 
       // ── EMAIL ─────────────────────────────────────────────────────
       for (const plantilla of emailPlantillas) {
-        const dias       = plantilla.dias_antes ?? 0;
-        const targetStr  = addDays(hoy, dias).toISOString().split("T")[0];
-        const { recursos, nombreKey } = await fetchRecursos(
-          client, tenantId, plantilla.modulo, targetStr, targetStr
+        const dias          = plantilla.dias_antes ?? 0;
+        const frecuencia    = plantilla.frecuencia_dias ?? 1;
+        // Fetch all resources within the window [tomorrow, hoy+dias]
+        const desdeStr  = addDays(hoy, 1).toISOString().split("T")[0];
+        const hastaStr  = addDays(hoy, dias).toISOString().split("T")[0];
+        const { recursos: todosRecursos, nombreKey } = await fetchRecursos(
+          client, tenantId, plantilla.modulo, desdeStr, hastaStr
         );
+
+        // Only send today if dias_restantes is a multiple of frecuencia
+        const recursos = todosRecursos.filter((r) => {
+          const restantes = diasRestantes(hoy, r.fecha!);
+          return restantes > 0 && restantes % frecuencia === 0;
+        });
 
         const suscRepo = createSuscripcionesRepository(client, tenantId);
         const resourceType: ResourceType = plantilla.modulo === "permisos" ? "permiso" : "contrato";
 
         for (const recurso of recursos) {
-          const nombre = recurso[nombreKey] as string;
+          const nombre      = recurso[nombreKey] as string;
+          const restantes   = diasRestantes(hoy, recurso.fecha!);
           const payload = {
             modulo:           plantilla.modulo,
             recursoNombre:    nombre,
             recursoId:        recurso.id,
             fechaVencimiento: recurso.fecha!,
-            diasRestantes:    dias,
+            diasRestantes:    restantes,
           };
 
           // Emails ya enviados en este recurso (dedup)

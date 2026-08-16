@@ -63,6 +63,14 @@ export const CANAL_LABELS: Record<CanalAlerta, string> = {
   email:  "Correo electrónico",
 };
 
+export const FRECUENCIA_OPTIONS = [
+  { value: 1,  label: "Diariamente" },
+  { value: 3,  label: "Cada 3 días" },
+  { value: 7,  label: "Semanalmente" },
+  { value: 14, label: "Cada 2 semanas" },
+  { value: 30, label: "Mensualmente" },
+] as const;
+
 export interface PlantillaAlerta {
   id: string;
   tenant_id: string;
@@ -70,6 +78,7 @@ export interface PlantillaAlerta {
   modulo: string;
   evento: EventoAlerta;
   dias_antes?: number;
+  frecuencia_dias: number;
   canal: CanalAlerta;
   activo: boolean;
   created_at: string;

@@ -32,6 +32,7 @@ import {
   EVENTOS_ALERTA,
   EVENTO_LABELS,
   CANAL_LABELS,
+  FRECUENCIA_OPTIONS,
   type PlantillaAlerta,
 } from "@/types/settings";
 
@@ -44,6 +45,7 @@ export function PlantillaManagerClient({
   const [open, setOpen]              = useState(false);
   const [evento, setEvento]          = useState("vencimiento_proximo");
   const [canales, setCanales]        = useState<string[]>(["in_app"]);
+  const [frecuencia, setFrecuencia]  = useState(1);
   const [isPending, startTransition] = useTransition();
 
   function toggleCanal(value: string) {
@@ -62,6 +64,7 @@ export function PlantillaManagerClient({
       setOpen(false);
       setEvento("vencimiento_proximo");
       setCanales(["in_app"]);
+      setFrecuencia(1);
     }
   }, [state]);
 
@@ -134,6 +137,8 @@ export function PlantillaManagerClient({
                   <span className="text-xs text-muted-foreground">
                     {EVENTO_LABELS[p.evento] ?? p.evento}
                     {p.dias_antes != null && ` · ${p.dias_antes} días antes`}
+                    {p.canal === "email" && p.frecuencia_dias > 1 && ` · cada ${p.frecuencia_dias} días`}
+                    {p.canal === "email" && p.frecuencia_dias === 1 && ` · diariamente`}
                   </span>
                   <Badge variant="outline" className="h-4 px-1.5 text-[10px]">
                     {CANAL_LABELS[p.canal] ?? p.canal}
@@ -165,7 +170,7 @@ export function PlantillaManagerClient({
       )}
 
       {/* Dialog: nueva plantilla */}
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEvento("vencimiento_proximo"); setCanales(["in_app"]); } }}>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEvento("vencimiento_proximo"); setCanales(["in_app"]); setFrecuencia(1); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Nueva plantilla de alerta</DialogTitle>
@@ -212,15 +217,37 @@ export function PlantillaManagerClient({
             </div>
 
             {necesitaDias && (
-              <div className="space-y-1.5">
-                <Label>Días de anticipación</Label>
-                <Input
-                  name="dias_antes"
-                  type="number"
-                  min={1}
-                  max={365}
-                  placeholder="Ej. 30"
-                />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>Días de anticipación</Label>
+                  <Input
+                    name="dias_antes"
+                    type="number"
+                    min={1}
+                    max={365}
+                    placeholder="Ej. 30"
+                  />
+                </div>
+
+                {canales.includes("email") && (
+                  <div className="space-y-1.5">
+                    <Label>Repetir email cada</Label>
+                    <Select
+                      value={String(frecuencia)}
+                      onValueChange={(v) => setFrecuencia(Number(v))}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {FRECUENCIA_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={String(o.value)}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <input type="hidden" name="frecuencia_dias" value={frecuencia} />
+                  </div>
+                )}
               </div>
             )}
 
