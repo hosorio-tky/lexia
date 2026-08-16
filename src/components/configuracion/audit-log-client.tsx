@@ -33,6 +33,8 @@ const MODULO_LABELS: Record<string, string> = {
   configuracion: "Configuración",
 };
 
+const MODULOS_FIJOS = ["auth", "permisos", "contratos", "tareas", "usuarios", "configuracion"] as const;
+
 const ACCION_COLORS: Record<string, string> = {
   login:                    "bg-slate-100 text-slate-700",
   registro:                 "bg-indigo-50 text-indigo-700",
@@ -157,10 +159,7 @@ export function AuditLogClient({
   const [filtroUsuario, setFiltroUsuario] = useState("_todos");
   const [selected,      setSelected]      = useState<ActivityEvent | null>(null);
 
-  const modulos = useMemo(
-    () => Array.from(new Set(logs.map((l) => l.modulo).filter(Boolean) as string[])).sort(),
-    [logs]
-  );
+  const modulos = MODULOS_FIJOS;
 
   const filtered = useMemo(() => {
     return logs.filter((l) => {
