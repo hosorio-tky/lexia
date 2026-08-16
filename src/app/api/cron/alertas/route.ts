@@ -29,11 +29,11 @@ export async function GET(request: Request) {
     hoy.setHours(0, 0, 0, 0);
     const hoyStr = hoy.toISOString().split("T")[0];
 
-    // ── 1. Leer todas las plantillas activas de vencimiento_proximo ──
+    // ── 1. Leer todas las plantillas activas ──────────────────────
     const { data: plantillaRows, error: pErr } = await client
       .from("plantillas_alerta")
-      .select("id, tenant_id, modulo, canal, dias_antes, frecuencia_dias")
-      .eq("evento", "vencimiento_proximo")
+      .select("id, tenant_id, modulo, canal, evento, dias_antes, frecuencia_dias")
+      .in("evento", ["vencimiento_proximo", "vencimiento_ocurrido"])
       .eq("activo", true);
     if (pErr) throw pErr;
 
@@ -48,8 +48,9 @@ export async function GET(request: Request) {
     let emailsTotal  = 0;
 
     for (const [tenantId, plantillas] of byTenant) {
-      const inAppPlantillas  = plantillas.filter((p) => p.canal === "in_app");
-      const emailPlantillas  = plantillas.filter((p) => p.canal === "email");
+      const inAppPlantillas  = plantillas.filter((p) => p.canal === "in_app"  && p.evento === "vencimiento_proximo");
+      const emailPlantillas  = plantillas.filter((p) => p.canal === "email"   && p.evento === "vencimiento_proximo");
+      const ocurridoPlantillas = plantillas.filter((p) => p.evento === "vencimiento_ocurrido");
 
       // ── IN-APP ────────────────────────────────────────────────────
       if (inAppPlantillas.length > 0) {
@@ -184,6 +185,108 @@ export async function GET(request: Request) {
               ...payload,
             }).catch((e) => console.error("[cron/alertas] email suscriptor:", e));
             emailsTotal++;
+          }
+        }
+      }
+
+      // ── VENCIMIENTO OCURRIDO ───────────────────────────────────────
+      // Fires once on the exact expiry date (desde = hoy, hasta = hoy).
+      for (const plantilla of ocurridoPlantillas) {
+        const { recursos, nombreKey } = await fetchRecursos(
+          client, tenantId, plantilla.modulo, hoyStr, hoyStr
+        );
+
+        if (plantilla.canal === "in_app") {
+          const { data: usuarios } = await client
+            .from("profiles")
+            .select("id")
+            .eq("tenant_id", tenantId)
+            .in("rol", ["admin", "supervisor", "abogado"]);
+
+          if (!usuarios?.length) continue;
+
+          const { data: hoyNotifs } = await client
+            .from("notificaciones")
+            .select("user_id, recurso_id")
+            .eq("tenant_id", tenantId)
+            .eq("tipo", "in_app")
+            .gte("created_at", hoyStr);
+
+          const yaEnviado = new Set(
+            (hoyNotifs ?? []).map((n: { user_id: string; recurso_id: string }) =>
+              `${n.user_id}:${n.recurso_id}`
+            )
+          );
+
+          const toInsert: Record<string, unknown>[] = [];
+          for (const recurso of recursos) {
+            const nombre = recurso[nombreKey] as string;
+            for (const usuario of usuarios) {
+              const key = `${usuario.id}:${recurso.id}`;
+              if (yaEnviado.has(key)) continue;
+              yaEnviado.add(key);
+              toInsert.push({
+                tenant_id:    tenantId,
+                user_id:      usuario.id,
+                tipo:         "in_app",
+                modulo:       plantilla.modulo,
+                recurso_id:   recurso.id,
+                recurso_desc: nombre,
+                titulo:       `${nombre} venció hoy`,
+                mensaje:      `Módulo: ${plantilla.modulo === "permisos" ? "Permisos" : "Contratos"}`,
+                leida:        false,
+              });
+            }
+          }
+          if (toInsert.length > 0) {
+            const { error } = await client.from("notificaciones").insert(toInsert);
+            if (error) console.error("[cron/alertas] ocurrido in_app insert:", error.message);
+            else inAppTotal += toInsert.length;
+          }
+
+        } else if (plantilla.canal === "email") {
+          const suscRepo = createSuscripcionesRepository(client, tenantId);
+          const resourceType: ResourceType = plantilla.modulo === "permisos" ? "permiso" : "contrato";
+
+          for (const recurso of recursos) {
+            const nombre = recurso[nombreKey] as string;
+            const payload = {
+              modulo:           plantilla.modulo,
+              recursoNombre:    nombre,
+              recursoId:        recurso.id,
+              fechaVencimiento: recurso.fecha!,
+              diasRestantes:    0,
+            };
+            const emailsEnviados = new Set<string>();
+
+            if (recurso.responsable_id) {
+              const { data: profile } = await client
+                .from("profiles")
+                .select("email, nombre, apellido")
+                .eq("id", recurso.responsable_id)
+                .single();
+              if (profile?.email) {
+                emailsEnviados.add(profile.email);
+                await sendAlertaVencimiento(profile.email, {
+                  destinatarioNombre: profile.apellido
+                    ? `${profile.nombre} ${profile.apellido}`
+                    : profile.nombre,
+                  ...payload,
+                }).catch((e) => console.error("[cron/alertas] ocurrido email:", e));
+                emailsTotal++;
+              }
+            }
+
+            const suscEmails = await suscRepo.getSuscriptoresEmail(resourceType, recurso.id);
+            for (const email of suscEmails) {
+              if (emailsEnviados.has(email)) continue;
+              emailsEnviados.add(email);
+              await sendAlertaVencimiento(email, {
+                destinatarioNombre: email,
+                ...payload,
+              }).catch((e) => console.error("[cron/alertas] ocurrido email suscriptor:", e));
+              emailsTotal++;
+            }
           }
         }
       }

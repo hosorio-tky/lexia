@@ -136,9 +136,9 @@ export function PlantillaManagerClient({
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
                   <span className="text-xs text-muted-foreground">
                     {EVENTO_LABELS[p.evento] ?? p.evento}
-                    {p.dias_antes != null && ` · ${p.dias_antes} días antes`}
-                    {p.frecuencia_dias > 1 && ` · cada ${p.frecuencia_dias} días`}
-                    {p.frecuencia_dias === 1 && ` · diariamente`}
+                    {p.evento === "vencimiento_proximo" && p.dias_antes != null && ` · ${p.dias_antes} días antes`}
+                    {p.evento === "vencimiento_proximo" && p.frecuencia_dias > 1 && ` · cada ${p.frecuencia_dias} días`}
+                    {p.evento === "vencimiento_proximo" && p.frecuencia_dias === 1 && ` · diariamente`}
                   </span>
                   <Badge variant="outline" className="h-4 px-1.5 text-[10px]">
                     {CANAL_LABELS[p.canal] ?? p.canal}
