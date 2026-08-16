@@ -293,25 +293,39 @@ export function createConfiguracionRepository(
     async getAuditLog(filters?: {
       userId?: string;
       modulo?: string;
+      search?: string;
       desde?: string;
       hasta?: string;
+      page?: number;
       limit?: number;
-    }): Promise<ActivityEvent[]> {
+    }): Promise<{ logs: ActivityEvent[]; total: number }> {
+      const limit  = filters?.limit ?? 50;
+      const page   = filters?.page  ?? 0;
+      const from   = page * limit;
+      const to     = from + limit - 1;
+
       let query = client
         .from("user_activity_log")
-        .select("id, user_id, user_nombre, accion, modulo, recurso_id, recurso_desc, metadata, created_at")
+        .select("id, user_id, user_nombre, accion, modulo, recurso_id, recurso_desc, metadata, created_at", { count: "exact" })
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false })
-        .limit(filters?.limit ?? 200);
+        .range(from, to);
 
       if (filters?.userId) query = query.eq("user_id", filters.userId);
       if (filters?.modulo) query = query.eq("modulo", filters.modulo);
       if (filters?.desde)  query = query.gte("created_at", filters.desde);
       if (filters?.hasta)  query = query.lte("created_at", filters.hasta + "T23:59:59Z");
+      if (filters?.search) {
+        const q = `%${filters.search}%`;
+        query = query.or(`accion.ilike.${q},user_nombre.ilike.${q},recurso_desc.ilike.${q}`);
+      }
 
-      const { data, error } = await query;
+      const { data, error, count } = await query;
       if (error) throw error;
-      return (data ?? []).map((r) => mapActivity(r as ActivityRow));
+      return {
+        logs:  (data ?? []).map((r) => mapActivity(r as ActivityRow)),
+        total: count ?? 0,
+      };
     },
   };
 }

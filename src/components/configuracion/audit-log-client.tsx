@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
-import { Search, FilterX, ScrollText, Eye } from "lucide-react";
+import { Search, FilterX, ScrollText, Eye, ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,8 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { ActivityEvent } from "@/types/users";
-import type { UserProfile } from "@/types/users";
+import type { ActivityEvent, UserProfile } from "@/types/users";
 
 const MODULO_LABELS: Record<string, string> = {
   auth:          "Autenticación",
@@ -77,7 +77,6 @@ function formatDate(iso: string) {
 
 // ─── Modal de detalle ─────────────────────────────────────────
 function MetadataDetail({ accion, metadata }: { accion: string; metadata: Record<string, unknown> }) {
-  // Cambios de campos (editar_*)
   if (metadata.cambios) {
     const cambios = metadata.cambios as Array<{ campo: string; de: string | null; a: string | null }>;
     if (cambios.length === 0) return <p className="text-sm text-muted-foreground">Sin cambios registrados.</p>;
@@ -103,7 +102,6 @@ function MetadataDetail({ accion, metadata }: { accion: string; metadata: Record
     );
   }
 
-  // Cambio de estado
   if (metadata.estado_nuevo) {
     const { estado_anterior, estado_nuevo, comentario } = metadata as {
       estado_anterior?: string | null;
@@ -130,7 +128,6 @@ function MetadataDetail({ accion, metadata }: { accion: string; metadata: Record
     );
   }
 
-  // Comentario
   if (accion.includes("comentario") && metadata.contenido) {
     return (
       <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground italic">
@@ -139,7 +136,6 @@ function MetadataDetail({ accion, metadata }: { accion: string; metadata: Record
     );
   }
 
-  // Genérico
   return (
     <pre className="rounded-md bg-muted px-3 py-2 text-xs overflow-auto max-h-64">
       {JSON.stringify(metadata, null, 2)}
@@ -147,39 +143,56 @@ function MetadataDetail({ accion, metadata }: { accion: string; metadata: Record
   );
 }
 
+// ─── Componente principal ─────────────────────────────────────
 export function AuditLogClient({
   logs,
   usuarios,
+  total,
+  page,
+  pageSize,
 }: {
-  logs: ActivityEvent[];
-  usuarios: UserProfile[];
+  logs:      ActivityEvent[];
+  usuarios:  UserProfile[];
+  total:     number;
+  page:      number;
+  pageSize:  number;
 }) {
-  const [search,        setSearch]        = useState("");
-  const [filtroModulo,  setFiltroModulo]  = useState("_todos");
-  const [filtroUsuario, setFiltroUsuario] = useState("_todos");
-  const [selected,      setSelected]      = useState<ActivityEvent | null>(null);
+  const router       = useRouter();
+  const searchParams = useSearchParams();
+  const [selected, setSelected] = useState<ActivityEvent | null>(null);
 
-  const modulos = MODULOS_FIJOS;
+  // Search con debounce — no dispara request en cada tecla
+  const [searchInput, setSearchInput] = useState(searchParams.get("search") ?? "");
 
-  const filtered = useMemo(() => {
-    return logs.filter((l) => {
-      if (filtroModulo !== "_todos" && l.modulo !== filtroModulo)  return false;
-      if (filtroUsuario !== "_todos" && !l.user_nombre?.toLowerCase().includes(
-        usuarios.find((u) => u.id === filtroUsuario)?.nombre_completo.toLowerCase() ?? ""
-      )) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        return (
-          l.accion.toLowerCase().includes(q) ||
-          l.user_nombre?.toLowerCase().includes(q) ||
-          l.recurso_desc?.toLowerCase().includes(q)
-        );
+  const navigate = useCallback((overrides: Record<string, string | undefined>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [k, v] of Object.entries(overrides)) {
+      if (v) params.set(k, v);
+      else params.delete(k);
+    }
+    // Cualquier cambio de filtro vuelve a la página 0
+    if (!("page" in overrides)) params.delete("page");
+    router.push(`?${params.toString()}`);
+  }, [router, searchParams]);
+
+  // Debounce del campo search: espera 400ms tras dejar de escribir
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const current = searchParams.get("search") ?? "";
+      if (searchInput !== current) {
+        navigate({ search: searchInput || undefined });
       }
-      return true;
-    });
-  }, [logs, filtroModulo, filtroUsuario, search, usuarios]);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const hasFilters = search || filtroModulo !== "_todos" || filtroUsuario !== "_todos";
+  const totalPages  = Math.max(1, Math.ceil(total / pageSize));
+  const hasFilters  = !!(searchParams.get("search") || searchParams.get("modulo") || searchParams.get("usuario"));
+
+  function clearFilters() {
+    setSearchInput("");
+    router.push("?");
+  }
 
   return (
     <div className="space-y-6">
@@ -197,26 +210,32 @@ export function AuditLogClient({
           <Input
             placeholder="Buscar por acción, usuario o descripción…"
             className="pl-9"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
           />
         </div>
 
-        <Select value={filtroModulo} onValueChange={setFiltroModulo}>
+        <Select
+          value={searchParams.get("modulo") ?? "_todos"}
+          onValueChange={(v) => navigate({ modulo: v === "_todos" ? undefined : v })}
+        >
           <SelectTrigger className="w-44">
             <SelectValue placeholder="Módulo" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="_todos">Todos los módulos</SelectItem>
-            {modulos.map((m) => (
+            {MODULOS_FIJOS.map((m) => (
               <SelectItem key={m} value={m}>
-                {MODULO_LABELS[m] ?? m}
+                {MODULO_LABELS[m]}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        <Select value={filtroUsuario} onValueChange={setFiltroUsuario}>
+        <Select
+          value={searchParams.get("usuario") ?? "_todos"}
+          onValueChange={(v) => navigate({ usuario: v === "_todos" ? undefined : v })}
+        >
           <SelectTrigger className="w-48">
             <SelectValue placeholder="Usuario" />
           </SelectTrigger>
@@ -231,28 +250,22 @@ export function AuditLogClient({
         </Select>
 
         {hasFilters && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="self-start"
-            onClick={() => {
-              setSearch("");
-              setFiltroModulo("_todos");
-              setFiltroUsuario("_todos");
-            }}
-          >
+          <Button variant="outline" size="sm" className="self-start" onClick={clearFilters}>
             <FilterX className="mr-2 h-3.5 w-3.5" />
             Limpiar
           </Button>
         )}
       </div>
 
-      {/* Resultados */}
+      {/* Contador */}
       <div className="text-xs text-muted-foreground">
-        {filtered.length} de {logs.length} registros
+        {total === 0
+          ? "Sin registros"
+          : `${page * pageSize + 1}–${Math.min((page + 1) * pageSize, total)} de ${total} registros`}
       </div>
 
-      {filtered.length === 0 ? (
+      {/* Lista */}
+      {logs.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 py-16 text-center">
           <ScrollText className="h-10 w-10 text-muted-foreground/40" />
           <p className="text-sm text-muted-foreground">
@@ -261,7 +274,7 @@ export function AuditLogClient({
         </Card>
       ) : (
         <Card className="divide-y overflow-hidden">
-          {filtered.map((log) => {
+          {logs.map((log) => {
             const colorClass = ACCION_COLORS[log.accion] ?? "bg-slate-100 text-slate-700";
             const hasDetail  = !!log.metadata && Object.keys(log.metadata).length > 0;
             return (
@@ -309,6 +322,35 @@ export function AuditLogClient({
             );
           })}
         </Card>
+      )}
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === 0}
+            onClick={() => navigate({ page: String(page - 1) })}
+          >
+            <ChevronLeft className="mr-1.5 h-4 w-4" />
+            Anterior
+          </Button>
+
+          <span className="text-sm text-muted-foreground">
+            Página {page + 1} de {totalPages}
+          </span>
+
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages - 1}
+            onClick={() => navigate({ page: String(page + 1) })}
+          >
+            Siguiente
+            <ChevronRight className="ml-1.5 h-4 w-4" />
+          </Button>
+        </div>
       )}
 
       {/* Modal de detalle */}
