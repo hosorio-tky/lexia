@@ -3,7 +3,8 @@
 import { useState, useMemo, useEffect, useCallback, useTransition } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { Plus, Trash2, Upload, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Trash2, Upload, ChevronDown, ChevronLeft, ChevronRight, LayoutList, LayoutGrid, MapPin } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { SortState } from "@/lib/sort-utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -163,13 +164,36 @@ export function PermitListClient({
         <PermitFiltersBar
           filters={urlFilters}
           onFiltersChange={handleFiltersChange}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
           tiposPermiso={tiposPermiso}
           responsables={responsables}
           ubicaciones={ubicaciones}
         />
-        <div className="flex items-center">
+        <div className="flex items-center gap-2">
+          <div className="hidden md:flex items-center rounded-lg border bg-background p-1 shadow-sm">
+            {(["table", "grid", "location"] as const).map((mode) => {
+              const icons = {
+                table:    <LayoutList className="h-4 w-4" />,
+                grid:     <LayoutGrid className="h-4 w-4" />,
+                location: <MapPin className="h-4 w-4" />,
+              };
+              const titles = { table: "Vista lista", grid: "Vista tarjetas", location: "Por ubicación" };
+              return (
+                <button
+                  key={mode}
+                  onClick={() => setViewMode(mode)}
+                  className={cn(
+                    "rounded-md p-1.5 transition",
+                    viewMode === mode
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                  title={titles[mode]}
+                >
+                  {icons[mode]}
+                </button>
+              );
+            })}
+          </div>
           <Link href="/permisos/nuevo">
             <Button size="sm" className="rounded-r-none border-r-0">
               <Plus className="mr-2 h-4 w-4" />

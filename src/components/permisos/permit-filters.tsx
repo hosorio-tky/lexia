@@ -1,6 +1,6 @@
 "use client";
 
-import { Filter, LayoutGrid, LayoutList, MapPin, Search, X } from "lucide-react";
+import { Filter, MapPin, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,8 +17,6 @@ import {
   type VigenciaStatus,
 } from "@/types/permits";
 import { ESTADOS_PERMISO_OPTIONS } from "@/lib/constants/estados";
-import { cn } from "@/lib/utils";
-
 export type ViewMode = "table" | "grid" | "location";
 
 const VIGENCIA_OPTIONS: VigenciaStatus[] = ["Vigente", "Por vencer", "Vencido"];
@@ -26,8 +24,6 @@ const VIGENCIA_OPTIONS: VigenciaStatus[] = ["Vigente", "Por vencer", "Vencido"];
 interface PermitFiltersBarProps {
   filters: PermitFilters;
   onFiltersChange: (filters: PermitFilters) => void;
-  viewMode: ViewMode;
-  onViewModeChange: (mode: ViewMode) => void;
   tiposPermiso?: { id: string; valor: string }[];
   responsables?: string[];
   ubicaciones?: string[];
@@ -36,8 +32,6 @@ interface PermitFiltersBarProps {
 export function PermitFiltersBar({
   filters,
   onFiltersChange,
-  viewMode,
-  onViewModeChange,
   tiposPermiso = [],
   responsables = [],
   ubicaciones = [],
@@ -50,9 +44,7 @@ export function PermitFiltersBar({
     onFiltersChange({ search: "", estado: "", tipo: "", entidad: "", responsable: "", vigencia: "", ubicacion: "" });
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      {/* Left: search + filters */}
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-64">
           <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -167,34 +159,6 @@ export function PermitFiltersBar({
             Limpiar
           </Button>
         )}
-      </div>
-
-      {/* Right: view toggle — solo visible en desktop */}
-      <div className="hidden md:flex items-center rounded-lg border bg-background p-1 shadow-sm">
-        {(["table", "grid", "location"] as ViewMode[]).map((mode) => {
-          const icons = {
-            table:    <LayoutList className="h-4 w-4" />,
-            grid:     <LayoutGrid className="h-4 w-4" />,
-            location: <MapPin className="h-4 w-4" />,
-          };
-          const titles = { table: "Vista lista", grid: "Vista tarjetas", location: "Por ubicación" };
-          return (
-            <button
-              key={mode}
-              onClick={() => onViewModeChange(mode)}
-              className={cn(
-                "rounded-md p-1.5 transition",
-                viewMode === mode
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-              title={titles[mode]}
-            >
-              {icons[mode]}
-            </button>
-          );
-        })}
-      </div>
     </div>
   );
 }
