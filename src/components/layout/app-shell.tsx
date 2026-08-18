@@ -10,18 +10,17 @@ import {
   LayoutDashboard,
   Library,
   LogOut,
-  Search,
   Settings,
   Sparkles,
   Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { signOut } from "@/app/actions/auth";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { ChatSidebar } from "@/components/ai/chat-sidebar";
+import { SearchDialog } from "@/components/search/search-dialog";
 import { ROLE_LABELS } from "@/types/users";
 import type { UserRole } from "@/types/users";
 
@@ -118,14 +117,7 @@ export default function AppShell({
           <div className="text-sm text-muted-foreground lg:hidden">{breadcrumb}</div>
 
           <div className="mx-auto hidden w-full max-w-xl items-center lg:flex">
-            <div className="relative w-full">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Buscar permisos, expedientes…"
-                className="h-10 w-full pl-9"
-                type="search"
-              />
-            </div>
+            <SearchDialog />
           </div>
 
           <div className="ml-auto flex items-center gap-2">
