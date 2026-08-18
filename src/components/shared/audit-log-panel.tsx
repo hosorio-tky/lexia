@@ -50,16 +50,25 @@ function ActionDetail({ accion, metadata }: { accion: string; metadata: Record<s
   if (!metadata) return null;
 
   if (accion === "editar_permiso" || accion === "editar_contrato") {
-    const cambios = metadata.cambios as Array<{ campo: string; de: string | null; a: string | null }> | undefined;
+    const cambios = metadata.cambios as Array<{
+      campo: string; de: string | null; a: string | null; justificacion?: string;
+    }> | undefined;
     if (!cambios?.length) return null;
     return (
-      <ul className="mt-1.5 space-y-0.5">
+      <ul className="mt-1.5 space-y-1">
         {cambios.map((c, i) => (
-          <li key={i} className="flex flex-wrap gap-1 text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">{c.campo}:</span>
-            <span className="line-through opacity-60">{c.de ?? "—"}</span>
-            <span className="text-muted-foreground">→</span>
-            <span>{c.a ?? "—"}</span>
+          <li key={i} className="text-xs text-muted-foreground">
+            <div className="flex flex-wrap gap-1">
+              <span className="font-medium text-foreground">{c.campo}:</span>
+              <span className="line-through opacity-60">{c.de ?? "—"}</span>
+              <span className="text-muted-foreground">→</span>
+              <span>{c.a ?? "—"}</span>
+            </div>
+            {c.justificacion && (
+              <p className="mt-0.5 italic text-muted-foreground/80">
+                Motivo: &ldquo;{c.justificacion}&rdquo;
+              </p>
+            )}
           </li>
         ))}
       </ul>

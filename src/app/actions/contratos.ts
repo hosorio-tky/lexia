@@ -136,7 +136,8 @@ export async function editarContrato(
     };
 
     // Calcular diff de campos para audit log
-    const cambios: Array<{ campo: string; de: string | null; a: string | null }> = [];
+    const fechaFinJustif = (formData.get("fecha_fin_justificacion") as string) || null;
+    const cambios: Array<{ campo: string; de: string | null; a: string | null; justificacion?: string }> = [];
     if (actual) {
       for (const key of Object.keys(FIELD_LABELS)) {
         const valorAntes   = (actual as unknown as Record<string, unknown>)[key];
@@ -146,7 +147,11 @@ export async function editarContrato(
           return String(v);
         };
         if (toStr(valorAntes) !== toStr(valorDespues)) {
-          cambios.push({ campo: FIELD_LABELS[key], de: toStr(valorAntes), a: toStr(valorDespues) });
+          const cambio: { campo: string; de: string | null; a: string | null; justificacion?: string } = {
+            campo: FIELD_LABELS[key], de: toStr(valorAntes), a: toStr(valorDespues),
+          };
+          if (key === "fecha_fin" && fechaFinJustif) cambio.justificacion = fechaFinJustif;
+          cambios.push(cambio);
         }
       }
     }

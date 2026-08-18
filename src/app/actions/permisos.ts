@@ -130,7 +130,8 @@ export async function editarPermiso(id: string, formData: FormData) {
   };
 
   // Calcular diff de campos
-  const cambios: Array<{ campo: string; de: string | null; a: string | null }> = [];
+  const fechaVencJustif = (formData.get("fecha_vencimiento_justificacion") as string) || null;
+  const cambios: Array<{ campo: string; de: string | null; a: string | null; justificacion?: string }> = [];
   if (actual) {
     for (const key of Object.keys(FIELD_LABELS)) {
       const valorAntes    = (actual as unknown as Record<string, unknown>)[key];
@@ -140,7 +141,11 @@ export async function editarPermiso(id: string, formData: FormData) {
         return String(v);
       };
       if (toStr(valorAntes) !== toStr(valorDespues)) {
-        cambios.push({ campo: FIELD_LABELS[key], de: toStr(valorAntes), a: toStr(valorDespues) });
+        const cambio: { campo: string; de: string | null; a: string | null; justificacion?: string } = {
+          campo: FIELD_LABELS[key], de: toStr(valorAntes), a: toStr(valorDespues),
+        };
+        if (key === "fecha_vencimiento" && fechaVencJustif) cambio.justificacion = fechaVencJustif;
+        cambios.push(cambio);
       }
     }
 
@@ -152,10 +157,12 @@ export async function editarPermiso(id: string, formData: FormData) {
 
     if (fechaEmisionCambia || fechaVencimientoCambia) {
       await repo.registrarCambioFechas(id, {
-        fecha_emision_anterior:    actual.fecha_emision ?? null,
+        fecha_emision_anterior:     actual.fecha_emision ?? null,
         fecha_vencimiento_anterior: actual.fecha_vencimiento ?? null,
-        changed_by_nombre:         session.nombre,
-        motivo:                    "Edición de permiso",
+        changed_by_nombre:          session.nombre,
+        motivo:                     fechaVencimientoCambia && fechaVencJustif
+          ? fechaVencJustif
+          : "Edición de permiso",
       });
     }
   }
