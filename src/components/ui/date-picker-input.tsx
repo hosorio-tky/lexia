@@ -36,22 +36,35 @@ function getCalendarDays(month: Date): Date[] {
 interface DatePickerInputProps {
   name: string;
   defaultValue?: string;
+  value?: string;
+  onChange?: (iso: string) => void;
   placeholder?: string;
   className?: string;
 }
 
 export function DatePickerInput({
-  name, defaultValue, placeholder = "Seleccionar fecha", className,
+  name, defaultValue, value, onChange, placeholder = "Seleccionar fecha", className,
 }: DatePickerInputProps) {
+  const isControlled = value !== undefined;
+
   const [open, setOpen]         = React.useState(false);
   const [selected, setSelected] = React.useState<Date | undefined>(() => {
-    if (!defaultValue) return undefined;
-    const d = parseISO(defaultValue);
+    const initial = isControlled ? value : defaultValue;
+    if (!initial) return undefined;
+    const d = parseISO(initial);
     return isValid(d) ? d : undefined;
   });
   const [displayMonth, setDisplayMonth] = React.useState<Date>(
     () => selected ?? new Date()
   );
+
+  // Sync internal state when controlled value changes externally
+  React.useEffect(() => {
+    if (!isControlled) return;
+    if (!value) { setSelected(undefined); return; }
+    const d = parseISO(value);
+    setSelected(isValid(d) ? d : undefined);
+  }, [value, isControlled]);
 
   const isoValue = selected ? format(selected, "yyyy-MM-dd") : "";
   const label    = selected
@@ -59,7 +72,9 @@ export function DatePickerInput({
     : null;
 
   function handleSelect(day: Date) {
-    setSelected(day);
+    const iso = format(day, "yyyy-MM-dd");
+    if (!isControlled) setSelected(day);
+    onChange?.(iso);
     setOpen(false);
   }
 
@@ -94,7 +109,7 @@ export function DatePickerInput({
             <button
               type="button"
               className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              onClick={() => setSelected(undefined)}
+              onClick={() => { if (!isControlled) setSelected(undefined); onChange?.(""); }}
             >
               <X className="h-3.5 w-3.5" />
             </button>

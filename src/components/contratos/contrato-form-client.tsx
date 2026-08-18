@@ -24,7 +24,9 @@ import type { Responsable } from "@/lib/repositories/responsables";
 import type { ContratoPlantilla } from "@/lib/repositories/contrato-plantillas";
 import type { CatalogoItem } from "@/types/settings";
 import type { ProfileOption } from "@/types/users";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { CatalogAddDialog } from "@/components/shared/catalog-add-dialog";
+import { DateChangeConfirmDialog } from "@/components/shared/date-change-confirm-dialog";
 import { ResponsableMultiSelect } from "@/components/shared/responsable-multi-select";
 import { UsarPlantillaModal } from "./usar-plantilla-modal";
 
@@ -75,6 +77,12 @@ export function ContratoFormClient({
   const [responsables, setResponsables] = useState<Responsable[]>(responsablesProp);
 
   const [addTipoOpen, setAddTipoOpen] = useState(false);
+
+  // Confirmación de cambio de fecha_fin
+  const originalFechaFin                         = defaultValues?.fecha_fin ?? "";
+  const [fechaFinConfirmOpen, setFechaFinConfirmOpen] = useState(false);
+  const [pendingFechaFin,     setPendingFechaFin]     = useState("");
+  const [fechaFinJustif,      setFechaFinJustif]      = useState("");
   const resolvedBackHref = backHref ?? (
     mode === "edit" && defaultValues?.id ? `/contratos/${defaultValues.id}` : "/contratos"
   );
@@ -511,30 +519,59 @@ export function ContratoFormClient({
             </div>
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label="Fecha de inicio">
-                <Input
+                <DatePickerInput
                   name="fecha_inicio"
-                  type="date"
                   value={fechaInicio}
-                  onChange={(e) => setFechaInicio(e.target.value)}
+                  onChange={setFechaInicio}
+                  placeholder="Seleccionar"
                 />
               </Field>
               <Field label="Fecha de fin">
-                <Input
+                <DatePickerInput
                   name="fecha_fin"
-                  type="date"
                   value={fechaFin}
-                  onChange={(e) => setFechaFin(e.target.value)}
+                  onChange={(iso) => {
+                    if (mode === "edit" && originalFechaFin && iso && iso !== originalFechaFin) {
+                      setPendingFechaFin(iso);
+                      setFechaFinConfirmOpen(true);
+                    } else {
+                      setFechaFin(iso);
+                    }
+                  }}
+                  placeholder="Seleccionar"
                 />
               </Field>
               <Field label="Fecha de firma">
-                <Input
+                <DatePickerInput
                   name="fecha_firma"
-                  type="date"
                   value={fechaFirma}
-                  onChange={(e) => setFechaFirma(e.target.value)}
+                  onChange={setFechaFirma}
+                  placeholder="Seleccionar"
                 />
               </Field>
             </div>
+
+            {fechaFinJustif && (
+              <input type="hidden" name="fecha_fin_justificacion" value={fechaFinJustif} />
+            )}
+
+            <DateChangeConfirmDialog
+              open={fechaFinConfirmOpen}
+              onOpenChange={setFechaFinConfirmOpen}
+              fieldLabel="Fecha de fin"
+              previousDate={originalFechaFin}
+              newDate={pendingFechaFin}
+              onConfirm={(justif) => {
+                setFechaFin(pendingFechaFin);
+                setFechaFinJustif(justif);
+                setPendingFechaFin("");
+                setFechaFinConfirmOpen(false);
+              }}
+              onCancel={() => {
+                setPendingFechaFin("");
+                setFechaFinConfirmOpen(false);
+              }}
+            />
           </Card>
 
           {/* Contenido HTML */}

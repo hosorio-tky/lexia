@@ -16,6 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { MONEDAS, type Permit } from "@/types/permits";
 import { ESTADOS_PERMISO, ESTADOS_PERMISO_OPTIONS } from "@/lib/constants/estados";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
+import { DateChangeConfirmDialog } from "@/components/shared/date-change-confirm-dialog";
 import { CatalogAddDialog } from "@/components/shared/catalog-add-dialog";
 import { ResponsableMultiSelect } from "@/components/shared/responsable-multi-select";
 import { UbicacionAddDialog } from "@/components/shared/ubicacion-add-dialog";
@@ -41,6 +42,7 @@ function Field({ label, required, hint, children }: {
 
 interface PermitFormClientProps {
   action: (formData: FormData) => Promise<void>;
+  mode?: "create" | "edit";
   defaultValues?: Partial<Permit>;
   backHref?: string;
   tiposPermiso?: CatalogoItem[];
@@ -52,6 +54,7 @@ interface PermitFormClientProps {
 
 export function PermitFormClient({
   action,
+  mode = "create",
   defaultValues,
   backHref = "/permisos",
   tiposPermiso: tiposPermisoProp = [],
@@ -68,6 +71,13 @@ export function PermitFormClient({
   const [addTipoOpen,      setAddTipoOpen]      = useState(false);
   const [addEntidadOpen,   setAddEntidadOpen]   = useState(false);
   const [addUbicacionOpen, setAddUbicacionOpen] = useState(false);
+
+  // Confirmación de cambio de fecha_vencimiento
+  const originalFechaVenc                                   = defaultValues?.fecha_vencimiento ?? "";
+  const [fechaVenc,            setFechaVenc]                = useState(originalFechaVenc);
+  const [fechaVencConfirmOpen, setFechaVencConfirmOpen]     = useState(false);
+  const [pendingFechaVenc,     setPendingFechaVenc]         = useState("");
+  const [fechaVencJustif,      setFechaVencJustif]          = useState("");
 
   const [isPending, startTransition] = useTransition();
   const [tipo, setTipo]             = useState(defaultValues?.tipo_id ?? "");
@@ -298,9 +308,43 @@ export function PermitFormClient({
                 <DatePickerInput name="fecha_emision" defaultValue={defaultValues?.fecha_emision} placeholder="Seleccionar" />
               </Field>
               <Field label="Fecha de vencimiento">
-                <DatePickerInput name="fecha_vencimiento" defaultValue={defaultValues?.fecha_vencimiento} placeholder="Seleccionar" />
+                <DatePickerInput
+                  name="fecha_vencimiento"
+                  value={fechaVenc}
+                  onChange={(iso) => {
+                    if (mode === "edit" && originalFechaVenc && iso && iso !== originalFechaVenc) {
+                      setPendingFechaVenc(iso);
+                      setFechaVencConfirmOpen(true);
+                    } else {
+                      setFechaVenc(iso);
+                    }
+                  }}
+                  placeholder="Seleccionar"
+                />
               </Field>
             </div>
+
+            {fechaVencJustif && (
+              <input type="hidden" name="fecha_vencimiento_justificacion" value={fechaVencJustif} />
+            )}
+
+            <DateChangeConfirmDialog
+              open={fechaVencConfirmOpen}
+              onOpenChange={setFechaVencConfirmOpen}
+              fieldLabel="Fecha de vencimiento"
+              previousDate={originalFechaVenc}
+              newDate={pendingFechaVenc}
+              onConfirm={(justif) => {
+                setFechaVenc(pendingFechaVenc);
+                setFechaVencJustif(justif);
+                setPendingFechaVenc("");
+                setFechaVencConfirmOpen(false);
+              }}
+              onCancel={() => {
+                setPendingFechaVenc("");
+                setFechaVencConfirmOpen(false);
+              }}
+            />
           </Card>
 
           {/* Permiso Provisional */}

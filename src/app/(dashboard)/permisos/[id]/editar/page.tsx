@@ -54,6 +54,7 @@ export default async function EditarPermisoPage({
     >
       <PermitFormClient
         action={action}
+        mode="edit"
         defaultValues={permit}
         backHref={`/permisos/${id}`}
         tiposPermiso={tiposPermiso}
