@@ -54,12 +54,11 @@ export async function GET(request: Request) {
 
       // ── IN-APP ────────────────────────────────────────────────────
       if (inAppPlantillas.length > 0) {
-        // Usuarios elegibles del tenant
+        // Todos los usuarios del tenant reciben la notificación
         const { data: usuarios } = await client
           .from("profiles")
           .select("id")
-          .eq("tenant_id", tenantId)
-          .in("rol", ["admin", "supervisor", "abogado"]);
+          .eq("tenant_id", tenantId);
 
         if (usuarios && usuarios.length > 0) {
           // Notificaciones de hoy (para dedup)
@@ -200,8 +199,7 @@ export async function GET(request: Request) {
           const { data: usuarios } = await client
             .from("profiles")
             .select("id")
-            .eq("tenant_id", tenantId)
-            .in("rol", ["admin", "supervisor", "abogado"]);
+            .eq("tenant_id", tenantId);
 
           if (!usuarios?.length) continue;
 
