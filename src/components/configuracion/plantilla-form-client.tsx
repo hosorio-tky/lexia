@@ -13,6 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { RichTextEditor } from "@/components/shared/rich-text-editor";
+import { CatalogAddDialog } from "@/components/shared/catalog-add-dialog";
 import type { ContratoPlantilla } from "@/lib/repositories/contrato-plantillas";
 import type { CatalogoItem } from "@/types/settings";
 
@@ -36,6 +37,8 @@ export function PlantillaFormClient({
   const [error, setError]            = useState<string | null>(null);
   const [tipo, setTipo]              = useState(defaultValues?.tipo ?? "__none__");
   const [contenidoHtml, setContenidoHtml] = useState(defaultValues?.contenido_html ?? "");
+  const [tipoItems, setTipoItems]    = useState<CatalogoItem[]>(tiposContrato);
+  const [addTipoOpen, setAddTipoOpen] = useState(false);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -101,20 +104,40 @@ export function PlantillaFormClient({
 
           <div className="space-y-1.5">
             <Label>Tipo de contrato</Label>
-            <Select value={tipo} onValueChange={setTipo}>
+            <Select
+              value={tipo}
+              onValueChange={(v) => {
+                if (v === "__add__") { setAddTipoOpen(true); return; }
+                setTipo(v);
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Sin tipo específico" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Sin tipo específico</SelectItem>
-                {tiposContrato.map((t) => (
+                {tipoItems.map((t) => (
                   <SelectItem key={t.id} value={t.valor}>{t.valor}</SelectItem>
                 ))}
+                <SelectItem value="__add__" className="text-primary font-medium">
+                  + Agregar tipo…
+                </SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
               Filtra la plantilla al crear contratos de ese tipo.
             </p>
+            <CatalogAddDialog
+              open={addTipoOpen}
+              onOpenChange={setAddTipoOpen}
+              title="Nuevo tipo de contrato"
+              modulo="contratos"
+              tipo="tipo"
+              onItemAdded={(item) => {
+                setTipoItems((prev) => [...prev, item]);
+                setTipo(item.valor);
+              }}
+            />
           </div>
 
           <div className="space-y-1.5">
