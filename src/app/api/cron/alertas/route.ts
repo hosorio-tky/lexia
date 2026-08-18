@@ -53,70 +53,73 @@ export async function GET(request: Request) {
       const ocurridoPlantillas = plantillas.filter((p) => p.evento === "vencimiento_ocurrido");
 
       // ── IN-APP ────────────────────────────────────────────────────
+      // Solo al responsable y suscriptores de cada recurso (igual que email)
       if (inAppPlantillas.length > 0) {
-        // Todos los usuarios del tenant reciben la notificación
-        const { data: usuarios } = await client
-          .from("profiles")
-          .select("id")
-          .eq("tenant_id", tenantId);
+        const suscRepo = createSuscripcionesRepository(client, tenantId);
 
-        if (usuarios && usuarios.length > 0) {
-          // Notificaciones de hoy (para dedup)
-          const { data: hoyNotifs } = await client
-            .from("notificaciones")
-            .select("user_id, recurso_id")
-            .eq("tenant_id", tenantId)
-            .eq("tipo", "in_app")
-            .gte("created_at", hoyStr);
+        // Notificaciones de hoy (para dedup)
+        const { data: hoyNotifs } = await client
+          .from("notificaciones")
+          .select("user_id, recurso_id")
+          .eq("tenant_id", tenantId)
+          .eq("tipo", "in_app")
+          .gte("created_at", hoyStr);
 
-          const yaEnviado = new Set(
-            (hoyNotifs ?? []).map((n: { user_id: string; recurso_id: string }) =>
-              `${n.user_id}:${n.recurso_id}`
-            )
+        const yaEnviado = new Set(
+          (hoyNotifs ?? []).map((n: { user_id: string; recurso_id: string }) =>
+            `${n.user_id}:${n.recurso_id}`
+          )
+        );
+
+        for (const plantilla of inAppPlantillas) {
+          const dias       = plantilla.dias_antes ?? 30;
+          const frecuencia = plantilla.frecuencia_dias ?? 1;
+          const desdeStr   = addDays(hoy, 1).toISOString().split("T")[0];
+          const limiteStr  = addDays(hoy, dias).toISOString().split("T")[0];
+          const { recursos: todosRecursos, nombreKey } = await fetchRecursos(
+            client, tenantId, plantilla.modulo, desdeStr, limiteStr
           );
 
-          for (const plantilla of inAppPlantillas) {
-            const dias        = plantilla.dias_antes ?? 30;
-            const frecuencia  = plantilla.frecuencia_dias ?? 1;
-            const desdeStr    = addDays(hoy, 1).toISOString().split("T")[0];
-            const limiteStr   = addDays(hoy, dias).toISOString().split("T")[0];
-            const { recursos: todosRecursos, nombreKey } = await fetchRecursos(
-              client, tenantId, plantilla.modulo, desdeStr, limiteStr
-            );
+          const recursos = todosRecursos.filter((r) => {
+            const restantes = diasRestantes(hoy, r.fecha!);
+            return restantes % frecuencia === 0;
+          });
 
-            // Apply frequency filter: only notify when dias_restantes % frecuencia === 0
-            const recursos = todosRecursos.filter((r) => {
-              const restantes = diasRestantes(hoy, r.fecha!);
-              return restantes % frecuencia === 0;
-            });
+          const resourceType: ResourceType = plantilla.modulo === "permisos" ? "permiso" : "contrato";
+          const toInsert: Record<string, unknown>[] = [];
 
-            const toInsert: Record<string, unknown>[] = [];
-            for (const recurso of recursos) {
-              const diasRest = diasRestantes(hoy, recurso.fecha!);
-              const nombre   = recurso[nombreKey] as string;
-              for (const usuario of usuarios) {
-                const key = `${usuario.id}:${recurso.id}`;
-                if (yaEnviado.has(key)) continue;
-                yaEnviado.add(key);
-                toInsert.push({
-                  tenant_id:   tenantId,
-                  user_id:     usuario.id,
-                  tipo:        "in_app",
-                  modulo:      plantilla.modulo,
-                  recurso_id:  recurso.id,
-                  recurso_desc: nombre,
-                  titulo:      `${nombre} vence en ${diasRest} día${diasRest === 1 ? "" : "s"}`,
-                  mensaje:     `Módulo: ${plantilla.modulo === "permisos" ? "Permisos" : "Contratos"}`,
-                  leida:       false,
-                });
-              }
+          for (const recurso of recursos) {
+            const diasRest = diasRestantes(hoy, recurso.fecha!);
+            const nombre   = recurso[nombreKey] as string;
+
+            // Destinatarios: responsable + suscriptores (por user_id)
+            const destinatarios = new Set<string>();
+            if (recurso.responsable_id) destinatarios.add(recurso.responsable_id as string);
+            const suscIds = await suscRepo.getSuscriptoresUserId(resourceType, recurso.id);
+            for (const id of suscIds) destinatarios.add(id);
+
+            for (const userId of destinatarios) {
+              const key = `${userId}:${recurso.id}`;
+              if (yaEnviado.has(key)) continue;
+              yaEnviado.add(key);
+              toInsert.push({
+                tenant_id:    tenantId,
+                user_id:      userId,
+                tipo:         "in_app",
+                modulo:       plantilla.modulo,
+                recurso_id:   recurso.id,
+                recurso_desc: nombre,
+                titulo:       `${nombre} vence en ${diasRest} día${diasRest === 1 ? "" : "s"}`,
+                mensaje:      `Módulo: ${plantilla.modulo === "permisos" ? "Permisos" : "Contratos"}`,
+                leida:        false,
+              });
             }
+          }
 
-            if (toInsert.length > 0) {
-              const { error } = await client.from("notificaciones").insert(toInsert);
-              if (error) console.error("[cron/alertas] in_app insert:", error.message);
-              else inAppTotal += toInsert.length;
-            }
+          if (toInsert.length > 0) {
+            const { error } = await client.from("notificaciones").insert(toInsert);
+            if (error) console.error("[cron/alertas] in_app insert:", error.message);
+            else inAppTotal += toInsert.length;
           }
         }
       }
@@ -196,12 +199,8 @@ export async function GET(request: Request) {
         );
 
         if (plantilla.canal === "in_app") {
-          const { data: usuarios } = await client
-            .from("profiles")
-            .select("id")
-            .eq("tenant_id", tenantId);
-
-          if (!usuarios?.length) continue;
+          const suscRepo2 = createSuscripcionesRepository(client, tenantId);
+          const resourceType2: ResourceType = plantilla.modulo === "permisos" ? "permiso" : "contrato";
 
           const { data: hoyNotifs } = await client
             .from("notificaciones")
@@ -219,13 +218,19 @@ export async function GET(request: Request) {
           const toInsert: Record<string, unknown>[] = [];
           for (const recurso of recursos) {
             const nombre = recurso[nombreKey] as string;
-            for (const usuario of usuarios) {
-              const key = `${usuario.id}:${recurso.id}`;
+
+            const destinatarios = new Set<string>();
+            if (recurso.responsable_id) destinatarios.add(recurso.responsable_id as string);
+            const suscIds = await suscRepo2.getSuscriptoresUserId(resourceType2, recurso.id);
+            for (const id of suscIds) destinatarios.add(id);
+
+            for (const userId of destinatarios) {
+              const key = `${userId}:${recurso.id}`;
               if (yaEnviado.has(key)) continue;
               yaEnviado.add(key);
               toInsert.push({
                 tenant_id:    tenantId,
-                user_id:      usuario.id,
+                user_id:      userId,
                 tipo:         "in_app",
                 modulo:       plantilla.modulo,
                 recurso_id:   recurso.id,

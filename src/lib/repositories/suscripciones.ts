@@ -98,5 +98,18 @@ export function createSuscripcionesRepository(client: SupabaseClient, tenantId: 
         .in("id", rows.map((r) => r.user_id));
       return (profiles ?? []).map((p) => p.email).filter(Boolean);
     },
+
+    async getSuscriptoresUserId(
+      resourceType: ResourceType,
+      resourceId: string,
+    ): Promise<string[]> {
+      const { data: rows } = await client
+        .from("recurso_suscripciones")
+        .select("user_id")
+        .eq("tenant_id", tenantId)
+        .eq("resource_type", resourceType)
+        .eq("resource_id", resourceId);
+      return (rows ?? []).map((r) => r.user_id).filter(Boolean);
+    },
   };
 }
