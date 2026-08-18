@@ -92,9 +92,16 @@ export async function GET(request: Request) {
             const diasRest = diasRestantes(hoy, recurso.fecha!);
             const nombre   = recurso[nombreKey] as string;
 
-            // Destinatarios: responsable + suscriptores (por user_id)
+            // Destinatarios: responsable (vía responsables.user_id) + suscriptores
             const destinatarios = new Set<string>();
-            if (recurso.responsable_id) destinatarios.add(recurso.responsable_id as string);
+            if (recurso.responsable_id) {
+              const { data: resp } = await client
+                .from("responsables")
+                .select("user_id")
+                .eq("id", recurso.responsable_id)
+                .single();
+              if (resp?.user_id) destinatarios.add(resp.user_id);
+            }
             const suscIds = await suscRepo.getSuscriptoresUserId(resourceType, recurso.id);
             for (const id of suscIds) destinatarios.add(id);
 
@@ -218,7 +225,14 @@ export async function GET(request: Request) {
             const nombre = recurso[nombreKey] as string;
 
             const destinatarios = new Set<string>();
-            if (recurso.responsable_id) destinatarios.add(recurso.responsable_id as string);
+            if (recurso.responsable_id) {
+              const { data: resp } = await client
+                .from("responsables")
+                .select("user_id")
+                .eq("id", recurso.responsable_id)
+                .single();
+              if (resp?.user_id) destinatarios.add(resp.user_id);
+            }
             const suscIds = await suscRepo2.getSuscriptoresUserId(resourceType2, recurso.id);
             for (const id of suscIds) destinatarios.add(id);
 
