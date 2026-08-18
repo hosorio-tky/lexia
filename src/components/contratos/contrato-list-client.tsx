@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useCallback, useTransition } from "react"
 import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
-  Filter, KanbanSquare, LayoutList, Plus, Search, Trash2, X, ChevronLeft, ChevronRight,
+  Filter, KanbanSquare, LayoutList, Plus, Search, Trash2, X, ChevronLeft, ChevronRight, ChevronDown, FileDown,
 } from "lucide-react";
 import { SortableTh } from "@/components/ui/sortable-th";
 import { ActivityCell } from "@/components/ui/activity-cell";
@@ -27,7 +27,8 @@ import { cn } from "@/lib/utils";
 import { ContratoStatCards } from "./contrato-stat-cards";
 import { ContratoStatusBadge } from "./contrato-status-badge";
 import { ContratoKanban } from "./contrato-kanban";
-import { eliminarContrato } from "@/app/actions/contratos";
+import { eliminarContrato, obtenerContratosParaExportar } from "@/app/actions/contratos";
+import { descargarExcel } from "@/lib/export-excel";
 import { diasRestantes, type Contrato } from "@/types/contratos";
 import { ESTADOS_CONTRATO_OPTIONS } from "@/lib/constants/estados";
 
@@ -179,6 +180,36 @@ export function ContratoListClient({
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
+  const [exporting, setExporting] = useState(false);
+  async function handleExportExcel() {
+    setExporting(true);
+    try {
+      const filters = {
+        search: searchParams.get("search") ?? "",
+        estado: searchParams.get("estado") ?? "",
+        tipo:   searchParams.get("tipo")   ?? "",
+      };
+      const data = await obtenerContratosParaExportar(filters);
+      const rows = data.map((c) => ({
+        "Número":        c.numero ?? "",
+        "Título":        c.titulo,
+        "Tipo":          c.tipo,
+        "Estado":        c.estado,
+        "Contraparte":   c.contraparte_nombre ?? "",
+        "Email contraparte": c.contraparte_email ?? "",
+        "Valor":         c.valor ?? "",
+        "Moneda":        c.moneda ?? "",
+        "Responsable":   c.responsable_nombre ?? "",
+        "Fecha inicio":  c.fecha_inicio ?? "",
+        "Fecha firma":   c.fecha_firma ?? "",
+        "Fecha fin":     c.fecha_fin ?? "",
+      }));
+      descargarExcel(rows, "contratos.xlsx");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <ContratoStatCards contratos={statsData} />
@@ -254,11 +285,24 @@ export function ContratoListClient({
           </div>
 
           <Link href="/contratos/nuevo">
-            <Button size="sm">
+            <Button size="sm" className="rounded-r-none border-r-0">
               <Plus className="mr-2 h-4 w-4" />
               Nuevo Contrato
             </Button>
           </Link>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" className="rounded-l-none px-2">
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportExcel} disabled={exporting}>
+                <FileDown className="mr-2 h-4 w-4" />
+                {exporting ? "Exportando…" : "Exportar a Excel"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

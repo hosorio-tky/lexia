@@ -3,8 +3,10 @@
 import { useState, useMemo, useEffect, useCallback, useTransition } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { Plus, Trash2, Upload, ChevronDown, ChevronLeft, ChevronRight, LayoutList, LayoutGrid, MapPin } from "lucide-react";
+import { Plus, Trash2, Upload, ChevronDown, ChevronLeft, ChevronRight, LayoutList, LayoutGrid, MapPin, FileDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { obtenerPermisosParaExportar } from "@/app/actions/permisos";
+import { descargarExcel } from "@/lib/export-excel";
 import type { SortState } from "@/lib/sort-utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -155,6 +157,32 @@ export function PermitListClient({
   const hasFilters = !!(searchParams.get("search") || searchParams.get("estado") || searchParams.get("tipo") ||
     searchParams.get("responsable") || searchParams.get("vigencia") || searchParams.get("ubicacion"));
 
+  const [exporting, setExporting] = useState(false);
+  async function handleExportExcel() {
+    setExporting(true);
+    try {
+      const data = await obtenerPermisosParaExportar(urlFilters);
+      const rows = data.map((p) => ({
+        "Expediente":        p.numero_expediente ?? "",
+        "Nombre":            p.nombre,
+        "Tipo":              p.tipo,
+        "Estado":            p.estado,
+        "Entidad reguladora": p.entidad_reguladora ?? "",
+        "Ubicación":         p.ubicacion ?? "",
+        "Responsable":       p.responsable_nombre ?? "",
+        "Fecha solicitud":   p.fecha_solicitud ?? "",
+        "Fecha emisión":     p.fecha_emision ?? "",
+        "Fecha vencimiento": p.fecha_vencimiento ?? "",
+        "Valor trámite":     p.valor_tramite ?? "",
+        "Moneda":            p.moneda ?? "",
+        "Riesgo":            p.riesgo_incumplimiento ?? "",
+      }));
+      descargarExcel(rows, "permisos.xlsx");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <PermitStatCards permits={statsData} />
@@ -207,6 +235,10 @@ export function PermitListClient({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleExportExcel} disabled={exporting}>
+                <FileDown className="mr-2 h-4 w-4" />
+                {exporting ? "Exportando…" : "Exportar a Excel"}
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setImportOpen(true)}>
                 <Upload className="mr-2 h-4 w-4" />
                 Importar desde Excel

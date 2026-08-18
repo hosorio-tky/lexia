@@ -9,6 +9,7 @@ import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/logger";
 import { indexContrato } from "@/lib/ai/contrato-indexer";
 import { sendCambioEstado } from "@/lib/email/send";
+import type { ContratoFilters, Contrato } from "@/types/contratos";
 
 const BUCKET = "documentos";
 
@@ -328,4 +329,15 @@ export async function obtenerUrlSubidaContrato(input: {
   }
 
   return { signedUrl: data.signedUrl, storagePath };
+}
+
+// ─── Exportar contratos (sin paginación) ──────────────────────
+export async function obtenerContratosParaExportar(
+  filters: Partial<ContratoFilters>
+): Promise<Contrato[]> {
+  const session = await getSession();
+  const client  = createAdminClient();
+  const repo    = createContratosRepository(client, session.tenant_id);
+  const { items } = await repo.list({ ...filters, limit: 999999, page: 0 });
+  return items;
 }

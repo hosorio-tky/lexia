@@ -8,6 +8,8 @@ import { getSession } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/logger";
 import { sendCambioEstado } from "@/lib/email/send";
+import type { PermitFilters } from "@/types/permits";
+import type { Permit } from "@/types/permits";
 
 // Campos legibles para el diff
 const FIELD_LABELS: Record<string, string> = {
@@ -305,4 +307,15 @@ export async function eliminarPermiso(id: string) {
     });
     throw err;
   }
+}
+
+// ─── Exportar permisos (sin paginación) ───────────────────────
+export async function obtenerPermisosParaExportar(
+  filters: Partial<PermitFilters>
+): Promise<Permit[]> {
+  const session = await getSession();
+  const client  = createAdminClient();
+  const repo    = createPermisosRepository(client, session.tenant_id);
+  const { items } = await repo.list({ ...filters, limit: 999999, page: 0 });
+  return items;
 }
