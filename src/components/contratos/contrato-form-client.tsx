@@ -526,6 +526,14 @@ export function ContratoFormClient({
                   placeholder="Seleccionar"
                 />
               </Field>
+              <Field label="Fecha de firma">
+                <DatePickerInput
+                  name="fecha_firma"
+                  value={fechaFirma}
+                  onChange={setFechaFirma}
+                  placeholder="Seleccionar"
+                />
+              </Field>
               <Field label="Fecha de fin">
                 <DatePickerInput
                   name="fecha_fin"
@@ -538,14 +546,6 @@ export function ContratoFormClient({
                       setFechaFin(iso);
                     }
                   }}
-                  placeholder="Seleccionar"
-                />
-              </Field>
-              <Field label="Fecha de firma">
-                <DatePickerInput
-                  name="fecha_firma"
-                  value={fechaFirma}
-                  onChange={setFechaFirma}
                   placeholder="Seleccionar"
                 />
               </Field>
