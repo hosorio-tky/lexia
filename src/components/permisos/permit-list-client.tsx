@@ -188,7 +188,7 @@ export function PermitListClient({
       <PermitStatCards permits={statsData} />
 
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex items-start justify-between gap-3">
         <PermitFiltersBar
           filters={urlFilters}
           onFiltersChange={handleFiltersChange}
@@ -196,7 +196,7 @@ export function PermitListClient({
           responsables={responsables}
           ubicaciones={ubicaciones}
         />
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <div className="hidden md:flex items-center rounded-lg border bg-background p-1 shadow-sm">
             {(["table", "grid", "location"] as const).map((mode) => {
               const icons = {

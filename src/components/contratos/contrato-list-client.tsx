@@ -143,7 +143,10 @@ export function ContratoListClient({
     navigate({ sort: key, dir: newDir });
   }
 
-  const hasActiveFilters = !!(searchParams.get("search") || searchParams.get("estado") || searchParams.get("tipo"));
+  const activeFilterCount = [
+    searchParams.get("estado"),
+    searchParams.get("tipo"),
+  ].filter(Boolean).length;
 
   function clearFilters() {
     setSearchInput("");
@@ -154,6 +157,8 @@ export function ContratoListClient({
     params.delete("page");
     router.push(`${pathname}?${params.toString()}`);
   }
+
+  const [filterPanelOpen, setFilterPanelOpen] = useState(() => activeFilterCount > 0);
 
   const editableSet = useMemo(() => new Set(editableIds), [editableIds]);
   const editableVisible = useMemo(() => contratos.filter((c) => editableSet.has(c.id)), [contratos, editableSet]);
@@ -215,58 +220,84 @@ export function ContratoListClient({
       <ContratoStatCards contratos={statsData} />
 
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-64">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar contrato, número…"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="h-9 w-full pl-9"
-            />
+      <div className="flex items-start justify-between gap-3">
+        {/* Left: search + expandable filters */}
+        <div className="flex flex-col gap-2 flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1 min-w-0 max-w-sm">
+              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar contrato, número…"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="h-9 w-full pl-9"
+              />
+            </div>
+            <Button
+              variant={filterPanelOpen || activeFilterCount > 0 ? "default" : "outline"}
+              size="sm"
+              className="h-9 gap-1.5 shrink-0"
+              onClick={() => setFilterPanelOpen((o) => !o)}
+            >
+              <Filter className="h-3.5 w-3.5" />
+              Filtros
+              {activeFilterCount > 0 && (
+                <span className="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-white/25 px-1 text-[10px] font-bold leading-none">
+                  {activeFilterCount}
+                </span>
+              )}
+              <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200", filterPanelOpen && "rotate-180")} />
+            </Button>
           </div>
 
-          <Select
-            value={searchParams.get("estado") || "__all__"}
-            onValueChange={(v) => navigate({ estado: v === "__all__" ? undefined : v })}
-          >
-            <SelectTrigger className="h-9 w-44 border-dashed">
-              <Filter className="mr-2 h-3.5 w-3.5" />
-              <SelectValue placeholder="Estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">Todos los estados</SelectItem>
-              {ESTADOS_CONTRATO_OPTIONS.map((o) => (
-                <SelectItem key={o.id} value={o.id}>{o.valor}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {filterPanelOpen && (
+            <div className="rounded-lg border bg-muted/30 p-3">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                <Select
+                  value={searchParams.get("estado") || "__all__"}
+                  onValueChange={(v) => navigate({ estado: v === "__all__" ? undefined : v })}
+                >
+                  <SelectTrigger className="h-9 bg-background">
+                    <SelectValue placeholder="Estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos los estados</SelectItem>
+                    {ESTADOS_CONTRATO_OPTIONS.map((o) => (
+                      <SelectItem key={o.id} value={o.id}>{o.valor}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-          <Select
-            value={searchParams.get("tipo") || "__all__"}
-            onValueChange={(v) => navigate({ tipo: v === "__all__" ? undefined : v })}
-          >
-            <SelectTrigger className="h-9 w-36 border-dashed">
-              <SelectValue placeholder="Tipo" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">Todos los tipos</SelectItem>
-              {tiposContrato.map((t) => (
-                <SelectItem key={t.id} value={t.id}>{t.valor}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                <Select
+                  value={searchParams.get("tipo") || "__all__"}
+                  onValueChange={(v) => navigate({ tipo: v === "__all__" ? undefined : v })}
+                >
+                  <SelectTrigger className="h-9 bg-background">
+                    <SelectValue placeholder="Tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Todos los tipos</SelectItem>
+                    {tiposContrato.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.valor}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-          {hasActiveFilters && (
-            <Button variant="ghost" size="sm" className="h-9 text-muted-foreground" onClick={clearFilters}>
-              <X className="mr-1 h-3.5 w-3.5" />
-              Limpiar
-            </Button>
+              {activeFilterCount > 0 && (
+                <div className="mt-3 flex justify-end">
+                  <Button variant="ghost" size="sm" className="h-8 text-muted-foreground" onClick={clearFilters}>
+                    <X className="mr-1.5 h-3.5 w-3.5" />
+                    Limpiar filtros
+                  </Button>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Right: view toggle + action button */}
+        <div className="flex items-center gap-2 shrink-0">
           <div className="flex items-center rounded-lg border bg-background p-1 shadow-sm">
             <button
               onClick={() => setViewMode("tabla")}
@@ -310,7 +341,7 @@ export function ContratoListClient({
       {total > 0 && pageSize < total && viewMode === "tabla" && (
         <p className="text-xs text-muted-foreground">
           {page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} de {total} contratos
-          {hasActiveFilters ? " (filtrado)" : ""}
+          {activeFilterCount > 0 || searchParams.get("search") ? " (filtrado)" : ""}
         </p>
       )}
 
