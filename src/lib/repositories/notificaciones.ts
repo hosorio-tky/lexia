@@ -33,17 +33,23 @@ export function createNotificacionesRepository(
       return count ?? 0;
     },
 
-    /** Lista completa con filtros (para la página /notificaciones) */
+    /** Lista con filtros y paginación (para la página /notificaciones) */
     async getAll(
       userId: string,
-      filters: NotificacionFilters = {}
-    ): Promise<Notificacion[]> {
+      filters: NotificacionFilters & { page?: number; limit?: number } = {}
+    ): Promise<{ items: Notificacion[]; total: number }> {
+      const limit = filters.limit ?? 9999;
+      const page  = filters.page  ?? 0;
+      const from  = page * limit;
+      const to    = from + limit - 1;
+
       let q = client
         .from("notificaciones")
-        .select("*")
+        .select("*", { count: "exact" })
         .eq("tenant_id", tenantId)
         .eq("user_id", userId)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(from, to);
 
       if (filters.leida !== undefined && filters.leida !== null) {
         q = q.eq("leida", filters.leida);
@@ -52,9 +58,12 @@ export function createNotificacionesRepository(
         q = q.eq("modulo", filters.modulo);
       }
 
-      const { data, error } = await q;
+      const { data, error, count } = await q;
       if (error) throw error;
-      return (data ?? []) as Notificacion[];
+      return {
+        items: (data ?? []) as Notificacion[],
+        total: count ?? 0,
+      };
     },
 
     /** Marcar una como leída */

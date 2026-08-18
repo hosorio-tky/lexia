@@ -23,7 +23,8 @@ export async function obtenerTodasLasNotificaciones(filters?: {
   const session = await getSession();
   const client  = createAdminClient();
   const repo    = createNotificacionesRepository(client, session.tenant_id);
-  return repo.getAll(session.user_id, filters ?? {});
+  const { items } = await repo.getAll(session.user_id, filters ?? {});
+  return items;
 }
 
 // ─── Marcar una como leída ────────────────────────────────────

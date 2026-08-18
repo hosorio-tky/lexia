@@ -92,28 +92,28 @@ function mapDocRow(row: LexbaseDocumentoRow): LexbaseDocumento {
 // ─── Repositorio ──────────────────────────────────────────────
 export function createLexbaseRepository(client: SupabaseClient, tenantId: string) {
   return {
-    /** Lista documentos con filtros opcionales */
-    async list(filters?: Partial<LexbaseFilters>): Promise<LexbaseDocumento[]> {
+    /** Lista documentos con filtros y paginación */
+    async list(
+      filters?: Partial<LexbaseFilters> & { page?: number; limit?: number },
+    ): Promise<{ items: LexbaseDocumento[]; total: number }> {
+      const limit = filters?.limit ?? 9999;
+      const page  = filters?.page  ?? 0;
+      const from  = page * limit;
+      const to    = from + limit - 1;
+
       let query = client
         .from("lexbase_documentos")
-        .select("*, lexbase_categorias(*)")
+        .select("*, lexbase_categorias(*)", { count: "exact" })
         .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(from, to);
 
-      if (filters?.tipo) {
-        query = query.eq("tipo", filters.tipo);
-      }
-      if (filters?.categoria_id) {
-        query = query.eq("categoria_id", filters.categoria_id);
-      }
-      if (filters?.pais) {
-        query = query.eq("pais", filters.pais);
-      }
+      if (filters?.tipo)        query = query.eq("tipo",          filters.tipo);
+      if (filters?.categoria_id) query = query.eq("categoria_id", filters.categoria_id);
+      if (filters?.pais)        query = query.eq("pais",          filters.pais);
+      if (filters?.tag)         query = query.contains("tags",    [filters.tag]);
       if (filters?.tiene_reformas !== null && filters?.tiene_reformas !== undefined) {
         query = query.eq("tiene_reformas", filters.tiene_reformas);
-      }
-      if (filters?.tag) {
-        query = query.contains("tags", [filters.tag]);
       }
       if (filters?.search) {
         const q = filters.search;
@@ -122,9 +122,12 @@ export function createLexbaseRepository(client: SupabaseClient, tenantId: string
         );
       }
 
-      const { data, error } = await query;
+      const { data, error, count } = await query;
       if (error) throw error;
-      return (data ?? []).map((row) => mapDocRow(row as LexbaseDocumentoRow));
+      return {
+        items: (data ?? []).map((row) => mapDocRow(row as LexbaseDocumentoRow)),
+        total: count ?? 0,
+      };
     },
 
     /** Obtiene un documento por ID */

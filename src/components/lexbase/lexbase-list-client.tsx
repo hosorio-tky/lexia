@@ -1,82 +1,106 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { LexbaseStatCardsFromDocs } from "./lexbase-stat-cards";
+import { LexbaseStatCards } from "./lexbase-stat-cards";
 import { LexbaseFiltersBar } from "./lexbase-filters";
 import { LexbaseDocumentCard } from "./lexbase-document-card";
-import type { LexbaseDocumento, LexbaseCategoria, LexbaseFilters } from "@/types/lexbase";
-
-interface LexbaseListClientProps {
-  initialDocs:       LexbaseDocumento[];
-  initialCategorias: LexbaseCategoria[];
-}
+import type { LexbaseDocumento, LexbaseCategoria, LexbaseFilters, LexbaseStats, LexbaseTipo } from "@/types/lexbase";
 
 export function LexbaseListClient({
-  initialDocs,
-  initialCategorias,
-}: LexbaseListClientProps) {
+  docs,
+  categorias,
+  stats,
+  paises,
+  allTags,
+  total,
+  page,
+  pageSize,
+}: {
+  docs:       LexbaseDocumento[];
+  categorias: LexbaseCategoria[];
+  stats:      LexbaseStats;
+  paises:     string[];
+  allTags:    string[];
+  total:      number;
+  page:       number;
+  pageSize:   number;
+}) {
+  const searchParams = useSearchParams();
+  const router       = useRouter();
+  const pathname     = usePathname();
+
+  // View mode stays as local UI state (doesn't affect server fetch)
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [filters, setFilters]   = useState<LexbaseFilters>({
-    search:         "",
-    tipo:           "",
-    categoria_id:   "",
-    pais:           "",
-    tiene_reformas: null,
-    tag:            "",
-  });
 
-  // Derived lists for filter dropdowns
-  const paises = useMemo(() => {
-    const set = new Set(initialDocs.map((d) => d.pais).filter(Boolean));
-    return [...set].sort();
-  }, [initialDocs]);
+  // Debounced search
+  const [searchInput, setSearchInput] = useState(searchParams.get("search") ?? "");
 
-  const allTags = useMemo(() => {
-    const set = new Set(initialDocs.flatMap((d) => d.tags));
-    return [...set].sort();
-  }, [initialDocs]);
+  const navigate = useCallback((overrides: Record<string, string | undefined>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [k, v] of Object.entries(overrides)) {
+      if (v !== undefined) params.set(k, v); else params.delete(k);
+    }
+    if (!("page" in overrides)) params.delete("page");
+    router.push(`${pathname}?${params.toString()}`);
+  }, [router, searchParams, pathname]);
 
-  const filtered = useMemo(() => {
-    return initialDocs.filter((doc) => {
-      if (filters.search) {
-        const q = filters.search.toLowerCase();
-        if (
-          !doc.titulo.toLowerCase().includes(q) &&
-          !(doc.numero_oficial ?? "").toLowerCase().includes(q) &&
-          !(doc.organo_emisor ?? "").toLowerCase().includes(q) &&
-          !(doc.descripcion ?? "").toLowerCase().includes(q)
-        )
-          return false;
-      }
-      if (filters.tipo && doc.tipo !== filters.tipo) return false;
-      if (filters.categoria_id && doc.categoria_id !== filters.categoria_id) return false;
-      if (filters.pais && doc.pais !== filters.pais) return false;
-      if (filters.tiene_reformas !== null && doc.tiene_reformas !== filters.tiene_reformas)
-        return false;
-      if (filters.tag && !doc.tags.includes(filters.tag)) return false;
-      return true;
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const current = searchParams.get("search") ?? "";
+      if (searchInput !== current) navigate({ search: searchInput || undefined });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Derive filter state from URL
+  const tieneReformasUrl = searchParams.get("reformas");
+  const urlFilters: LexbaseFilters = {
+    search:         searchInput,
+    tipo:           (searchParams.get("tipo") || "") as LexbaseTipo | "",
+    categoria_id:   searchParams.get("cat")  || "",
+    pais:           searchParams.get("pais") || "",
+    tiene_reformas: tieneReformasUrl === "true" ? true : tieneReformasUrl === "false" ? false : null,
+    tag:            searchParams.get("tag")  || "",
+  };
+
+  function handleFiltersChange(newFilters: LexbaseFilters) {
+    if (newFilters.search !== urlFilters.search) {
+      setSearchInput(newFilters.search ?? "");
+      return;
+    }
+    navigate({
+      tipo:     newFilters.tipo         || undefined,
+      cat:      newFilters.categoria_id || undefined,
+      pais:     newFilters.pais         || undefined,
+      tag:      newFilters.tag          || undefined,
+      reformas: newFilters.tiene_reformas === null ? undefined : String(newFilters.tiene_reformas),
+      search:   searchParams.get("search") || undefined,
     });
-  }, [initialDocs, filters]);
+  }
+
+  const hasFilters = !!(
+    searchParams.get("search") || searchParams.get("tipo") || searchParams.get("cat") ||
+    searchParams.get("pais")   || searchParams.get("reformas") || searchParams.get("tag")
+  );
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Stat cards */}
-      <LexbaseStatCardsFromDocs
-        docs={initialDocs}
-        categorias={initialCategorias.length}
-      />
+      <LexbaseStatCards stats={stats} />
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <LexbaseFiltersBar
-          filters={filters}
-          onFiltersChange={setFilters}
+          filters={urlFilters}
+          onFiltersChange={handleFiltersChange}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
-          categorias={initialCategorias}
+          categorias={categorias}
           paises={paises}
           tags={allTags}
         />
@@ -88,15 +112,19 @@ export function LexbaseListClient({
         </Link>
       </div>
 
-      {/* Results count */}
-      {filters.search || filters.tipo || filters.categoria_id || filters.pais || filters.tiene_reformas !== null || filters.tag ? (
+      {/* Contador */}
+      {total > 0 && (
         <p className="text-sm text-muted-foreground">
-          {filtered.length} {filtered.length === 1 ? "documento" : "documentos"} encontrados
+          {hasFilters
+            ? `${total} ${total === 1 ? "documento" : "documentos"} encontrados`
+            : pageSize < total
+              ? `${page * pageSize + 1}–${Math.min((page + 1) * pageSize, total)} de ${total} documentos`
+              : null}
         </p>
-      ) : null}
+      )}
 
       {/* Grid / List */}
-      {filtered.length === 0 ? (
+      {docs.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
           <p className="text-muted-foreground text-sm">No se encontraron documentos</p>
           <Link href="/lexbase/nuevo" className="mt-3">
@@ -108,15 +136,42 @@ export function LexbaseListClient({
         </div>
       ) : viewMode === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filtered.map((doc) => (
+          {docs.map((doc) => (
             <LexbaseDocumentCard key={doc.id} doc={doc} />
           ))}
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {filtered.map((doc) => (
+          {docs.map((doc) => (
             <LexbaseDocumentCard key={doc.id} doc={doc} />
           ))}
+        </div>
+      )}
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === 0}
+            onClick={() => navigate({ page: String(page - 1) })}
+          >
+            <ChevronLeft className="mr-1.5 h-4 w-4" />
+            Anterior
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Página {page + 1} de {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages - 1}
+            onClick={() => navigate({ page: String(page + 1) })}
+          >
+            Siguiente
+            <ChevronRight className="ml-1.5 h-4 w-4" />
+          </Button>
         </div>
       )}
     </div>

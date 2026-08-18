@@ -1,7 +1,8 @@
 import { CheckCircle2, DollarSign, FileText, TriangleAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import type { Contrato } from "@/types/contratos";
 import { ESTADOS_CONTRATO } from "@/lib/constants/estados";
+
+type ContratoStat = { estado_id: string; fecha_fin?: string | null; valor?: number | null };
 
 function StatCard({
   label,
@@ -27,7 +28,7 @@ function StatCard({
   );
 }
 
-export function ContratoStatCards({ contratos }: { contratos: Contrato[] }) {
+export function ContratoStatCards({ contratos }: { contratos: ContratoStat[] }) {
   const total    = contratos.length;
   const vigentes = contratos.filter((c) => c.estado_id === ESTADOS_CONTRATO.VIGENTE).length;
 

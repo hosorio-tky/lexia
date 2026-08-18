@@ -1,7 +1,8 @@
 import { CheckCircle2, Clock, Library, TriangleAlert } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import type { Permit } from "@/types/permits";
 import { ESTADOS_PERMISO } from "@/lib/constants/estados";
+
+type PermitStat = { estado_id: string };
 
 function StatCard({
   label,
@@ -27,7 +28,7 @@ function StatCard({
   );
 }
 
-export function PermitStatCards({ permits }: { permits: Permit[] }) {
+export function PermitStatCards({ permits }: { permits: PermitStat[] }) {
   const total   = permits.length;
   const aprobados = permits.filter((p) => p.estado_id === ESTADOS_PERMISO.APROBADO).length;
   const EN_PROCESO = new Set<string>([

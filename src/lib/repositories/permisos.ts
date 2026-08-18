@@ -156,45 +156,87 @@ function mapFechaHistorialRow(row: PermisoFechaHistorialRow): PermitFechaHistori
 export function createPermisosRepository(client: SupabaseClient, tenantId: string) {
   return {
     async list(
-      filters?: Partial<PermitFilters>,
+      filters?: Partial<PermitFilters> & { page?: number; limit?: number; sortKey?: string; sortDir?: "asc" | "desc" },
       caller?: { userId: string; userRol: string },
-    ): Promise<Permit[]> {
+    ): Promise<{ items: Permit[]; total: number }> {
+      const limit = filters?.limit ?? 9999;
+      const page  = filters?.page  ?? 0;
+      const from  = page * limit;
+      const to    = from + limit - 1;
+
+      const SORT_MAP: Record<string, string> = {
+        nombre:      "nombre",
+        vencimiento: "fecha_vencimiento",
+        actividad:   "updated_at",
+      };
+      const dbCol = SORT_MAP[filters?.sortKey ?? "actividad"] ?? "updated_at";
+      const asc   = filters?.sortDir === "asc";
+
       let query = client
         .from("permisos")
-        .select(SELECT_PERMISO)
+        .select(SELECT_PERMISO, { count: "exact" })
         .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: false });
+        .order(dbCol, { ascending: asc })
+        .range(from, to);
 
-      if (filters?.estado) {
-        query = query.eq("estado_id", filters.estado);
-      }
-      if (filters?.tipo) {
-        query = query.eq("tipo_id", filters.tipo);
-      }
-      if (filters?.entidad) {
-        query = query.eq("entidad_reguladora_id", filters.entidad);
-      }
+      if (filters?.estado)     query = query.eq("estado_id",        filters.estado);
+      if (filters?.tipo)       query = query.eq("tipo_id",          filters.tipo);
+      if (filters?.responsable) query = query.eq("responsable_nombre", filters.responsable);
+      if (filters?.ubicacion)  query = query.eq("ubicacion",        filters.ubicacion);
       if (filters?.search) {
         query = query.or(
           `nombre.ilike.%${filters.search}%,numero_expediente.ilike.%${filters.search}%`
         );
       }
-
-      const { data, error } = await query;
-      if (error) throw error;
-      let result = (data ?? []).map((row) => mapRow(row as unknown as PermisoRow));
+      if (filters?.vigencia) {
+        const today = new Date().toISOString().split("T")[0];
+        const in90d = new Date(Date.now() + 90 * 86400000).toISOString().split("T")[0];
+        if (filters.vigencia === "Vencido") {
+          query = query.lt("fecha_vencimiento", today);
+        } else if (filters.vigencia === "Por vencer") {
+          query = query.gte("fecha_vencimiento", today).lte("fecha_vencimiento", in90d);
+        } else if (filters.vigencia === "Vigente") {
+          query = query.gt("fecha_vencimiento", in90d);
+        }
+      }
 
       if (caller && caller.userRol !== "admin") {
         const accessibleIds = await getAccessibleIds(client, tenantId, "permiso", caller.userId);
-        result = result.filter(
-          (p) =>
-            p.visibilidad !== "restringido" ||
-            p.created_by === caller.userId ||
-            accessibleIds.has(p.id),
-        );
+        const idsClause = [...accessibleIds].map((id) => `id.eq.${id}`).join(",");
+        const orClause  = idsClause
+          ? `visibilidad.neq.restringido,created_by.eq.${caller.userId},${idsClause}`
+          : `visibilidad.neq.restringido,created_by.eq.${caller.userId}`;
+        query = query.or(orClause);
       }
 
-      return result;
+      const { data, error, count } = await query;
+      if (error) throw error;
+      return {
+        items: (data ?? []).map((row) => mapRow(row as unknown as PermisoRow)),
+        total: count ?? 0,
+      };
+    },
+
+    async listStats(
+      caller?: { userId: string; userRol: string },
+    ): Promise<{ id: string; estado_id: string; fecha_vencimiento: string | null }[]> {
+      let query = client
+        .from("permisos")
+        .select("id, estado_id, fecha_vencimiento")
+        .eq("tenant_id", tenantId);
+
+      if (caller && caller.userRol !== "admin") {
+        const accessibleIds = await getAccessibleIds(client, tenantId, "permiso", caller.userId);
+        const idsClause = [...accessibleIds].map((id) => `id.eq.${id}`).join(",");
+        const orClause  = idsClause
+          ? `visibilidad.neq.restringido,created_by.eq.${caller.userId},${idsClause}`
+          : `visibilidad.neq.restringido,created_by.eq.${caller.userId}`;
+        query = query.or(orClause);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []) as { id: string; estado_id: string; fecha_vencimiento: string | null }[];
     },
 
     async getById(id: string, caller?: { userId: string; userRol: string }): Promise<Permit | null> {

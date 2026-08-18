@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useCallback, useTransition } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { formatDistanceToNow, format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import {
   Bell, Check, CheckCheck, ExternalLink,
-  FileText, ClipboardCheck, Filter, Trash2,
-  RefreshCw,
+  FileText, ClipboardCheck, RefreshCw, Trash2,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import {
   marcarComoLeida,
@@ -35,7 +35,7 @@ const MODULO_LABELS: Record<string, string> = {
 };
 
 const MODULO_ICONS: Record<string, React.ReactNode> = {
-  permisos: <FileText      className="h-4 w-4" />,
+  permisos: <FileText       className="h-4 w-4" />,
   tareas:   <ClipboardCheck className="h-4 w-4" />,
 };
 
@@ -46,39 +46,65 @@ const MODULO_HREFS: Record<string, string> = {
 
 export function NotificacionesClient({
   initialNotifs,
+  totalUnread,
+  total,
+  page,
+  pageSize,
 }: {
   initialNotifs: Notificacion[];
+  totalUnread:   number;
+  total:         number;
+  page:          number;
+  pageSize:      number;
 }) {
+  const searchParams = useSearchParams();
+  const router       = useRouter();
+  const pathname     = usePathname();
+
+  // Local state for optimistic mark-as-read / delete (within current page)
   const [notifs, setNotifs]     = useState<Notificacion[]>(initialNotifs);
-  const [filtroLeida, setFiltroLeida] = useState<"todas" | "sin_leer" | "leidas">("todas");
-  const [filtroModulo, setFiltroModulo] = useState<string>("_todos");
-  const [isPending, startTransition]   = useTransition();
-  const [generando, setGenerando]      = useState(false);
-  const [genMsg, setGenMsg]            = useState<string | null>(null);
+  const [localUnread, setLocalUnread] = useState(totalUnread);
+  const [isPending, startTransition]  = useTransition();
+  const [generando, setGenerando]     = useState(false);
+  const [genMsg, setGenMsg]           = useState<string | null>(null);
 
-  const unreadCount = notifs.filter((n) => !n.leida).length;
+  const navigate = useCallback((overrides: Record<string, string | undefined>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [k, v] of Object.entries(overrides)) {
+      if (v !== undefined) params.set(k, v); else params.delete(k);
+    }
+    if (!("page" in overrides)) params.delete("page");
+    router.push(`${pathname}?${params.toString()}`);
+  }, [router, searchParams, pathname]);
 
-  const visible = notifs.filter((n) => {
-    if (filtroLeida === "sin_leer" && n.leida)    return false;
-    if (filtroLeida === "leidas"   && !n.leida)   return false;
-    if (filtroModulo !== "_todos"  && n.modulo !== filtroModulo) return false;
-    return true;
-  });
+  const filtroLeida  = searchParams.get("leida")  ?? "todas";
+  const filtroModulo = searchParams.get("modulo") ?? "_todos";
+
+  function setFiltroLeida(v: string) {
+    navigate({ leida: v === "todas" ? undefined : v === "sin_leer" ? "false" : "true" });
+  }
+  function setFiltroModulo(v: string) {
+    navigate({ modulo: v === "_todos" ? undefined : v });
+  }
 
   function handleRead(id: string) {
-    setNotifs((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, leida: true } : n))
-    );
+    const wasUnread = notifs.some((n) => n.id === id && !n.leida);
+    setNotifs((prev) => prev.map((n) => (n.id === id ? { ...n, leida: true } : n)));
+    if (wasUnread) setLocalUnread((prev) => Math.max(0, prev - 1));
     startTransition(() => marcarComoLeida(id));
   }
 
   function handleDelete(id: string) {
+    const wasUnread = notifs.some((n) => n.id === id && !n.leida);
     setNotifs((prev) => prev.filter((n) => n.id !== id));
+    if (wasUnread) setLocalUnread((prev) => Math.max(0, prev - 1));
     startTransition(() => eliminarNotificacion(id));
   }
 
   function handleMarkAll() {
+    const countOnPage = notifs.filter((n) => !n.leida).length;
     setNotifs((prev) => prev.map((n) => ({ ...n, leida: true })));
+    setLocalUnread((prev) => Math.max(0, prev - countOnPage));
     startTransition(() => marcarTodosComoLeidos());
   }
 
@@ -95,18 +121,18 @@ export function NotificacionesClient({
           ? "No hay vencimientos próximos sin notificar."
           : `${res.count} notificación${res.count > 1 ? "es" : ""} generada${res.count > 1 ? "s" : ""}.`
       );
-      // Refrescar lista
       window.location.reload();
     }
   }
+
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div className="flex flex-col gap-5">
       {/* Barra de acciones */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          {/* Filtro leída */}
-          <Select value={filtroLeida} onValueChange={(v) => setFiltroLeida(v as typeof filtroLeida)}>
+          <Select value={filtroLeida} onValueChange={setFiltroLeida}>
             <SelectTrigger className="h-9 w-[140px]">
               <SelectValue />
             </SelectTrigger>
@@ -117,7 +143,6 @@ export function NotificacionesClient({
             </SelectContent>
           </Select>
 
-          {/* Filtro módulo */}
           <Select value={filtroModulo} onValueChange={setFiltroModulo}>
             <SelectTrigger className="h-9 w-[140px]">
               <SelectValue placeholder="Módulo" />
@@ -131,7 +156,7 @@ export function NotificacionesClient({
         </div>
 
         <div className="flex items-center gap-2">
-          {unreadCount > 0 && (
+          {localUnread > 0 && (
             <Button
               variant="outline"
               size="sm"
@@ -162,16 +187,16 @@ export function NotificacionesClient({
         </p>
       )}
 
-      {/* Resumen */}
-      {unreadCount > 0 && (
+      {/* Resumen global */}
+      {localUnread > 0 && (
         <p className="text-sm text-muted-foreground">
-          <span className="font-semibold text-foreground">{unreadCount}</span> sin leer
-          de <span className="font-semibold text-foreground">{notifs.length}</span> en total
+          <span className="font-semibold text-foreground">{localUnread}</span> sin leer
+          de <span className="font-semibold text-foreground">{total}</span> en total
         </p>
       )}
 
       {/* Lista */}
-      {visible.length === 0 ? (
+      {notifs.length === 0 ? (
         <Card className="flex flex-col items-center gap-3 py-20 text-center shadow-sm">
           <Bell className="h-10 w-10 text-muted-foreground/25" />
           <p className="text-sm text-muted-foreground">No hay notificaciones</p>
@@ -179,16 +204,38 @@ export function NotificacionesClient({
       ) : (
         <Card className="overflow-hidden shadow-sm">
           <div className="divide-y">
-            {visible.map((n) => (
-              <NotifRow
-                key={n.id}
-                notif={n}
-                onRead={handleRead}
-                onDelete={handleDelete}
-              />
+            {notifs.map((n) => (
+              <NotifRow key={n.id} notif={n} onRead={handleRead} onDelete={handleDelete} />
             ))}
           </div>
         </Card>
+      )}
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === 0}
+            onClick={() => navigate({ page: String(page - 1) })}
+          >
+            <ChevronLeft className="mr-1.5 h-4 w-4" />
+            Anterior
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Página {page + 1} de {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages - 1}
+            onClick={() => navigate({ page: String(page + 1) })}
+          >
+            Siguiente
+            <ChevronRight className="ml-1.5 h-4 w-4" />
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -199,8 +246,8 @@ function NotifRow({
   onRead,
   onDelete,
 }: {
-  notif: Notificacion;
-  onRead: (id: string) => void;
+  notif:    Notificacion;
+  onRead:   (id: string) => void;
   onDelete: (id: string) => void;
 }) {
   const href =
@@ -215,40 +262,30 @@ function NotifRow({
         !notif.leida && "bg-primary/[0.03]"
       )}
     >
-      {/* Ícono módulo */}
       <div
         className={cn(
           "mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl",
-          !notif.leida
-            ? "bg-primary/10 text-primary"
-            : "bg-muted text-muted-foreground"
+          !notif.leida ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
         )}
       >
         {MODULO_ICONS[notif.modulo ?? ""] ?? <Bell className="h-4 w-4" />}
       </div>
 
-      {/* Contenido */}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={cn("text-sm", !notif.leida && "font-semibold")}>
-            {notif.titulo}
-          </span>
+          <span className={cn("text-sm", !notif.leida && "font-semibold")}>{notif.titulo}</span>
           {notif.modulo && (
             <Badge variant="outline" className="text-[10px] px-1.5 py-0">
               {MODULO_LABELS[notif.modulo] ?? notif.modulo}
             </Badge>
           )}
-          {!notif.leida && (
-            <span className="h-2 w-2 rounded-full bg-primary" />
-          )}
+          {!notif.leida && <span className="h-2 w-2 rounded-full bg-primary" />}
         </div>
         {notif.mensaje && (
           <p className="mt-0.5 text-sm text-muted-foreground">{notif.mensaje}</p>
         )}
         {notif.recurso_desc && notif.recurso_desc !== notif.mensaje && (
-          <p className="mt-0.5 text-xs text-muted-foreground/70">
-            {notif.recurso_desc}
-          </p>
+          <p className="mt-0.5 text-xs text-muted-foreground/70">{notif.recurso_desc}</p>
         )}
         <p className="mt-1 text-xs text-muted-foreground/60">
           {format(parseISO(notif.created_at), "d MMM yyyy · HH:mm", { locale: es })}
@@ -257,7 +294,6 @@ function NotifRow({
         </p>
       </div>
 
-      {/* Acciones */}
       <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
         {href && (
           <Link href={href} onClick={() => onRead(notif.id)}>

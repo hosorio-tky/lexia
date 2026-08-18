@@ -1,12 +1,11 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useEffect, useCallback, useTransition } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
-  Filter, KanbanSquare, LayoutList, Plus, Search, Trash2, X,
+  Filter, KanbanSquare, LayoutList, Plus, Search, Trash2, X, ChevronLeft, ChevronRight,
 } from "lucide-react";
-import { nextSort, sortItems, activityTs } from "@/lib/sort-utils";
 import { SortableTh } from "@/components/ui/sortable-th";
 import { ActivityCell } from "@/components/ui/activity-cell";
 import type { SortState } from "@/lib/sort-utils";
@@ -29,7 +28,7 @@ import { ContratoStatCards } from "./contrato-stat-cards";
 import { ContratoStatusBadge } from "./contrato-status-badge";
 import { ContratoKanban } from "./contrato-kanban";
 import { eliminarContrato } from "@/app/actions/contratos";
-import { diasRestantes, type Contrato, type ContratoFilters } from "@/types/contratos";
+import { diasRestantes, type Contrato } from "@/types/contratos";
 import { ESTADOS_CONTRATO_OPTIONS } from "@/lib/constants/estados";
 
 import { ArrowRight, Edit, MoreHorizontal } from "lucide-react";
@@ -72,17 +71,25 @@ function VencimientoCell({ iso }: { iso?: string }) {
 }
 
 export function ContratoListClient({
-  initialContratos,
+  contratos,
+  statsData,
   userId,
   userRol,
   editableIds = [],
   tiposContrato = [],
+  total,
+  page,
+  pageSize,
 }: {
-  initialContratos: Contrato[];
-  userId?: string;
-  userRol?: string;
+  contratos:    Contrato[];
+  statsData:    { estado_id: string; fecha_fin?: string | null; valor?: number | null }[];
+  userId?:      string;
+  userRol?:     string;
   editableIds?: string[];
   tiposContrato?: CatalogoItem[];
+  total:    number;
+  page:     number;
+  pageSize: number;
 }) {
   const searchParams = useSearchParams();
   const router       = useRouter();
@@ -90,67 +97,74 @@ export function ContratoListClient({
 
   const viewMode = (searchParams.get("v") as ViewMode | null) ?? "tabla";
 
+  // Sort derived from URL
+  const sort: SortState<ContratoSortKey> = {
+    key: (searchParams.get("sort") as ContratoSortKey) ?? "actividad",
+    dir: (searchParams.get("dir") as "asc" | "desc") ?? "desc",
+  };
+
+  const [selected, setSelected]      = useState<string[]>([]);
+  const [isPending, startTransition]  = useTransition();
+
+  // Debounced search
+  const [searchInput, setSearchInput] = useState(searchParams.get("search") ?? "");
+
+  const navigate = useCallback((overrides: Record<string, string | undefined>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [k, v] of Object.entries(overrides)) {
+      if (v) params.set(k, v); else params.delete(k);
+    }
+    if (!("page" in overrides)) params.delete("page");
+    router.push(`${pathname}?${params.toString()}`);
+  }, [router, searchParams, pathname]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const current = searchParams.get("search") ?? "";
+      if (searchInput !== current) navigate({ search: searchInput || undefined });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function setViewMode(mode: ViewMode) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("v", mode);
+    params.delete("page");
     router.replace(`${pathname}?${params.toString()}`);
   }
 
-  const [selected, setSelected]     = useState<string[]>([]);
-  const [filters, setFilters]       = useState<ContratoFilters>({ search: "", estado: "", tipo: "" });
-  const [sort, setSort]             = useState<SortState<ContratoSortKey>>({ key: "actividad", dir: "desc" });
-  const [isPending, startTransition] = useTransition();
-
-  const editableSet = useMemo(() => new Set(editableIds), [editableIds]);
-
   function handleSort(key: ContratoSortKey) {
-    setSort((prev) => nextSort(prev, key));
+    const currentKey = (searchParams.get("sort") as ContratoSortKey) ?? "actividad";
+    const currentDir = (searchParams.get("dir") as "asc" | "desc") ?? "desc";
+    const newDir: "asc" | "desc" = currentKey === key
+      ? (currentDir === "desc" ? "asc" : "desc")
+      : "desc";
+    navigate({ sort: key, dir: newDir });
   }
 
-  const filtered = useMemo(() => {
-    const list = initialContratos.filter((c) => {
-      if (filters.search) {
-        const q = filters.search.toLowerCase();
-        if (
-          !c.titulo.toLowerCase().includes(q) &&
-          !(c.numero ?? "").toLowerCase().includes(q) &&
-          !(c.contraparte_nombre ?? "").toLowerCase().includes(q)
-        ) return false;
-      }
-      if (filters.estado && c.estado_id !== filters.estado) return false;
-      if (filters.tipo   && c.tipo   !== filters.tipo)   return false;
-      return true;
-    });
-    return sortItems(list, sort, (c, key) => {
-      switch (key as ContratoSortKey) {
-        case "titulo":      return c.titulo;
-        case "tipo":        return c.tipo;
-        case "estado":      return c.estado;
-        case "contraparte": return c.contraparte_nombre ?? "";
-        case "valor":       return c.valor ?? 0;
-        case "fecha_fin":   return c.fecha_fin ?? "";
-        case "actividad":   return activityTs(c.created_at, c.updated_at);
-        default:            return "";
-      }
-    });
-  }, [initialContratos, filters, sort]);
+  const hasActiveFilters = !!(searchParams.get("search") || searchParams.get("estado") || searchParams.get("tipo"));
 
-  const hasActiveFilters = filters.search || filters.estado || filters.tipo;
-  const clearFilters = () => setFilters({ search: "", estado: "", tipo: "" });
+  function clearFilters() {
+    setSearchInput("");
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("search");
+    params.delete("estado");
+    params.delete("tipo");
+    params.delete("page");
+    router.push(`${pathname}?${params.toString()}`);
+  }
 
-  const editableFiltered = useMemo(
-    () => filtered.filter((c) => editableSet.has(c.id)),
-    [filtered, editableSet],
-  );
+  const editableSet = useMemo(() => new Set(editableIds), [editableIds]);
+  const editableVisible = useMemo(() => contratos.filter((c) => editableSet.has(c.id)), [contratos, editableSet]);
 
   const toggleSelect  = (id: string) => {
     if (!editableSet.has(id)) return;
     setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   };
   const toggleAll = () =>
-    setSelected(selected.length === editableFiltered.length && editableFiltered.length > 0
+    setSelected(selected.length === editableVisible.length && editableVisible.length > 0
       ? []
-      : editableFiltered.map((c) => c.id));
+      : editableVisible.map((c) => c.id));
 
   const handleDelete = (id: string) => {
     startTransition(() => eliminarContrato(id));
@@ -163,28 +177,28 @@ export function ContratoListClient({
     });
   };
 
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
   return (
     <div className="flex flex-col gap-6">
-      {/* Tarjetas resumen */}
-      <ContratoStatCards contratos={initialContratos} />
+      <ContratoStatCards contratos={statsData} />
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        {/* Filtros */}
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative w-64">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Buscar contrato, número…"
-              value={filters.search}
-              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
               className="h-9 w-full pl-9"
             />
           </div>
 
           <Select
-            value={filters.estado || "__all__"}
-            onValueChange={(v) => setFilters({ ...filters, estado: v === "__all__" ? "" : (v as ContratoFilters["estado"]) })}
+            value={searchParams.get("estado") || "__all__"}
+            onValueChange={(v) => navigate({ estado: v === "__all__" ? undefined : v })}
           >
             <SelectTrigger className="h-9 w-44 border-dashed">
               <Filter className="mr-2 h-3.5 w-3.5" />
@@ -199,8 +213,8 @@ export function ContratoListClient({
           </Select>
 
           <Select
-            value={filters.tipo || "__all__"}
-            onValueChange={(v) => setFilters({ ...filters, tipo: v === "__all__" ? "" : (v as ContratoFilters["tipo"]) })}
+            value={searchParams.get("tipo") || "__all__"}
+            onValueChange={(v) => navigate({ tipo: v === "__all__" ? undefined : v })}
           >
             <SelectTrigger className="h-9 w-36 border-dashed">
               <SelectValue placeholder="Tipo" />
@@ -221,9 +235,7 @@ export function ContratoListClient({
           )}
         </div>
 
-        {/* Right: toggle vista + nuevo */}
         <div className="flex items-center gap-2">
-          {/* Toggle vista */}
           <div className="flex items-center rounded-lg border bg-background p-1 shadow-sm">
             <button
               onClick={() => setViewMode("tabla")}
@@ -241,7 +253,6 @@ export function ContratoListClient({
             </button>
           </div>
 
-          {/* Nuevo Contrato */}
           <Link href="/contratos/nuevo">
             <Button size="sm">
               <Plus className="mr-2 h-4 w-4" />
@@ -250,6 +261,14 @@ export function ContratoListClient({
           </Link>
         </div>
       </div>
+
+      {/* Contador */}
+      {total > 0 && pageSize < total && viewMode === "tabla" && (
+        <p className="text-xs text-muted-foreground">
+          {page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} de {total} contratos
+          {hasActiveFilters ? " (filtrado)" : ""}
+        </p>
+      )}
 
       {/* Vista */}
       {viewMode === "tabla" ? (
@@ -260,9 +279,9 @@ export function ContratoListClient({
                 <tr className="border-b bg-muted/40">
                   <th className="px-4 py-3 w-10">
                     <Checkbox
-                      checked={editableFiltered.length > 0 && selected.length === editableFiltered.length}
+                      checked={editableVisible.length > 0 && selected.length === editableVisible.length}
                       onCheckedChange={toggleAll}
-                      disabled={editableFiltered.length === 0}
+                      disabled={editableVisible.length === 0}
                     />
                   </th>
                   <SortableTh label="Título"      sortKey="titulo"      sort={sort} onSort={handleSort} />
@@ -278,14 +297,14 @@ export function ContratoListClient({
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {contratos.length === 0 ? (
                   <tr>
                     <td colSpan={11} className="px-4 py-12 text-center text-muted-foreground">
                       No hay contratos que coincidan con los filtros.
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((c) => (
+                  contratos.map((c) => (
                     <tr key={c.id} className={cn("border-b transition-colors hover:bg-muted/30", selected.includes(c.id) && "bg-muted/20")}>
                       <td className="px-4 py-3">
                         {editableSet.has(c.id) && (
@@ -380,7 +399,34 @@ export function ContratoListClient({
           </div>
         </div>
       ) : (
-        <ContratoKanban contratos={filtered} editableIds={editableIds} />
+        <ContratoKanban contratos={contratos} editableIds={editableIds} />
+      )}
+
+      {/* Paginación — solo en vista tabla */}
+      {totalPages > 1 && viewMode === "tabla" && (
+        <div className="flex items-center justify-between">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === 0}
+            onClick={() => navigate({ page: String(page - 1) })}
+          >
+            <ChevronLeft className="mr-1.5 h-4 w-4" />
+            Anterior
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Página {page + 1} de {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages - 1}
+            onClick={() => navigate({ page: String(page + 1) })}
+          >
+            Siguiente
+            <ChevronRight className="ml-1.5 h-4 w-4" />
+          </Button>
+        </div>
       )}
 
       {/* Barra bulk */}

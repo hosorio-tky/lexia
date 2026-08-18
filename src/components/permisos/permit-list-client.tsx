@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useMemo, useTransition } from "react";
+import { useState, useMemo, useEffect, useCallback, useTransition } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { Plus, Trash2, Upload, ChevronDown } from "lucide-react";
-import { nextSort, sortItems, activityTs } from "@/lib/sort-utils";
+import { Plus, Trash2, Upload, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import type { SortState } from "@/lib/sort-utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,114 +19,129 @@ import { PermitCardsGrid } from "./permit-cards-grid";
 import { PermitLocationView } from "./permit-location-view";
 import { PermitImportDialog } from "./permit-import-dialog";
 import { eliminarPermiso } from "@/app/actions/permisos";
-import { calcularVigencia } from "@/types/permits";
-import type { Permit, PermitFilters } from "@/types/permits";
+import type { Permit, PermitFilters, VigenciaStatus } from "@/types/permits";
 
 type PermitSortKey = "nombre" | "tipo" | "estado" | "vencimiento" | "actividad";
 
 export function PermitListClient({
-  initialPermits,
+  permits,
+  statsData,
   userId,
   userRol,
   editableIds = [],
   tiposPermiso = [],
+  responsables = [],
+  ubicaciones = [],
+  total,
+  page,
+  pageSize,
 }: {
-  initialPermits: Permit[];
-  userId?: string;
-  userRol?: string;
+  permits:      Permit[];
+  statsData:    { estado_id: string }[];
+  userId?:      string;
+  userRol?:     string;
   editableIds?: string[];
-  tiposPermiso?: string[];
+  tiposPermiso?: { id: string; valor: string }[];
+  responsables?: string[];
+  ubicaciones?:  string[];
+  total:    number;
+  page:     number;
+  pageSize: number;
 }) {
   const searchParams = useSearchParams();
   const router       = useRouter();
   const pathname     = usePathname();
 
+  // Derive view mode + sort from URL (no useState needed)
   const viewMode = (searchParams.get("v") as ViewMode | null) ?? "table";
+  const sort: SortState<PermitSortKey> = {
+    key: (searchParams.get("sort") as PermitSortKey) ?? "actividad",
+    dir: (searchParams.get("dir") as "asc" | "desc") ?? "desc",
+  };
+
+  // Local state only for things not affecting server fetch
+  const [selected, setSelected]     = useState<string[]>([]);
+  const [importOpen, setImportOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  // Debounced search: local input state → URL after 400ms
+  const [searchInput, setSearchInput] = useState(searchParams.get("search") ?? "");
+
+  const navigate = useCallback((overrides: Record<string, string | undefined>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    for (const [k, v] of Object.entries(overrides)) {
+      if (v) params.set(k, v); else params.delete(k);
+    }
+    if (!("page" in overrides)) params.delete("page");
+    router.push(`${pathname}?${params.toString()}`);
+  }, [router, searchParams, pathname]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const current = searchParams.get("search") ?? "";
+      if (searchInput !== current) navigate({ search: searchInput || undefined });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Build filters object from URL (search overridden by local state for immediate display)
+  const urlFilters: PermitFilters = {
+    search:      searchInput,
+    estado:      searchParams.get("estado")      ?? "",
+    tipo:        searchParams.get("tipo")        ?? "",
+    entidad:     "",
+    responsable: searchParams.get("responsable") ?? "",
+    vigencia:    (searchParams.get("vigencia") as VigenciaStatus | "") ?? "",
+    ubicacion:   searchParams.get("ubicacion")   ?? "",
+  };
+
+  function handleFiltersChange(newFilters: PermitFilters) {
+    if (newFilters.search !== urlFilters.search) {
+      setSearchInput(newFilters.search ?? "");
+      return;
+    }
+    // Non-search filter → navigate immediately, reset page
+    navigate({
+      estado:      newFilters.estado      || undefined,
+      tipo:        newFilters.tipo        || undefined,
+      responsable: newFilters.responsable || undefined,
+      vigencia:    newFilters.vigencia    || undefined,
+      ubicacion:   newFilters.ubicacion   || undefined,
+      search:      searchParams.get("search") || undefined,
+    });
+  }
 
   function setViewMode(mode: ViewMode) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("v", mode);
+    params.delete("page");
     router.replace(`${pathname}?${params.toString()}`);
   }
 
-  const [selected, setSelected]     = useState<string[]>([]);
-  const [importOpen, setImportOpen] = useState(false);
-  const [filters, setFilters]       = useState<PermitFilters>({
-    search: "", estado: "", tipo: "", entidad: "", responsable: "", vigencia: "", ubicacion: "",
-  });
-  const [sort, setSort] = useState<SortState<PermitSortKey>>({ key: "actividad", dir: "desc" });
-  const [isPending, startTransition] = useTransition();
-
-  const editableSet = useMemo(() => new Set(editableIds), [editableIds]);
-
   function handleSort(key: PermitSortKey) {
-    setSort((prev) => nextSort(prev, key));
+    const currentKey = (searchParams.get("sort") as PermitSortKey) ?? "actividad";
+    const currentDir = (searchParams.get("dir") as "asc" | "desc") ?? "desc";
+    const newDir: "asc" | "desc" = currentKey === key
+      ? (currentDir === "desc" ? "asc" : "desc")
+      : "desc";
+    navigate({ sort: key, dir: newDir });
   }
 
-  const responsables = useMemo(() => {
-    const names = initialPermits
-      .map((p) => p.responsable_nombre)
-      .filter((n): n is string => Boolean(n));
-    return [...new Set(names)].sort();
-  }, [initialPermits]);
-
-  const ubicaciones = useMemo(() => {
-    const locs = initialPermits
-      .map((p) => p.ubicacion)
-      .filter((u): u is string => Boolean(u));
-    return [...new Set(locs)].sort((a, b) => a.localeCompare(b, "es"));
-  }, [initialPermits]);
-
-  const filtered = useMemo(() => {
-    const list = initialPermits.filter((p) => {
-      if (filters.search) {
-        const q = filters.search.toLowerCase();
-        if (
-          !p.nombre.toLowerCase().includes(q) &&
-          !(p.numero_expediente ?? "").toLowerCase().includes(q) &&
-          !(p.entidad_reguladora ?? "").toLowerCase().includes(q)
-        ) return false;
-      }
-      if (filters.estado    && p.estado_id            !== filters.estado)    return false;
-      if (filters.tipo      && p.tipo                !== filters.tipo)      return false;
-      if (filters.entidad   && p.entidad_reguladora  !== filters.entidad)   return false;
-      if (filters.responsable && p.responsable_nombre !== filters.responsable) return false;
-      if (filters.vigencia  && calcularVigencia(p.fecha_vencimiento) !== filters.vigencia) return false;
-      if (filters.ubicacion && (p.ubicacion ?? "") !== filters.ubicacion)   return false;
-      return true;
-    });
-    return sortItems(list, sort, (p, key) => {
-      switch (key as PermitSortKey) {
-        case "nombre":      return p.nombre;
-        case "tipo":        return p.tipo;
-        case "estado":      return p.estado;
-        case "vencimiento": return p.fecha_vencimiento ?? "";
-        case "actividad":   return activityTs(p.created_at, p.updated_at);
-        default:            return "";
-      }
-    });
-  }, [initialPermits, filters, sort]);
-
-  const editableFiltered = useMemo(
-    () => filtered.filter((p) => editableSet.has(p.id)),
-    [filtered, editableSet],
-  );
+  const editableSet = useMemo(() => new Set(editableIds), [editableIds]);
+  const editableVisible = useMemo(() => permits.filter((p) => editableSet.has(p.id)), [permits, editableSet]);
 
   const toggleSelect = (id: string) => {
     if (!editableSet.has(id)) return;
-    setSelected((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-    );
+    setSelected((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   };
   const toggleAll = () =>
-    setSelected(selected.length === editableFiltered.length && editableFiltered.length > 0
+    setSelected(selected.length === editableVisible.length && editableVisible.length > 0
       ? []
-      : editableFiltered.map((p) => p.id));
+      : editableVisible.map((p) => p.id));
 
   const handleDelete = (id: string) => {
     startTransition(() => eliminarPermiso(id));
   };
-
   const handleDeleteSelected = () => {
     const toDelete = selected.filter((id) => editableSet.has(id));
     startTransition(async () => {
@@ -136,16 +150,19 @@ export function PermitListClient({
     });
   };
 
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const hasFilters = !!(searchParams.get("search") || searchParams.get("estado") || searchParams.get("tipo") ||
+    searchParams.get("responsable") || searchParams.get("vigencia") || searchParams.get("ubicacion"));
+
   return (
     <div className="flex flex-col gap-6">
-      {/* Tarjetas resumen */}
-      <PermitStatCards permits={initialPermits} />
+      <PermitStatCards permits={statsData} />
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <PermitFiltersBar
-          filters={filters}
-          onFiltersChange={setFilters}
+          filters={urlFilters}
+          onFiltersChange={handleFiltersChange}
           viewMode={viewMode}
           onViewModeChange={setViewMode}
           tiposPermiso={tiposPermiso}
@@ -178,17 +195,25 @@ export function PermitListClient({
       <PermitImportDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
-        onSuccess={() => { /* revalidatePath ya actualiza el server — el dialog se queda abierto */ }}
+        onSuccess={() => {}}
       />
 
-      {/* Lista — móvil siempre cards, desktop respeta el toggle */}
+      {/* Contador */}
+      {total > 0 && pageSize < total && (
+        <p className="text-xs text-muted-foreground">
+          {page * pageSize + 1}–{Math.min((page + 1) * pageSize, total)} de {total} permisos
+          {hasFilters ? " (filtrado)" : ""}
+        </p>
+      )}
+
+      {/* Lista */}
       <div className="md:hidden">
-        <PermitCardsGrid permits={filtered} />
+        <PermitCardsGrid permits={permits} />
       </div>
       <div className="hidden md:block">
         {viewMode === "table" && (
           <PermitTable
-            permits={filtered}
+            permits={permits}
             selected={selected}
             onToggle={toggleSelect}
             onToggleAll={toggleAll}
@@ -201,14 +226,41 @@ export function PermitListClient({
           />
         )}
         {viewMode === "grid" && (
-          <PermitCardsGrid permits={filtered} />
+          <PermitCardsGrid permits={permits} />
         )}
         {viewMode === "location" && (
-          <PermitLocationView permits={filtered} userId={userId} userRol={userRol} />
+          <PermitLocationView permits={permits} userId={userId} userRol={userRol} />
         )}
       </div>
 
-      {/* Barra de acciones en bulk */}
+      {/* Paginación */}
+      {totalPages > 1 && viewMode !== "location" && (
+        <div className="flex items-center justify-between">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page === 0}
+            onClick={() => navigate({ page: String(page - 1) })}
+          >
+            <ChevronLeft className="mr-1.5 h-4 w-4" />
+            Anterior
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Página {page + 1} de {totalPages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages - 1}
+            onClick={() => navigate({ page: String(page + 1) })}
+          >
+            Siguiente
+            <ChevronRight className="ml-1.5 h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {/* Barra bulk */}
       {selected.length > 0 && (
         <div className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-full border border-slate-800 bg-slate-900 py-2 pl-5 pr-3 text-sm text-white shadow-xl">
           <span className="font-medium">{selected.length} permisos seleccionados</span>

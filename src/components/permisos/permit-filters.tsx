@@ -28,7 +28,7 @@ interface PermitFiltersBarProps {
   onFiltersChange: (filters: PermitFilters) => void;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
-  tiposPermiso?: string[];
+  tiposPermiso?: { id: string; valor: string }[];
   responsables?: string[];
   ubicaciones?: string[];
 }
@@ -115,7 +115,7 @@ export function PermitFiltersBar({
           <SelectContent>
             <SelectItem value="__all__">Todos los tipos</SelectItem>
             {tiposPermiso.map((t) => (
-              <SelectItem key={t} value={t}>{t}</SelectItem>
+              <SelectItem key={t.id} value={t.id}>{t.valor}</SelectItem>
             ))}
           </SelectContent>
         </Select>

@@ -9,21 +9,47 @@ import { getSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
 
-export default async function ContratosPage() {
-  const session   = await getSession();
-  const client    = createAdminClient();
-  const repo      = createContratosRepository(client, session.tenant_id);
-  const [contratos, tiposContrato] = await Promise.all([
-    repo.list(undefined, { userId: session.user_id, userRol: session.rol }),
+const PAGE_SIZE = 50;
+
+export default async function ContratosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    v?: string; page?: string; search?: string;
+    estado?: string; tipo?: string; sort?: string; dir?: string;
+  }>;
+}) {
+  const params  = await searchParams;
+  const session = await getSession();
+  const client  = createAdminClient();
+  const repo    = createContratosRepository(client, session.tenant_id);
+  const caller  = { userId: session.user_id, userRol: session.rol };
+
+  const viewMode    = params.v ?? "tabla";
+  const isPaginated = viewMode !== "kanban";
+  const page  = isPaginated ? Math.max(0, parseInt(params.page ?? "0", 10) || 0) : 0;
+  const limit = isPaginated ? PAGE_SIZE : 9999;
+
+  const filters = {
+    search: params.search || undefined,
+    estado: params.estado || undefined,
+    tipo:   params.tipo   || undefined,
+    page,
+    limit,
+    sortKey: params.sort ?? "actividad",
+    sortDir: (params.dir === "asc" ? "asc" : "desc") as "asc" | "desc",
+  };
+
+  const [{ items: contratos, total }, statsData, tiposContrato] = await Promise.all([
+    repo.list(filters, caller),
+    repo.listStats(caller),
     createConfiguracionRepository(client, session.tenant_id)
       .getCatalogos("contratos", "tipo_contrato")
       .then((items) => items.filter((i) => i.activo))
       .catch(() => []),
   ]);
 
-  const editableSet = await getEditableIds(
-    client, session.tenant_id, "contrato", contratos, session.user_id, session.rol,
-  );
+  const editableSet = await getEditableIds(client, session.tenant_id, "contrato", contratos, session.user_id, session.rol);
   const editableIds = Array.from(editableSet);
 
   return (
@@ -39,11 +65,15 @@ export default async function ContratosPage() {
     >
       <Suspense>
         <ContratoListClient
-          initialContratos={contratos}
+          contratos={contratos}
+          statsData={statsData}
           userId={session.user_id}
           userRol={session.rol}
           editableIds={editableIds}
           tiposContrato={tiposContrato}
+          total={total}
+          page={page}
+          pageSize={isPaginated ? PAGE_SIZE : total}
         />
       </Suspense>
     </AppShell>

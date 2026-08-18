@@ -115,42 +115,76 @@ function mapVersionRow(row: ContratoVersionRow): ContratoVersion {
 export function createContratosRepository(client: SupabaseClient, tenantId: string) {
   return {
     async list(
-      filters?: Partial<ContratoFilters>,
+      filters?: Partial<ContratoFilters> & { page?: number; limit?: number; sortKey?: string; sortDir?: "asc" | "desc" },
       caller?: { userId: string; userRol: string },
-    ): Promise<Contrato[]> {
+    ): Promise<{ items: Contrato[]; total: number }> {
+      const limit = filters?.limit ?? 9999;
+      const page  = filters?.page  ?? 0;
+      const from  = page * limit;
+      const to    = from + limit - 1;
+
+      const SORT_MAP: Record<string, string> = {
+        titulo:      "titulo",
+        contraparte: "contraparte_nombre",
+        valor:       "valor",
+        fecha_fin:   "fecha_fin",
+        actividad:   "updated_at",
+      };
+      const dbCol = SORT_MAP[filters?.sortKey ?? "actividad"] ?? "updated_at";
+      const asc   = filters?.sortDir === "asc";
+
       let query = client
         .from("contratos")
-        .select(SELECT_CONTRATO)
+        .select(SELECT_CONTRATO, { count: "exact" })
         .eq("tenant_id", tenantId)
-        .order("created_at", { ascending: false });
+        .order(dbCol, { ascending: asc })
+        .range(from, to);
 
-      if (filters?.estado) {
-        query = query.eq("estado_id", filters.estado);
-      }
-      if (filters?.tipo) {
-        query = query.eq("tipo_id", filters.tipo);
-      }
+      if (filters?.estado) query = query.eq("estado_id", filters.estado);
+      if (filters?.tipo)   query = query.eq("tipo_id",   filters.tipo);
       if (filters?.search) {
         query = query.or(
           `titulo.ilike.%${filters.search}%,numero.ilike.%${filters.search}%,contraparte_nombre.ilike.%${filters.search}%`
         );
       }
 
-      const { data, error } = await query;
+      if (caller && caller.userRol !== "admin") {
+        const accessibleIds = await getAccessibleIds(client, tenantId, "contrato", caller.userId);
+        const idsClause = [...accessibleIds].map((id) => `id.eq.${id}`).join(",");
+        const orClause  = idsClause
+          ? `visibilidad.neq.restringido,created_by.eq.${caller.userId},${idsClause}`
+          : `visibilidad.neq.restringido,created_by.eq.${caller.userId}`;
+        query = query.or(orClause);
+      }
+
+      const { data, error, count } = await query;
       if (error) throw error;
-      let result = (data ?? []).map((row) => mapRow(row as unknown as ContratoRow));
+      return {
+        items: (data ?? []).map((row) => mapRow(row as unknown as ContratoRow)),
+        total: count ?? 0,
+      };
+    },
+
+    async listStats(
+      caller?: { userId: string; userRol: string },
+    ): Promise<{ id: string; estado_id: string; fecha_fin: string | null; valor: number | null }[]> {
+      let query = client
+        .from("contratos")
+        .select("id, estado_id, fecha_fin, valor")
+        .eq("tenant_id", tenantId);
 
       if (caller && caller.userRol !== "admin") {
         const accessibleIds = await getAccessibleIds(client, tenantId, "contrato", caller.userId);
-        result = result.filter(
-          (c) =>
-            c.visibilidad !== "restringido" ||
-            c.created_by === caller.userId ||
-            accessibleIds.has(c.id),
-        );
+        const idsClause = [...accessibleIds].map((id) => `id.eq.${id}`).join(",");
+        const orClause  = idsClause
+          ? `visibilidad.neq.restringido,created_by.eq.${caller.userId},${idsClause}`
+          : `visibilidad.neq.restringido,created_by.eq.${caller.userId}`;
+        query = query.or(orClause);
       }
 
-      return result;
+      const { data, error } = await query;
+      if (error) throw error;
+      return (data ?? []) as { id: string; estado_id: string; fecha_fin: string | null; valor: number | null }[];
     },
 
     async getById(id: string, caller?: { userId: string; userRol: string }): Promise<Contrato | null> {
