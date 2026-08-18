@@ -158,19 +158,17 @@ export async function GET(request: Request) {
           // Emails ya enviados en este recurso (dedup)
           const emailsEnviados = new Set<string>();
 
-          // Responsable
+          // Responsable (tabla responsables, no profiles)
           if (recurso.responsable_id) {
-            const { data: profile } = await client
-              .from("profiles")
-              .select("email, nombre, apellido")
+            const { data: resp } = await client
+              .from("responsables")
+              .select("email, nombre")
               .eq("id", recurso.responsable_id)
               .single();
-            if (profile?.email) {
-              emailsEnviados.add(profile.email);
-              await sendAlertaVencimiento(profile.email, {
-                destinatarioNombre: profile.apellido
-                  ? `${profile.nombre} ${profile.apellido}`
-                  : profile.nombre,
+            if (resp?.email) {
+              emailsEnviados.add(resp.email);
+              await sendAlertaVencimiento(resp.email, {
+                destinatarioNombre: resp.nombre,
                 ...payload,
               }).catch((e) => console.error("[cron/alertas] email responsable:", e));
               emailsTotal++;
