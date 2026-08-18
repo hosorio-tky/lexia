@@ -28,7 +28,7 @@ export default async function EditarContratoPage({
 
   if (!contrato) notFound();
 
-  const tiposContrato = catalogos.filter((c) => c.tipo === "tipo_contrato" && c.activo);
+  const tiposContrato = catalogos.filter((c) => c.tipo === "tipo" && c.activo);
   const profiles      = (profilesResult.data ?? []).map((p) => ({
     id:           p.id as string,
     nombre:       p.apellido ? `${p.nombre} ${p.apellido}` : (p.nombre as string),

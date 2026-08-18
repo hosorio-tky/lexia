@@ -21,7 +21,7 @@ export default async function NuevoContratoPage() {
       .eq("tenant_id", session.tenant_id).order("nombre"),
   ]);
 
-  const tiposContrato = catalogos.filter((c) => c.tipo === "tipo_contrato" && c.activo);
+  const tiposContrato = catalogos.filter((c) => c.tipo === "tipo" && c.activo);
   const profiles      = (profilesResult.data ?? []).map((p) => ({
     id:           p.id as string,
     nombre:       p.apellido ? `${p.nombre} ${p.apellido}` : (p.nombre as string),

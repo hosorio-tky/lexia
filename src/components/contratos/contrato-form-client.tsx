@@ -422,7 +422,7 @@ export function ContratoFormClient({
                   onOpenChange={setAddTipoOpen}
                   title="Tipos de contrato"
                   modulo="contratos"
-                  tipo="tipo_contrato"
+                  tipo="tipo"
                   onItemAdded={(item) => {
                     setTipoItems((prev) => [...prev, item]);
                     setTipo(item.id);
