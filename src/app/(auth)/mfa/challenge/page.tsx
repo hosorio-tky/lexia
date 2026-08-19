@@ -6,9 +6,11 @@ import { createClient } from "@/lib/supabase/client";
 import { KeyRound, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { marcarDispositivoConfiado } from "@/app/actions/auth";
 
 function MfaChallengeInner() {
   const router       = useRouter();
@@ -16,11 +18,12 @@ function MfaChallengeInner() {
   const next         = searchParams.get("next") || "/dashboard";
   const supabase     = createClient();
 
-  const [factorId,    setFactorId]    = useState("");
-  const [challengeId, setChallengeId] = useState("");
-  const [code,        setCode]        = useState("");
-  const [error,       setError]       = useState("");
-  const [ready,       setReady]       = useState(false);
+  const [factorId,        setFactorId]        = useState("");
+  const [challengeId,     setChallengeId]     = useState("");
+  const [code,            setCode]            = useState("");
+  const [error,           setError]           = useState("");
+  const [ready,           setReady]           = useState(false);
+  const [recordarDispositivo, setRecordarDispositivo] = useState(false);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -40,13 +43,16 @@ function MfaChallengeInner() {
     setError("");
 
     startTransition(async () => {
-      const { error: vErr } = await supabase.auth.mfa.verify({ factorId, challengeId, code });
+      const { data: verifyData, error: vErr } = await supabase.auth.mfa.verify({ factorId, challengeId, code });
       if (vErr) {
         setError("Código incorrecto. Inténtalo de nuevo.");
         supabase.auth.mfa.challenge({ factorId }).then(({ data: ch }) => {
           if (ch) setChallengeId(ch.id);
         });
         return;
+      }
+      if (recordarDispositivo && verifyData?.user?.id) {
+        await marcarDispositivoConfiado(verifyData.user.id);
       }
       router.push(next);
       router.refresh();
@@ -98,6 +104,20 @@ function MfaChallengeInner() {
               {error}
             </div>
           )}
+
+          <div className="flex items-center gap-2.5">
+            <Checkbox
+              id="recordar"
+              checked={recordarDispositivo}
+              onCheckedChange={(v) => setRecordarDispositivo(v === true)}
+            />
+            <label
+              htmlFor="recordar"
+              className="text-sm text-muted-foreground leading-none cursor-pointer select-none"
+            >
+              Recordar este dispositivo por 30 días
+            </label>
+          </div>
 
           <Button className="w-full" onClick={handleVerify} disabled={code.length !== 6}>
             <KeyRound className="mr-2 h-4 w-4" />

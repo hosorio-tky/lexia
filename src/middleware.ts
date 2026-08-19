@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { verifyTrustedDeviceToken, TRUSTED_DEVICE_COOKIE } from "@/lib/trusted-device";
 
 const AUTH_ROUTES       = ["/login", "/registro", "/recuperar", "/actualizar-contrasena", "/mfa"];
 const REDIRECT_IF_AUTHED = ["/login", "/registro", "/recuperar"];
@@ -61,6 +62,12 @@ export async function middleware(request: NextRequest) {
       const mfaVerified    = aal.currentLevel === "aal2";
 
       if (hasMfaEnrolled && !mfaVerified) {
+        // Verificar si el dispositivo ya fue marcado como confiado
+        const trustedToken = request.cookies.get(TRUSTED_DEVICE_COOKIE)?.value;
+        if (trustedToken && user?.id) {
+          const deviceConfiado = await verifyTrustedDeviceToken(trustedToken, user.id);
+          if (deviceConfiado) return response; // Saltear challenge
+        }
         // Factor enrollado + sesión AAL1 → challenge primero (sin excepción)
         if (!isMfaRoute) return NextResponse.redirect(new URL("/mfa/challenge", request.url));
       } else {

@@ -4,6 +4,11 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  createTrustedDeviceToken,
+  TRUSTED_DEVICE_COOKIE,
+  TRUSTED_DEVICE_MAX_AGE,
+} from "@/lib/trusted-device";
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -184,7 +189,21 @@ export async function signOut() {
   await supabase.auth.signOut();
   const cookieStore = await cookies();
   cookieStore.delete("lexia_force_pwd");
+  cookieStore.delete(TRUSTED_DEVICE_COOKIE);
   redirect("/login");
+}
+
+/** Marca el dispositivo actual como confiado por 30 días. */
+export async function marcarDispositivoConfiado(userId: string): Promise<void> {
+  const token = await createTrustedDeviceToken(userId);
+  const cookieStore = await cookies();
+  cookieStore.set(TRUSTED_DEVICE_COOKIE, token, {
+    httpOnly: true,
+    secure:   process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge:   TRUSTED_DEVICE_MAX_AGE,
+    path:     "/",
+  });
 }
 
 // ─── Solicitar recuperación de contraseña ────────────────────
