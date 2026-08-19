@@ -137,6 +137,7 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
         .from("contratos")
         .select(SELECT_CONTRATO, { count: "exact" })
         .eq("tenant_id", tenantId)
+        .is("deleted_at", null)
         .order(dbCol, { ascending: asc })
         .range(from, to);
 
@@ -171,7 +172,8 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
       let query = client
         .from("contratos")
         .select("id, estado_id, fecha_fin, valor")
-        .eq("tenant_id", tenantId);
+        .eq("tenant_id", tenantId)
+        .is("deleted_at", null);
 
       if (caller && caller.userRol !== "admin") {
         const accessibleIds = await getAccessibleIds(client, tenantId, "contrato", caller.userId);
@@ -193,6 +195,7 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
         .select(SELECT_CONTRATO_DETAIL)
         .eq("id", id)
         .eq("tenant_id", tenantId)
+        .is("deleted_at", null)
         .single();
 
       if (error) {
@@ -345,13 +348,79 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
       return mapRow(data as unknown as ContratoRow);
     },
 
-    async delete(id: string): Promise<void> {
+    async delete(id: string, deletedBy?: string, deletedByNombre?: string): Promise<void> {
+      const { error } = await client
+        .from("contratos")
+        .update({
+          deleted_at:        new Date().toISOString(),
+          deleted_by:        deletedBy       ?? null,
+          deleted_by_nombre: deletedByNombre ?? null,
+        })
+        .eq("id", id)
+        .eq("tenant_id", tenantId);
+      if (error) throw error;
+    },
+
+    async restore(id: string): Promise<void> {
+      const { error } = await client
+        .from("contratos")
+        .update({ deleted_at: null, deleted_by: null, deleted_by_nombre: null })
+        .eq("id", id)
+        .eq("tenant_id", tenantId);
+      if (error) throw error;
+    },
+
+    async hardDelete(id: string): Promise<void> {
       const { error } = await client
         .from("contratos")
         .delete()
         .eq("id", id)
         .eq("tenant_id", tenantId);
       if (error) throw error;
+    },
+
+    async listDeleted(): Promise<{
+      id: string; titulo: string; numero: string | null; tipo: string; estado: string;
+      contraparte_nombre: string | null; responsable_nombre: string | null;
+      fecha_inicio: string | null; fecha_fin: string | null; fecha_firma: string | null;
+      valor: number | null; moneda: string | null; descripcion: string | null;
+      deleted_at: string; deleted_by_nombre: string | null;
+    }[]> {
+      const { data, error } = await client
+        .from("contratos")
+        .select([
+          "id, titulo, numero, descripcion, contraparte_nombre, contraparte_email",
+          "responsable_nombre, fecha_inicio, fecha_fin, fecha_firma, valor, moneda",
+          "deleted_at, deleted_by_nombre",
+          "tipo_cat:catalogos!tipo_id(valor)",
+          "estado_ref:workflow_estados!estado_id(valor)",
+        ].join(", "))
+        .eq("tenant_id", tenantId)
+        .not("deleted_at", "is", null)
+        .order("deleted_at", { ascending: false });
+
+      if (error) throw error;
+      return (data ?? []).map((r) => {
+        const row = r as unknown as Record<string, unknown>;
+        return {
+          id:                 row.id as string,
+          titulo:             row.titulo as string,
+          numero:             row.numero as string | null,
+          descripcion:        row.descripcion as string | null,
+          tipo:               (row.tipo_cat as { valor?: string } | null)?.valor ?? "",
+          estado:             (row.estado_ref as { valor?: string } | null)?.valor ?? "",
+          contraparte_nombre: row.contraparte_nombre as string | null,
+          contraparte_email:  row.contraparte_email as string | null,
+          responsable_nombre: row.responsable_nombre as string | null,
+          fecha_inicio:       row.fecha_inicio as string | null,
+          fecha_fin:          row.fecha_fin as string | null,
+          fecha_firma:        row.fecha_firma as string | null,
+          valor:              row.valor as number | null,
+          moneda:             row.moneda as string | null,
+          deleted_at:         row.deleted_at as string,
+          deleted_by_nombre:  row.deleted_by_nombre as string | null,
+        };
+      });
     },
   };
 }

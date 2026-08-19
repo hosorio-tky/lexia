@@ -282,7 +282,7 @@ export async function eliminarPermiso(id: string) {
     const repo    = createPermisosRepository(client, session.tenant_id);
 
     const actual = await repo.getById(id);
-    await repo.delete(id);
+    await repo.delete(id, session.user_id, session.nombre_completo ?? session.nombre);
 
     await logActivity({
       tenant_id:    session.tenant_id,

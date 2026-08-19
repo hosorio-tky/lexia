@@ -176,6 +176,7 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
         .from("permisos")
         .select(SELECT_PERMISO, { count: "exact" })
         .eq("tenant_id", tenantId)
+        .is("deleted_at", null)
         .order(dbCol, { ascending: asc })
         .range(from, to);
 
@@ -223,7 +224,8 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
       let query = client
         .from("permisos")
         .select("id, estado_id, fecha_vencimiento")
-        .eq("tenant_id", tenantId);
+        .eq("tenant_id", tenantId)
+        .is("deleted_at", null);
 
       if (caller && caller.userRol !== "admin") {
         const accessibleIds = await getAccessibleIds(client, tenantId, "permiso", caller.userId);
@@ -245,6 +247,7 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
         .select(SELECT_PERMISO_DETAIL)
         .eq("id", id)
         .eq("tenant_id", tenantId)
+        .is("deleted_at", null)
         .single();
 
       if (error) {
@@ -432,13 +435,85 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
       return mapRow(data as unknown as PermisoRow);
     },
 
-    async delete(id: string): Promise<void> {
+    async delete(id: string, deletedBy?: string, deletedByNombre?: string): Promise<void> {
+      const { error } = await client
+        .from("permisos")
+        .update({
+          deleted_at:        new Date().toISOString(),
+          deleted_by:        deletedBy        ?? null,
+          deleted_by_nombre: deletedByNombre  ?? null,
+        })
+        .eq("id", id)
+        .eq("tenant_id", tenantId);
+      if (error) throw error;
+    },
+
+    async restore(id: string): Promise<void> {
+      const { error } = await client
+        .from("permisos")
+        .update({ deleted_at: null, deleted_by: null, deleted_by_nombre: null })
+        .eq("id", id)
+        .eq("tenant_id", tenantId);
+      if (error) throw error;
+    },
+
+    async hardDelete(id: string): Promise<void> {
       const { error } = await client
         .from("permisos")
         .delete()
         .eq("id", id)
         .eq("tenant_id", tenantId);
       if (error) throw error;
+    },
+
+    async listDeleted(): Promise<{
+      id: string; nombre: string; tipo: string; estado: string;
+      responsable_nombre: string | null; deleted_at: string; deleted_by_nombre: string | null;
+      numero_expediente: string | null; descripcion: string | null;
+      fecha_solicitud: string | null; fecha_emision: string | null;
+      fecha_vencimiento: string | null; ubicacion: string | null;
+      entidad_reguladora: string | null; base_legal: string | null;
+      riesgo_incumplimiento: string | null; valor_tramite: number | null; moneda: string | null;
+    }[]> {
+      const { data, error } = await client
+        .from("permisos")
+        .select([
+          "id, nombre, numero_expediente, descripcion, responsable_nombre",
+          "fecha_solicitud, fecha_emision, fecha_vencimiento, ubicacion",
+          "base_legal, riesgo_incumplimiento, valor_tramite, moneda",
+          "deleted_at, deleted_by_nombre",
+          "tipo_cat:catalogos!tipo_id(valor)",
+          "entidad_cat:catalogos!entidad_reguladora_id(valor)",
+          "estado_ref:workflow_estados!estado_id(valor)",
+        ].join(", "))
+        .eq("tenant_id", tenantId)
+        .not("deleted_at", "is", null)
+        .order("deleted_at", { ascending: false });
+
+      if (error) throw error;
+      return (data ?? []).map((r) => {
+        const row = r as unknown as Record<string, unknown>;
+        return {
+          id:                   row.id as string,
+          nombre:               row.nombre as string,
+          numero_expediente:    row.numero_expediente as string | null,
+          descripcion:          row.descripcion as string | null,
+          tipo:                 (row.tipo_cat as { valor?: string } | null)?.valor ?? "",
+          estado:               (row.estado_ref as { valor?: string } | null)?.valor ?? "",
+          entidad_reguladora:   (row.entidad_cat as { valor?: string } | null)?.valor ?? null,
+          responsable_nombre:   row.responsable_nombre as string | null,
+          fecha_solicitud:      row.fecha_solicitud as string | null,
+          fecha_emision:        row.fecha_emision as string | null,
+          fecha_vencimiento:    row.fecha_vencimiento as string | null,
+          ubicacion:            row.ubicacion as string | null,
+          base_legal:           row.base_legal as string | null,
+          riesgo_incumplimiento: row.riesgo_incumplimiento as string | null,
+          valor_tramite:        row.valor_tramite as number | null,
+          moneda:               row.moneda as string | null,
+          deleted_at:           row.deleted_at as string,
+          deleted_by_nombre:    row.deleted_by_nombre as string | null,
+        };
+      });
     },
   };
 }

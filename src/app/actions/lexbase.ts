@@ -164,16 +164,8 @@ export async function eliminarDocumento(id: string) {
     const client = createAdminClient();
     const repo   = createLexbaseRepository(client, session.tenant_id);
 
-    // Obtener doc para eliminar archivo del storage
-    const doc = await repo.getById(id);
-
-    // Borrar de BD (chunks se eliminan en cascada)
-    await repo.delete(id);
-
-    // Borrar archivo de storage si existe
-    if (doc?.storage_path) {
-      await client.storage.from(BUCKET).remove([doc.storage_path]);
-    }
+    // Soft delete — el archivo en storage se conserva hasta el hard delete
+    await repo.delete(id, session.user_id, session.nombre_completo ?? session.nombre);
 
     revalidatePath("/lexbase");
     redirect("/lexbase");

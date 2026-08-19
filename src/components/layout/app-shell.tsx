@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BarChart2,
   Bell,
   ClipboardCheck,
   FileText,
@@ -12,6 +13,7 @@ import {
   LogOut,
   Settings,
   Sparkles,
+  Trash2,
   Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -104,6 +106,8 @@ export default function AppShell({
     { label: "Notificaciones",href: "/notificaciones",  icon: <Bell className="h-4 w-4" /> },
     { label: "Usuarios",      href: "/usuarios",        icon: <Users className="h-4 w-4" /> },
     { label: "Lexbase",        href: "/lexbase",          icon: <Library className="h-4 w-4" /> },
+    { label: "Reportes",      href: "/reportes",         icon: <BarChart2 className="h-4 w-4" /> },
+    { label: "Papelera",      href: "/papelera",         icon: <Trash2 className="h-4 w-4" /> },
     { label: "Configuración", href: "/configuracion",   icon: <Settings className="h-4 w-4" /> },
   ];
 

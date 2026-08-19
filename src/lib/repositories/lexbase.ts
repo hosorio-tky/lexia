@@ -105,6 +105,7 @@ export function createLexbaseRepository(client: SupabaseClient, tenantId: string
         .from("lexbase_documentos")
         .select("*, lexbase_categorias(*)", { count: "exact" })
         .eq("tenant_id", tenantId)
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .range(from, to);
 
@@ -137,6 +138,7 @@ export function createLexbaseRepository(client: SupabaseClient, tenantId: string
         .select("*, lexbase_categorias(*)")
         .eq("id", id)
         .eq("tenant_id", tenantId)
+        .is("deleted_at", null)
         .single();
 
       if (error) {
@@ -207,14 +209,69 @@ export function createLexbaseRepository(client: SupabaseClient, tenantId: string
       return mapDocRow(data as LexbaseDocumentoRow);
     },
 
-    /** Elimina un documento (chunks se eliminan en cascada) */
-    async delete(id: string): Promise<void> {
+    /** Soft-delete: mueve el documento a la papelera */
+    async delete(id: string, deletedBy?: string, deletedByNombre?: string): Promise<void> {
+      const { error } = await client
+        .from("lexbase_documentos")
+        .update({
+          deleted_at:        new Date().toISOString(),
+          deleted_by:        deletedBy       ?? null,
+          deleted_by_nombre: deletedByNombre ?? null,
+        })
+        .eq("id", id)
+        .eq("tenant_id", tenantId);
+      if (error) throw error;
+    },
+
+    async restore(id: string): Promise<void> {
+      const { error } = await client
+        .from("lexbase_documentos")
+        .update({ deleted_at: null, deleted_by: null, deleted_by_nombre: null })
+        .eq("id", id)
+        .eq("tenant_id", tenantId);
+      if (error) throw error;
+    },
+
+    /** Hard delete: elimina permanentemente (chunks en cascada) */
+    async hardDelete(id: string): Promise<void> {
       const { error } = await client
         .from("lexbase_documentos")
         .delete()
         .eq("id", id)
         .eq("tenant_id", tenantId);
       if (error) throw error;
+    },
+
+    async listDeleted(): Promise<{
+      id: string; titulo: string; tipo: string; descripcion: string | null;
+      pais: string; numero_oficial: string | null; organo_emisor: string | null;
+      fecha_publicacion: string | null; fecha_vigencia: string | null;
+      storage_path: string | null; tags: string[];
+      deleted_at: string; deleted_by_nombre: string | null;
+    }[]> {
+      const { data, error } = await client
+        .from("lexbase_documentos")
+        .select("id, titulo, tipo, descripcion, pais, numero_oficial, organo_emisor, fecha_publicacion, fecha_vigencia, storage_path, tags, deleted_at, deleted_by_nombre")
+        .eq("tenant_id", tenantId)
+        .not("deleted_at", "is", null)
+        .order("deleted_at", { ascending: false });
+
+      if (error) throw error;
+      return (data ?? []).map((r) => ({
+        id:               r.id as string,
+        titulo:           r.titulo as string,
+        tipo:             r.tipo as string,
+        descripcion:      r.descripcion as string | null,
+        pais:             r.pais as string,
+        numero_oficial:   r.numero_oficial as string | null,
+        organo_emisor:    r.organo_emisor as string | null,
+        fecha_publicacion: r.fecha_publicacion as string | null,
+        fecha_vigencia:   r.fecha_vigencia as string | null,
+        storage_path:     r.storage_path as string | null,
+        tags:             (r.tags as string[]) ?? [],
+        deleted_at:       r.deleted_at as string,
+        deleted_by_nombre: r.deleted_by_nombre as string | null,
+      }));
     },
 
     /** Lista categorías del tenant */
@@ -297,7 +354,8 @@ export function createLexbaseRepository(client: SupabaseClient, tenantId: string
         client
           .from("lexbase_documentos")
           .select("tipo, indexed_at")
-          .eq("tenant_id", tenantId),
+          .eq("tenant_id", tenantId)
+          .is("deleted_at", null),
         client
           .from("lexbase_categorias")
           .select("id", { count: "exact", head: true })

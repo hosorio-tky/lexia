@@ -9,7 +9,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
-  buscarGlobal, obtenerRecientes,
+  buscarGlobal, obtenerRecientes, obtenerItemPreview,
   type SearchResultItem, type RecentItem, type ModuloSearch,
 } from "@/app/actions/busqueda";
 import { formatDistanceToNow } from "date-fns";
@@ -323,111 +323,124 @@ export function SearchDialog() {
 
       {/* Dropdown panel */}
       {showDropdown && (
-        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 flex overflow-hidden rounded-xl border bg-popover shadow-xl">
-          {/* Left: filter + list */}
-          <div className="flex min-w-0 flex-1 flex-col">
-            {/* Module filter chips */}
-            <div className="flex items-center gap-1.5 border-b px-3 py-2">
-              {FILTROS.map((f) => (
-                <button
-                  key={f.key}
-                  type="button"
-                  onMouseDown={(e) => e.preventDefault()} // prevent input blur
-                  onClick={() => setModulo(f.key)}
-                  className={cn(
-                    "rounded-full px-3 py-1 text-xs font-medium transition",
-                    modulo === f.key
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Results */}
-            <div className="max-h-[420px] overflow-y-auto p-2">
-              {!isSearching ? (
-                recientes.length > 0 ? (
-                  <>
-                    <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                      Recientes
-                    </p>
-                    {recientes.map((item, i) => (
-                      <RecentRow
-                        key={item.recurso_id}
-                        item={item}
-                        isActive={activeIdx === i}
-                        onHover={() => { setActiveIdx(i); setPreview(null); }}
-                        onClick={() => navigate(item.href)}
-                      />
-                    ))}
-                  </>
-                ) : null
-              ) : results.length === 0 && !loading ? (
-                <div className="flex flex-col items-center gap-2 py-8 text-sm text-muted-foreground">
-                  <Search className="h-7 w-7 opacity-30" />
-                  <p>Sin resultados para &ldquo;{query}&rdquo;</p>
-                </div>
-              ) : (
-                (() => {
-                  const grouped = results.reduce((acc, item) => {
-                    if (!acc[item.modulo]) acc[item.modulo] = [];
-                    acc[item.modulo].push(item);
-                    return acc;
-                  }, {} as Record<string, SearchResultItem[]>);
-
-                  let globalIdx = 0;
-                  return Object.entries(grouped).map(([mod, items]) => {
-                    const cfg = MODULO_CONFIG[mod];
-                    return (
-                      <div key={mod} className="mb-1">
-                        <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                          {cfg?.label ?? mod}
-                        </p>
-                        {items.map((item) => {
-                          const idx = globalIdx++;
-                          return (
-                            <ResultRow
-                              key={item.id}
-                              item={item}
-                              isActive={activeIdx === idx}
-                              onHover={() => { setActiveIdx(idx); setPreview(item); }}
-                              onClick={() => navigate(item.href)}
-                            />
-                          );
-                        })}
-                      </div>
-                    );
-                  });
-                })()
-              )}
-            </div>
-
-            {/* Footer hints */}
-            <div className="flex items-center gap-4 border-t px-4 py-2">
-              <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                <kbd className="rounded border bg-muted px-1 py-0.5 font-mono text-[9px]">↑↓</kbd>
-                navegar
-              </span>
-              <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                <kbd className="rounded border bg-muted px-1 py-0.5 font-mono text-[9px]">↵</kbd>
-                abrir
-              </span>
-              <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                <kbd className="rounded border bg-muted px-1 py-0.5 font-mono text-[9px]">ESC</kbd>
-                cerrar
-              </span>
-            </div>
+        <div className="absolute left-0 top-[calc(100%+6px)] z-50 flex min-w-full flex-col overflow-hidden rounded-xl border bg-popover shadow-xl">
+          {/* Module filter chips - full width */}
+          <div className="flex items-center gap-1.5 border-b px-3 py-2">
+            {FILTROS.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setModulo(f.key)}
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium transition",
+                  modulo === f.key
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
 
-          {/* Right: preview panel */}
-          {preview && (
-            <div className="hidden w-60 shrink-0 flex-col border-l bg-muted/20 md:flex">
-              <PreviewPanel item={preview} />
+          {/* Body: list + optional preview expanding to the right */}
+          <div className="flex">
+            {/* Left: results list */}
+            <div className="flex w-full min-w-[280px] flex-col md:w-auto">
+              <div className="max-h-[420px] overflow-y-auto p-2">
+                {!isSearching ? (
+                  recientes.length > 0 ? (
+                    <>
+                      <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                        Recientes
+                      </p>
+                      {recientes.map((item, i) => (
+                        <RecentRow
+                          key={item.recurso_id}
+                          item={item}
+                          isActive={activeIdx === i}
+                          onHover={() => {
+                            setActiveIdx(i);
+                            setPreview({
+                              id: item.recurso_id,
+                              titulo: item.recurso_desc,
+                              modulo: item.modulo as ModuloSearch,
+                              href: item.href,
+                            });
+                            obtenerItemPreview(item.recurso_id, item.modulo as ModuloSearch)
+                              .then((full) => { if (full) setPreview(full); })
+                              .catch(() => {});
+                          }}
+                          onClick={() => navigate(item.href)}
+                        />
+                      ))}
+                    </>
+                  ) : null
+                ) : results.length === 0 && !loading ? (
+                  <div className="flex flex-col items-center gap-2 py-8 text-sm text-muted-foreground">
+                    <Search className="h-7 w-7 opacity-30" />
+                    <p>Sin resultados para &ldquo;{query}&rdquo;</p>
+                  </div>
+                ) : (
+                  (() => {
+                    const grouped = results.reduce((acc, item) => {
+                      if (!acc[item.modulo]) acc[item.modulo] = [];
+                      acc[item.modulo].push(item);
+                      return acc;
+                    }, {} as Record<string, SearchResultItem[]>);
+
+                    let globalIdx = 0;
+                    return Object.entries(grouped).map(([mod, items]) => {
+                      const cfg = MODULO_CONFIG[mod];
+                      return (
+                        <div key={mod} className="mb-1">
+                          <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            {cfg?.label ?? mod}
+                          </p>
+                          {items.map((item) => {
+                            const idx = globalIdx++;
+                            return (
+                              <ResultRow
+                                key={item.id}
+                                item={item}
+                                isActive={activeIdx === idx}
+                                onHover={() => { setActiveIdx(idx); setPreview(item); }}
+                                onClick={() => navigate(item.href)}
+                              />
+                            );
+                          })}
+                        </div>
+                      );
+                    });
+                  })()
+                )}
+              </div>
+
+              {/* Footer hints */}
+              <div className="flex items-center gap-4 border-t px-4 py-2">
+                <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <kbd className="rounded border bg-muted px-1 py-0.5 font-mono text-[9px]">↑↓</kbd>
+                  navegar
+                </span>
+                <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <kbd className="rounded border bg-muted px-1 py-0.5 font-mono text-[9px]">↵</kbd>
+                  abrir
+                </span>
+                <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <kbd className="rounded border bg-muted px-1 py-0.5 font-mono text-[9px]">ESC</kbd>
+                  cerrar
+                </span>
+              </div>
             </div>
-          )}
+
+            {/* Right: preview panel — expands dropdown width to the right */}
+            {preview && (
+              <div className="hidden w-72 shrink-0 flex-col border-l bg-muted/20 md:flex">
+                <PreviewPanel item={preview} />
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

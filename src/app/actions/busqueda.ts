@@ -61,6 +61,7 @@ export async function buscarGlobal(
           .from("permisos")
           .select(SELECT_PERMISO_SEARCH)
           .eq("tenant_id", session.tenant_id)
+          .is("deleted_at", null)
           .or(`nombre.ilike.%${q}%,numero_expediente.ilike.%${q}%`)
           .limit(8);
 
@@ -86,6 +87,7 @@ export async function buscarGlobal(
           .from("contratos")
           .select(SELECT_CONTRATO_SEARCH)
           .eq("tenant_id", session.tenant_id)
+          .is("deleted_at", null)
           .or(`titulo.ilike.%${q}%,numero.ilike.%${q}%,contraparte_nombre.ilike.%${q}%`)
           .limit(8);
 
@@ -134,6 +136,7 @@ export async function buscarGlobal(
           .from("lexbase_documentos")
           .select("id, titulo, descripcion, numero_oficial, organo_emisor")
           .eq("tenant_id", session.tenant_id)
+          .is("deleted_at", null)
           .or(`titulo.ilike.%${q}%,numero_oficial.ilike.%${q}%`)
           .limit(8);
 
@@ -156,6 +159,100 @@ export async function buscarGlobal(
   );
 
   return buckets.flat();
+}
+
+export async function obtenerItemPreview(id: string, modulo: ModuloSearch): Promise<SearchResultItem | null> {
+  const session = await getSession();
+  const client  = createAdminClient();
+
+  if (modulo === "permisos") {
+    const { data } = await client
+      .from("permisos")
+      .select(SELECT_PERMISO_SEARCH)
+      .eq("tenant_id", session.tenant_id)
+      .eq("id", id)
+      .single();
+    if (!data) return null;
+    const row = data as unknown as Record<string, unknown>;
+    return {
+      id:          row.id as string,
+      titulo:      row.nombre as string,
+      modulo:      "permisos",
+      href:        `/permisos/${row.id}`,
+      estado:      (row.estado_ref as { valor?: string } | null)?.valor,
+      tipo:        (row.tipo_cat   as { valor?: string } | null)?.valor,
+      meta:        row.numero_expediente as string | undefined,
+      descripcion: row.descripcion       as string | undefined,
+      responsable: row.responsable_nombre as string | undefined,
+      fecha:       row.fecha_vencimiento  as string | undefined,
+    };
+  }
+
+  if (modulo === "contratos") {
+    const { data } = await client
+      .from("contratos")
+      .select(SELECT_CONTRATO_SEARCH)
+      .eq("tenant_id", session.tenant_id)
+      .eq("id", id)
+      .single();
+    if (!data) return null;
+    const row = data as unknown as Record<string, unknown>;
+    return {
+      id:          row.id as string,
+      titulo:      row.titulo as string,
+      modulo:      "contratos",
+      href:        `/contratos/${row.id}`,
+      estado:      (row.estado_ref as { valor?: string } | null)?.valor,
+      tipo:        (row.tipo_cat   as { valor?: string } | null)?.valor,
+      meta:        row.numero           as string | undefined,
+      descripcion: row.descripcion      as string | undefined,
+      responsable: row.responsable_nombre as string | undefined,
+      fecha:       row.fecha_fin         as string | undefined,
+      contraparte: row.contraparte_nombre as string | undefined,
+    };
+  }
+
+  if (modulo === "tareas") {
+    const { data } = await client
+      .from("tareas")
+      .select("id, titulo, estado, asignado_nombre, descripcion")
+      .eq("tenant_id", session.tenant_id)
+      .eq("id", id)
+      .single();
+    if (!data) return null;
+    const row = data as Record<string, unknown>;
+    return {
+      id:          row.id as string,
+      titulo:      row.titulo as string,
+      modulo:      "tareas",
+      href:        `/tareas/${row.id}`,
+      estado:      row.estado      as string | undefined,
+      descripcion: row.descripcion as string | undefined,
+      responsable: row.asignado_nombre as string | undefined,
+    };
+  }
+
+  if (modulo === "lexbase") {
+    const { data } = await client
+      .from("lexbase_documentos")
+      .select("id, titulo, descripcion, numero_oficial, organo_emisor")
+      .eq("tenant_id", session.tenant_id)
+      .eq("id", id)
+      .single();
+    if (!data) return null;
+    const row = data as Record<string, unknown>;
+    return {
+      id:          row.id as string,
+      titulo:      row.titulo as string,
+      modulo:      "lexbase",
+      href:        `/lexbase/${row.id}`,
+      meta:        row.numero_oficial as string | undefined,
+      descripcion: row.descripcion    as string | undefined,
+      responsable: row.organo_emisor  as string | undefined,
+    };
+  }
+
+  return null;
 }
 
 export async function obtenerRecientes(): Promise<RecentItem[]> {
