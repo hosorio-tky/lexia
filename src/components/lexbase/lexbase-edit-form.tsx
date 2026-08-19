@@ -18,6 +18,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { actualizarDocumento, eliminarDocumento } from "@/app/actions/lexbase";
 import { LEXBASE_TIPOS, type LexbaseCategoria, type LexbaseDocumento } from "@/types/lexbase";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { cn } from "@/lib/utils";
 
 interface LexbaseEditFormProps {
@@ -174,17 +175,17 @@ export function LexbaseEditForm({ documento, categorias }: LexbaseEditFormProps)
         {/* Right column */}
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="fecha_publicacion">Fecha de publicación</Label>
-            <Input
-              id="fecha_publicacion" name="fecha_publicacion" type="date"
+            <Label>Fecha de publicación</Label>
+            <DatePickerInput
+              name="fecha_publicacion"
               defaultValue={documento.fecha_publicacion ?? ""}
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="fecha_vigencia">Fecha de vigencia</Label>
-            <Input
-              id="fecha_vigencia" name="fecha_vigencia" type="date"
+            <Label>Fecha de vigencia</Label>
+            <DatePickerInput
+              name="fecha_vigencia"
               defaultValue={documento.fecha_vigencia ?? ""}
             />
           </div>
