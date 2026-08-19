@@ -24,6 +24,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ContratoStatCards } from "./contrato-stat-cards";
 import { ContratoStatusBadge } from "./contrato-status-badge";
 import { ContratoKanban } from "./contrato-kanban";
@@ -172,15 +182,26 @@ export function ContratoListClient({
       ? []
       : editableVisible.map((c) => c.id));
 
-  const handleDelete = (id: string) => {
-    startTransition(() => eliminarContrato(id));
+  const [confirmId, setConfirmId]     = useState<string | null>(null);
+  const [confirmBulk, setConfirmBulk] = useState(false);
+
+  const handleDelete = (id: string) => setConfirmId(id);
+
+  const confirmDelete = () => {
+    if (!confirmId) return;
+    startTransition(() => eliminarContrato(confirmId));
+    setConfirmId(null);
   };
-  const handleDeleteSelected = () => {
+
+  const handleDeleteSelected = () => setConfirmBulk(true);
+
+  const confirmDeleteSelected = () => {
     const toDelete = selected.filter((id) => editableSet.has(id));
     startTransition(async () => {
       for (const id of toDelete) await eliminarContrato(id);
       setSelected([]);
     });
+    setConfirmBulk(false);
   };
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -529,6 +550,48 @@ export function ContratoListClient({
           </Button>
         </div>
       )}
+
+      {/* Confirmación eliminar individual */}
+      <AlertDialog open={!!confirmId} onOpenChange={(open) => { if (!open) setConfirmId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar contrato?</AlertDialogTitle>
+            <AlertDialogDescription>
+              El contrato se moverá a la papelera. Podrás restaurarlo desde Papelera si es necesario.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmDelete}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmación eliminar masivo */}
+      <AlertDialog open={confirmBulk} onOpenChange={(open) => { if (!open) setConfirmBulk(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar {selected.length} contratos?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Los contratos seleccionados se moverán a la papelera. Podrás restaurarlos desde Papelera.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmDeleteSelected}
+            >
+              Eliminar {selected.length} contratos
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

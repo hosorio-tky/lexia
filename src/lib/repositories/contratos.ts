@@ -381,7 +381,8 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
 
     async listDeleted(): Promise<{
       id: string; titulo: string; numero: string | null; tipo: string; estado: string;
-      contraparte_nombre: string | null; responsable_nombre: string | null;
+      contraparte_nombre: string | null; contraparte_email: string | null;
+      responsable_nombre: string | null;
       fecha_inicio: string | null; fecha_fin: string | null; fecha_firma: string | null;
       valor: number | null; moneda: string | null; descripcion: string | null;
       deleted_at: string; deleted_by_nombre: string | null;

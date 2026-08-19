@@ -21,16 +21,25 @@ const MODULO_COLORS: Record<string, string> = {
 };
 
 const ACCION_LABELS: Record<string, string> = {
-  crear_permiso:    "creó un permiso",
-  editar_permiso:   "editó un permiso",
-  cambio_estado:    "cambió el estado de",
-  eliminar_permiso: "eliminó un permiso",
-  crear_tarea:      "creó una tarea",
-  editar_tarea:     "editó una tarea",
-  tarea_asignada:   "asignó una tarea",
-  login:            "inició sesión",
-  logout:           "cerró sesión",
-  invitar_usuario:  "invitó a un usuario",
+  crear_permiso:                    "creó un permiso",
+  editar_permiso:                   "editó un permiso",
+  cambio_estado:                    "cambió el estado de",
+  eliminar_permiso:                 "eliminó un permiso",
+  restaurar_permisos:               "restauró un permiso",
+  eliminar_definitivo_permisos:     "eliminó definitivamente un permiso",
+  crear_contrato:                   "creó un contrato",
+  editar_contrato:                  "editó un contrato",
+  eliminar_contrato:                "eliminó un contrato",
+  restaurar_contratos:              "restauró un contrato",
+  eliminar_definitivo_contratos:    "eliminó definitivamente un contrato",
+  restaurar_lexbase:                "restauró un documento",
+  eliminar_definitivo_lexbase:      "eliminó definitivamente un documento",
+  crear_tarea:                      "creó una tarea",
+  editar_tarea:                     "editó una tarea",
+  tarea_asignada:                   "asignó una tarea",
+  login:                            "inició sesión",
+  logout:                           "cerró sesión",
+  invitar_usuario:                  "invitó a un usuario",
 };
 
 interface ActivityFeedProps {

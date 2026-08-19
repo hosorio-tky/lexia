@@ -83,7 +83,7 @@ function DetallePanel({
             {modulo === "permisos" ? "Permiso" : modulo === "contratos" ? "Contrato" : "Lexbase"}
           </p>
           <p className="mt-0.5 text-base font-semibold leading-snug">
-            {"nombre" in item ? item.nombre : "titulo" in item ? item.titulo : item.titulo}
+            {"nombre" in item ? (item as PermisoEliminado).nombre : (item as ContratoEliminado | LexbaseEliminado).titulo}
           </p>
         </div>
         <button
@@ -280,18 +280,23 @@ function ItemRow({
 
 // ─── Tab de módulo ────────────────────────────────────────────────────────────
 
-function TabPanel<T extends { id: string; deleted_at: string; deleted_by_nombre: string | null }>({
+type AnyEliminado = PermisoEliminado | ContratoEliminado | LexbaseEliminado;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function TabPanel({
   items,
   modulo,
   getLabel,
   getSublabel,
 }: {
-  items: T[];
+  items: AnyEliminado[];
   modulo: ModuloPapelera;
-  getLabel: (item: T) => string;
-  getSublabel: (item: T) => string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getLabel: (item: any) => string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getSublabel: (item: any) => string;
 }) {
-  const [selected, setSelected] = useState<T | null>(null);
+  const [selected, setSelected] = useState<AnyEliminado | null>(null);
   const [, startTransition] = useTransition();
 
   if (items.length === 0) {

@@ -15,6 +15,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { PermitStatCards } from "./permit-stat-cards";
 import { PermitFiltersBar, type ViewMode } from "./permit-filters";
 import { PermitTable } from "./permit-table";
@@ -142,15 +152,26 @@ export function PermitListClient({
       ? []
       : editableVisible.map((p) => p.id));
 
-  const handleDelete = (id: string) => {
-    startTransition(() => eliminarPermiso(id));
+  const [confirmId, setConfirmId]           = useState<string | null>(null);
+  const [confirmBulk, setConfirmBulk]       = useState(false);
+
+  const handleDelete = (id: string) => setConfirmId(id);
+
+  const confirmDelete = () => {
+    if (!confirmId) return;
+    startTransition(() => eliminarPermiso(confirmId));
+    setConfirmId(null);
   };
-  const handleDeleteSelected = () => {
+
+  const handleDeleteSelected = () => setConfirmBulk(true);
+
+  const confirmDeleteSelected = () => {
     const toDelete = selected.filter((id) => editableSet.has(id));
     startTransition(async () => {
       for (const id of toDelete) await eliminarPermiso(id);
       setSelected([]);
     });
+    setConfirmBulk(false);
   };
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -341,6 +362,48 @@ export function PermitListClient({
           </Button>
         </div>
       )}
+
+      {/* Confirmación eliminar individual */}
+      <AlertDialog open={!!confirmId} onOpenChange={(open) => { if (!open) setConfirmId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar permiso?</AlertDialogTitle>
+            <AlertDialogDescription>
+              El permiso se moverá a la papelera. Podrás restaurarlo desde Papelera si es necesario.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmDelete}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Confirmación eliminar masivo */}
+      <AlertDialog open={confirmBulk} onOpenChange={(open) => { if (!open) setConfirmBulk(false); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar {selected.length} permisos?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Los permisos seleccionados se moverán a la papelera. Podrás restaurarlos desde Papelera.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={confirmDeleteSelected}
+            >
+              Eliminar {selected.length} permisos
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

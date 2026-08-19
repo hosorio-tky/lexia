@@ -452,7 +452,7 @@ export function PermitDetailClient({
                     <AlertDialogHeader>
                       <AlertDialogTitle>¿Eliminar permiso?</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Se eliminará <strong>{permit.nombre}</strong> de forma permanente. Esta acción no se puede deshacer.
+                        <strong>{permit.nombre}</strong> se moverá a la papelera. Podrás restaurarlo desde Papelera si es necesario.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

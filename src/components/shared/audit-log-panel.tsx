@@ -4,7 +4,7 @@ import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import {
   FileText, Globe, Lock, MessageSquare, Pencil, Plus,
-  RefreshCw, ShieldCheck, ShieldOff, Trash2, Upload, User,
+  RefreshCw, RotateCcw, ShieldCheck, ShieldOff, Trash2, Upload, User,
 } from "lucide-react";
 import type { ActividadEntry } from "@/lib/repositories/actividad";
 
@@ -15,15 +15,22 @@ const ACCION_CONFIG: Record<string, {
   color: string;
 }> = {
   // ── Permisos ──────────────────────────────────────────────────
-  crear_permiso:           { label: "Permiso creado",          icon: Plus,           color: "text-emerald-600 bg-emerald-50" },
-  editar_permiso:          { label: "Permiso editado",         icon: Pencil,         color: "text-blue-600 bg-blue-50" },
-  cambiar_estado:          { label: "Estado cambiado",         icon: RefreshCw,      color: "text-indigo-600 bg-indigo-50" },
-  eliminar_permiso:        { label: "Permiso eliminado",       icon: Trash2,         color: "text-red-600 bg-red-50" },
+  crear_permiso:              { label: "Permiso creado",          icon: Plus,        color: "text-emerald-600 bg-emerald-50" },
+  editar_permiso:             { label: "Permiso editado",         icon: Pencil,      color: "text-blue-600 bg-blue-50" },
+  cambiar_estado:             { label: "Estado cambiado",         icon: RefreshCw,   color: "text-indigo-600 bg-indigo-50" },
+  eliminar_permiso:           { label: "Permiso eliminado",       icon: Trash2,      color: "text-red-600 bg-red-50" },
+  restaurar_permisos:         { label: "Permiso restaurado",      icon: RotateCcw,   color: "text-emerald-600 bg-emerald-50" },
+  eliminar_definitivo_permisos: { label: "Permiso eliminado definitivamente", icon: Trash2, color: "text-red-700 bg-red-100" },
   // ── Contratos ────────────────────────────────────────────────
-  crear_contrato:          { label: "Contrato creado",         icon: Plus,           color: "text-emerald-600 bg-emerald-50" },
-  editar_contrato:         { label: "Contrato editado",        icon: Pencil,         color: "text-blue-600 bg-blue-50" },
-  cambiar_estado_contrato: { label: "Estado cambiado",         icon: RefreshCw,      color: "text-indigo-600 bg-indigo-50" },
-  eliminar_contrato:       { label: "Contrato eliminado",      icon: Trash2,         color: "text-red-600 bg-red-50" },
+  crear_contrato:             { label: "Contrato creado",         icon: Plus,        color: "text-emerald-600 bg-emerald-50" },
+  editar_contrato:            { label: "Contrato editado",        icon: Pencil,      color: "text-blue-600 bg-blue-50" },
+  cambiar_estado_contrato:    { label: "Estado cambiado",         icon: RefreshCw,   color: "text-indigo-600 bg-indigo-50" },
+  eliminar_contrato:          { label: "Contrato eliminado",      icon: Trash2,      color: "text-red-600 bg-red-50" },
+  restaurar_contratos:        { label: "Contrato restaurado",     icon: RotateCcw,   color: "text-emerald-600 bg-emerald-50" },
+  eliminar_definitivo_contratos: { label: "Contrato eliminado definitivamente", icon: Trash2, color: "text-red-700 bg-red-100" },
+  // ── Lexbase ──────────────────────────────────────────────────
+  restaurar_lexbase:          { label: "Documento restaurado",    icon: RotateCcw,   color: "text-emerald-600 bg-emerald-50" },
+  eliminar_definitivo_lexbase: { label: "Documento eliminado definitivamente", icon: Trash2, color: "text-red-700 bg-red-100" },
   // ── Compartidos ──────────────────────────────────────────────
   agregar_comentario:      { label: "Comentario agregado",     icon: MessageSquare,  color: "text-slate-600 bg-slate-100" },
   editar_comentario:       { label: "Comentario editado",      icon: MessageSquare,  color: "text-slate-500 bg-slate-50" },
