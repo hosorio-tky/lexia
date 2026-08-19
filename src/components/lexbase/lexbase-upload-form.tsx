@@ -20,6 +20,7 @@ import { subirDocumento } from "@/app/actions/lexbase";
 import { LEXBASE_TIPOS, type LexbaseCategoria } from "@/types/lexbase";
 import { cn } from "@/lib/utils";
 import type { LexbaseExtraido } from "@/lib/ai/lexbase-extractor";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 
 interface LexbaseUploadFormProps {
   categorias: LexbaseCategoria[];
@@ -370,22 +371,20 @@ export function LexbaseUploadForm({ categorias }: LexbaseUploadFormProps) {
             {/* Columna derecha */}
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="fecha_publicacion">Fecha de publicación</Label>
-                <Input
-                  id="fecha_publicacion"
-                  type="date"
+                <Label>Fecha de publicación</Label>
+                <DatePickerInput
+                  name="fecha_publicacion"
                   value={fechaPub}
-                  onChange={(e) => setFechaPub(e.target.value)}
+                  onChange={setFechaPub}
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="fecha_vigencia">Fecha de vigencia</Label>
-                <Input
-                  id="fecha_vigencia"
-                  type="date"
+                <Label>Fecha de vigencia</Label>
+                <DatePickerInput
+                  name="fecha_vigencia"
                   value={fechaVig}
-                  onChange={(e) => setFechaVig(e.target.value)}
+                  onChange={setFechaVig}
                 />
               </div>
 
