@@ -10,7 +10,7 @@ import {
   FileText,
   LayoutDashboard,
   Library,
-  LogOut,
+
   Settings,
   Sparkles,
   Trash2,
@@ -19,7 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
-import { signOut } from "@/app/actions/auth";
+
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { ChatSidebar } from "@/components/ai/chat-sidebar";
 import { SearchDialog } from "@/components/search/search-dialog";
@@ -188,14 +188,6 @@ export default function AppShell({
                 <div className="truncate text-sm font-semibold">{user.nombre_completo || user.nombre}</div>
                 <div className="text-xs text-muted-foreground">{rolLabel}</div>
               </div>
-            </div>
-            <div className="mt-3">
-              <form action={signOut}>
-                <Button type="submit" variant="outline" className="h-9 w-full justify-between">
-                  <span>Cerrar sesión</span>
-                  <LogOut className="h-4 w-4" />
-                </Button>
-              </form>
             </div>
           </div>
         </div>

@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { useTransition } from "react";
-import { Save, KeyRound } from "lucide-react";
+import { Save, KeyRound, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { UserRoleBadge } from "./user-role-badge";
 import { DepartamentoField } from "./departamento-field";
 import { editarUsuario, cambiarContrasena } from "@/app/actions/usuarios";
+import { signOut } from "@/app/actions/auth";
 import type { UserProfile } from "@/types/users";
 import type { CatalogoItem } from "@/types/settings";
 
@@ -123,6 +124,14 @@ export function UserProfileClient({ user, departamentos = [] }: { user: UserProf
           <strong className="text-foreground block">Cuenta</strong>
           <div>Email: {user.email}</div>
           <div>Estado: {user.activo ? "Activo" : "Inactivo"}</div>
+          <div className="pt-2">
+            <form action={signOut}>
+              <Button type="submit" variant="outline" size="sm" className="w-full justify-between text-xs h-8">
+                <span>Cerrar sesión</span>
+                <LogOut className="h-3.5 w-3.5" />
+              </Button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
