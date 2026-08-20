@@ -374,7 +374,7 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
         fecha_vencimiento_provisional: string | null;
         responsable_ids: string[];
         responsable_id: string | null;
-        responsable_nombre: string;
+        responsable_nombre: string | null;
         valor_tramite: number | null;
         moneda: string;
         base_legal: string;

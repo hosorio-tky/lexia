@@ -56,7 +56,7 @@ export async function crearContrato(
       fecha_firma:        (formData.get("fecha_firma") as string) || undefined,
       contenido_html:     (formData.get("contenido_html") as string) || undefined,
       responsable_ids:    (formData.getAll("responsable_ids[]") as string[]).filter(Boolean),
-      responsable_nombre: (formData.get("responsable_nombre") as string) || undefined,
+      responsable_nombre: (formData.get("responsable_nombre") as string) || null,
       responsable_id:     (formData.get("responsable_id") as string) || undefined,
       storage_path:       (formData.get("storage_path") as string) || undefined,
       created_by:         session.user_id,

@@ -138,7 +138,7 @@ export async function editarPermiso(id: string, formData: FormData) {
     numero_expediente:          (formData.get("numero_expediente") as string) || undefined,
     entidad_reguladora_id:      (formData.get("entidad_reguladora_id") as string) || null,
     responsable_id:             (formData.get("responsable_id") as string) || null,
-    responsable_nombre:         (formData.get("responsable_nombre") as string) || undefined,
+    responsable_nombre:         (formData.get("responsable_nombre") as string) || null,
     ubicacion_id:               (formData.get("ubicacion_id") as string) || null,
     ubicacion:                  (formData.get("ubicacion") as string) || undefined,
     descripcion:                (formData.get("descripcion") as string) || undefined,
@@ -200,11 +200,12 @@ export async function editarPermiso(id: string, formData: FormData) {
   const nuevoResponsableId = (input.responsable_id as string | null) || null;
   if (nuevoResponsableId && nuevoResponsableId !== (actual?.responsable_id ?? null)) {
     try {
-      const { data: resp } = await createAdminClient()
+      const { data: resp, error: respErr } = await createAdminClient()
         .from("responsables")
         .select("email, nombre")
         .eq("id", nuevoResponsableId)
         .single();
+      console.log("[editarPermiso] email responsable lookup:", { id: nuevoResponsableId, email: resp?.email ?? null, error: respErr?.message ?? null });
       if (resp?.email) {
         await sendResponsableAsignado(resp.email, {
           destinatarioNombre: resp.nombre,
