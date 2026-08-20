@@ -129,7 +129,7 @@ export async function registrar(
 export async function signIn(
   _prevState: unknown,
   formData: FormData
-): Promise<{ error: string } | null> {
+): Promise<{ error: string; email: string } | null> {
   const email    = formData.get("email") as string;
   const password = formData.get("password") as string;
   const next     = (formData.get("next") as string | null)?.trim() || "/dashboard";
@@ -138,7 +138,7 @@ export async function signIn(
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    return { error: "Correo o contraseña incorrectos" };
+    return { error: "Correo o contraseña incorrectos", email };
   }
 
   // Log de actividad

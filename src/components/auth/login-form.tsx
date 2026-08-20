@@ -62,6 +62,7 @@ export function LoginForm({ next }: { next?: string }) {
             placeholder="tu@empresa.com"
             required
             autoComplete="email"
+            defaultValue={state?.email ?? ""}
           />
         </div>
 
