@@ -9,6 +9,7 @@ import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/logger";
 import { indexContrato } from "@/lib/ai/contrato-indexer";
 import { sendCambioEstado, sendResponsableAsignado } from "@/lib/email/send";
+import { resolveResponsableEmail } from "@/lib/email/resolve-responsable";
 import type { ContratoFilters, Contrato } from "@/types/contratos";
 
 const BUCKET = "documentos";
@@ -89,14 +90,10 @@ export async function crearContrato(
     // Notificar al responsable principal si fue asignado
     if (input.responsable_id) {
       try {
-        const { data: resp } = await createAdminClient()
-          .from("responsables")
-          .select("email, nombre")
-          .eq("id", input.responsable_id)
-          .single();
-        if (resp?.email) {
-          await sendResponsableAsignado(resp.email, {
-            destinatarioNombre: resp.nombre,
+        const dest = await resolveResponsableEmail(input.responsable_id);
+        if (dest) {
+          await sendResponsableAsignado(dest.email, {
+            destinatarioNombre: dest.nombre,
             asignadoPorNombre:  session.nombre_completo || session.nombre,
             modulo:             "contratos",
             recursoNombre:      input.titulo,
@@ -193,14 +190,10 @@ export async function editarContrato(
     const nuevoResponsableId = (input.responsable_id as string | null) || null;
     if (nuevoResponsableId && nuevoResponsableId !== (actual?.responsable_id ?? null)) {
       try {
-        const { data: resp } = await createAdminClient()
-          .from("responsables")
-          .select("email, nombre")
-          .eq("id", nuevoResponsableId)
-          .single();
-        if (resp?.email) {
-          await sendResponsableAsignado(resp.email, {
-            destinatarioNombre: resp.nombre,
+        const dest = await resolveResponsableEmail(nuevoResponsableId);
+        if (dest) {
+          await sendResponsableAsignado(dest.email, {
+            destinatarioNombre: dest.nombre,
             asignadoPorNombre:  session.nombre_completo || session.nombre,
             modulo:             "contratos",
             recursoNombre:      input.titulo as string,
@@ -281,14 +274,10 @@ export async function cambiarEstadoContrato(
     // Email al responsable
     if (actual?.responsable_id) {
       try {
-        const { data: resp } = await createAdminClient()
-          .from("responsables")
-          .select("email, nombre")
-          .eq("id", actual.responsable_id)
-          .single();
-        if (resp?.email) {
-          await sendCambioEstado(resp.email, {
-            destinatarioNombre: resp.nombre,
+        const dest = await resolveResponsableEmail(actual.responsable_id);
+        if (dest) {
+          await sendCambioEstado(dest.email, {
+            destinatarioNombre: dest.nombre,
             modulo:            "contratos",
             recursoNombre:     actual.titulo,
             estadoAnterior:    actual.estado ?? "—",

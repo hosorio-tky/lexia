@@ -8,6 +8,7 @@ import { getSession } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/logger";
 import { sendCambioEstado, sendResponsableAsignado } from "@/lib/email/send";
+import { resolveResponsableEmail } from "@/lib/email/resolve-responsable";
 import type { PermitFilters } from "@/types/permits";
 import type { Permit } from "@/types/permits";
 
@@ -83,14 +84,10 @@ export async function crearPermiso(formData: FormData) {
     // Notificar al responsable principal si fue asignado
     if (input.responsable_id) {
       try {
-        const { data: resp } = await createAdminClient()
-          .from("responsables")
-          .select("email, nombre")
-          .eq("id", input.responsable_id)
-          .single();
-        if (resp?.email) {
-          await sendResponsableAsignado(resp.email, {
-            destinatarioNombre: resp.nombre,
+        const dest = await resolveResponsableEmail(input.responsable_id);
+        if (dest) {
+          await sendResponsableAsignado(dest.email, {
+            destinatarioNombre: dest.nombre,
             asignadoPorNombre:  session.nombre_completo || session.nombre,
             modulo:             "permisos",
             recursoNombre:      input.nombre,
@@ -200,15 +197,10 @@ export async function editarPermiso(id: string, formData: FormData) {
   const nuevoResponsableId = (input.responsable_id as string | null) || null;
   if (nuevoResponsableId && nuevoResponsableId !== (actual?.responsable_id ?? null)) {
     try {
-      const { data: resp, error: respErr } = await createAdminClient()
-        .from("responsables")
-        .select("email, nombre")
-        .eq("id", nuevoResponsableId)
-        .single();
-      console.log("[editarPermiso] email responsable lookup:", { id: nuevoResponsableId, email: resp?.email ?? null, error: respErr?.message ?? null });
-      if (resp?.email) {
-        await sendResponsableAsignado(resp.email, {
-          destinatarioNombre: resp.nombre,
+      const dest = await resolveResponsableEmail(nuevoResponsableId);
+      if (dest) {
+        await sendResponsableAsignado(dest.email, {
+          destinatarioNombre: dest.nombre,
           asignadoPorNombre:  session.nombre_completo || session.nombre,
           modulo:             "permisos",
           recursoNombre:      input.nombre as string,
@@ -283,14 +275,10 @@ export async function cambiarEstado(
     // Email al responsable
     if (actual?.responsable_id) {
       try {
-        const { data: resp } = await createAdminClient()
-          .from("responsables")
-          .select("email, nombre")
-          .eq("id", actual.responsable_id)
-          .single();
-        if (resp?.email) {
-          await sendCambioEstado(resp.email, {
-            destinatarioNombre: resp.nombre,
+        const dest = await resolveResponsableEmail(actual.responsable_id);
+        if (dest) {
+          await sendCambioEstado(dest.email, {
+            destinatarioNombre: dest.nombre,
             modulo:            "permisos",
             recursoNombre:     actual.nombre,
             estadoAnterior:    actual.estado ?? "—",
