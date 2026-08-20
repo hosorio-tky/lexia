@@ -8,7 +8,7 @@ import { getSession } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/logger";
 import { indexContrato } from "@/lib/ai/contrato-indexer";
-import { sendCambioEstado } from "@/lib/email/send";
+import { sendCambioEstado, sendResponsableAsignado } from "@/lib/email/send";
 import type { ContratoFilters, Contrato } from "@/types/contratos";
 
 const BUCKET = "documentos";
@@ -85,6 +85,30 @@ export async function crearContrato(
       html:        input.contenido_html,
       storagePath: input.storage_path,
     }).catch((err) => console.error("[crearContrato] indexación fallida:", err));
+
+    // Notificar al responsable principal si fue asignado
+    if (input.responsable_id) {
+      try {
+        const { data: profile } = await createAdminClient()
+          .from("profiles")
+          .select("email, nombre, apellido")
+          .eq("id", input.responsable_id)
+          .single();
+        if (profile?.email) {
+          await sendResponsableAsignado(profile.email, {
+            destinatarioNombre: profile.apellido ? `${profile.nombre} ${profile.apellido}` : profile.nombre,
+            asignadoPorNombre:  session.nombre_completo || session.nombre,
+            modulo:             "contratos",
+            recursoNombre:      input.titulo,
+            recursoId:          contrato.id,
+            entidad:            input.contraparte_nombre ?? null,
+            fechaVencimiento:   input.fecha_fin ?? null,
+          });
+        }
+      } catch (e) {
+        console.error("[crearContrato] email responsable error:", e);
+      }
+    }
 
     revalidatePath("/contratos");
     redirect(`/contratos/${contrato.id}`);
@@ -164,6 +188,31 @@ export async function editarContrato(
       // Pasar autor para snapshot de versión
       { userId: session.user_id, nombre: session.nombre_completo || session.nombre }
     );
+
+    // Notificar al nuevo responsable si cambió
+    const nuevoResponsableId = (input.responsable_id as string | null) || null;
+    if (nuevoResponsableId && nuevoResponsableId !== (actual?.responsable_id ?? null)) {
+      try {
+        const { data: profile } = await createAdminClient()
+          .from("profiles")
+          .select("email, nombre, apellido")
+          .eq("id", nuevoResponsableId)
+          .single();
+        if (profile?.email) {
+          await sendResponsableAsignado(profile.email, {
+            destinatarioNombre: profile.apellido ? `${profile.nombre} ${profile.apellido}` : profile.nombre,
+            asignadoPorNombre:  session.nombre_completo || session.nombre,
+            modulo:             "contratos",
+            recursoNombre:      input.titulo as string,
+            recursoId:          id,
+            entidad:            (input.contraparte_nombre as string | null) ?? null,
+            fechaVencimiento:   (input.fecha_fin as string | null) ?? null,
+          });
+        }
+      } catch (e) {
+        console.error("[editarContrato] email responsable error:", e);
+      }
+    }
 
     await logActivity({
       tenant_id:    session.tenant_id,

@@ -7,7 +7,7 @@ import { createPermisosRepository } from "@/lib/repositories/permisos";
 import { getSession } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/logger";
-import { sendCambioEstado } from "@/lib/email/send";
+import { sendCambioEstado, sendResponsableAsignado } from "@/lib/email/send";
 import type { PermitFilters } from "@/types/permits";
 import type { Permit } from "@/types/permits";
 
@@ -79,6 +79,30 @@ export async function crearPermiso(formData: FormData) {
       recurso_id:   permiso.id,
       recurso_desc: input.nombre,
     });
+
+    // Notificar al responsable principal si fue asignado
+    if (input.responsable_id) {
+      try {
+        const { data: profile } = await createAdminClient()
+          .from("profiles")
+          .select("email, nombre, apellido")
+          .eq("id", input.responsable_id)
+          .single();
+        if (profile?.email) {
+          await sendResponsableAsignado(profile.email, {
+            destinatarioNombre: profile.apellido ? `${profile.nombre} ${profile.apellido}` : profile.nombre,
+            asignadoPorNombre:  session.nombre_completo || session.nombre,
+            modulo:             "permisos",
+            recursoNombre:      input.nombre,
+            recursoId:          permiso.id,
+            fechaVencimiento:   input.fecha_vencimiento ?? null,
+            riesgo:             input.riesgo_incumplimiento ?? null,
+          });
+        }
+      } catch (e) {
+        console.error("[crearPermiso] email responsable error:", e);
+      }
+    }
 
     revalidatePath("/permisos");
     redirect(`/permisos/${permiso.id}`);
@@ -171,6 +195,31 @@ export async function editarPermiso(id: string, formData: FormData) {
 
   const responsableIdsEdit = (formData.getAll("responsable_ids[]") as string[]).filter(Boolean);
   await repo.update(id, { ...input, responsable_ids: responsableIdsEdit });
+
+  // Notificar al nuevo responsable si cambió
+  const nuevoResponsableId = (input.responsable_id as string | null) || null;
+  if (nuevoResponsableId && nuevoResponsableId !== (actual?.responsable_id ?? null)) {
+    try {
+      const { data: profile } = await createAdminClient()
+        .from("profiles")
+        .select("email, nombre, apellido")
+        .eq("id", nuevoResponsableId)
+        .single();
+      if (profile?.email) {
+        await sendResponsableAsignado(profile.email, {
+          destinatarioNombre: profile.apellido ? `${profile.nombre} ${profile.apellido}` : profile.nombre,
+          asignadoPorNombre:  session.nombre_completo || session.nombre,
+          modulo:             "permisos",
+          recursoNombre:      input.nombre as string,
+          recursoId:          id,
+          fechaVencimiento:   (input.fecha_vencimiento as string | null) ?? null,
+          riesgo:             (input.riesgo_incumplimiento as string | null) ?? null,
+        });
+      }
+    } catch (e) {
+      console.error("[editarPermiso] email responsable error:", e);
+    }
+  }
 
   await logActivity({
     tenant_id:    session.tenant_id,

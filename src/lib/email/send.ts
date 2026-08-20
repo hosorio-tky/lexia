@@ -3,10 +3,11 @@
  * Todas son fire-and-forget seguras — los errores se loguean sin romper el flujo.
  */
 import { resend, EMAIL_FROM } from "./client";
-import { temasTareaAsignada, htmlTareaAsignada, type TareaAsignadaData } from "./templates/tarea-asignada";
-import { temaCambioEstado,   htmlCambioEstado,   type CambioEstadoData   } from "./templates/cambio-estado";
-import { temaMencion,        htmlMencion,         type MencionData        } from "./templates/mencion";
-import { temaAlertaVencimiento, htmlAlertaVencimiento, type AlertaVencimientoData } from "./templates/alerta-vencimiento";
+import { temasTareaAsignada,     htmlTareaAsignada,     type TareaAsignadaData     } from "./templates/tarea-asignada";
+import { temaCambioEstado,       htmlCambioEstado,       type CambioEstadoData       } from "./templates/cambio-estado";
+import { temaMencion,            htmlMencion,            type MencionData            } from "./templates/mencion";
+import { temaAlertaVencimiento,  htmlAlertaVencimiento,  type AlertaVencimientoData  } from "./templates/alerta-vencimiento";
+import { temaResponsableAsignado, htmlResponsableAsignado, type ResponsableAsignadoData } from "./templates/responsable-asignado";
 
 async function send(to: string, subject: string, html: string): Promise<void> {
   const { error } = await resend.emails.send({
@@ -86,6 +87,14 @@ export async function sendInvitacion(
 </body>
 </html>`;
   await send(toEmail, `🔐 Activa tu cuenta en Lexia`, html);
+}
+
+/** Notifica al responsable que fue asignado a un permiso o contrato */
+export async function sendResponsableAsignado(
+  toEmail: string,
+  data: ResponsableAsignadoData
+): Promise<void> {
+  await send(toEmail, temaResponsableAsignado(data), htmlResponsableAsignado(data));
 }
 
 /** Alerta de vencimiento próximo o ya vencido */
