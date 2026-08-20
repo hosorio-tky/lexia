@@ -32,6 +32,7 @@ const FIELD_LABELS: Record<string, string> = {
 // ─── Crear permiso ─────────────────────────────────────────────
 export async function crearPermiso(formData: FormData) {
   const session = await getSession();
+  let permisoId = "";
   try {
     const client  = createAdminClient();
     const repo    = createPermisosRepository(client, session.tenant_id);
@@ -70,6 +71,7 @@ export async function crearPermiso(formData: FormData) {
     }
 
     const permiso = await repo.create(input);
+    permisoId = permiso.id;
 
     await logActivity({
       tenant_id:    session.tenant_id,
@@ -102,7 +104,6 @@ export async function crearPermiso(formData: FormData) {
     }
 
     revalidatePath("/permisos");
-    redirect(`/permisos/${permiso.id}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await logError(msg, {
@@ -114,126 +115,127 @@ export async function crearPermiso(formData: FormData) {
     });
     throw err;
   }
+  redirect(`/permisos/${permisoId}`);
 }
 
 // ─── Editar permiso ────────────────────────────────────────────
 export async function editarPermiso(id: string, formData: FormData) {
+  console.log("[editarPermiso] ENTRY id:", id);
   const session = await getSession();
   try {
-  const client  = createAdminClient();
-  const repo    = createPermisosRepository(client, session.tenant_id);
+    const client  = createAdminClient();
+    const repo    = createPermisosRepository(client, session.tenant_id);
 
-  // Fetch estado actual para detectar cambios
-  const actual = await repo.getById(id);
+    // Fetch estado actual para detectar cambios
+    const actual = await repo.getById(id);
 
-  const valorTramiteEditRaw = (formData.get("valor_tramite") as string)?.trim();
-  const tieneProvisionalEdit = formData.get("tiene_provisional") === "true";
+    const valorTramiteEditRaw = (formData.get("valor_tramite") as string)?.trim();
+    const tieneProvisionalEdit = formData.get("tiene_provisional") === "true";
 
-  const input: Record<string, string | number | boolean | null | undefined> = {
-    nombre:                     formData.get("nombre") as string,
-    tipo_id:                    (formData.get("tipo_id") as string) || null,
-    numero_expediente:          (formData.get("numero_expediente") as string) || undefined,
-    entidad_reguladora_id:      (formData.get("entidad_reguladora_id") as string) || null,
-    responsable_id:             (formData.get("responsable_id") as string) || null,
-    responsable_nombre:         (formData.get("responsable_nombre") as string) || null,
-    ubicacion_id:               (formData.get("ubicacion_id") as string) || null,
-    ubicacion:                  (formData.get("ubicacion") as string) || undefined,
-    descripcion:                (formData.get("descripcion") as string) || undefined,
-    fecha_solicitud:            (formData.get("fecha_solicitud") as string) || undefined,
-    fecha_emision:              (formData.get("fecha_emision") as string) || undefined,
-    fecha_vencimiento:          (formData.get("fecha_vencimiento") as string) || undefined,
-    tiene_provisional:          tieneProvisionalEdit,
-    fecha_emision_provisional:  (formData.get("fecha_emision_provisional") as string) || null,
-    fecha_vencimiento_provisional: (formData.get("fecha_vencimiento_provisional") as string) || null,
-    valor_tramite:              valorTramiteEditRaw ? parseFloat(valorTramiteEditRaw) : null,
-    moneda:                     (formData.get("moneda") as string) || undefined,
-    base_legal:                 (formData.get("base_legal") as string) || undefined,
-    riesgo_incumplimiento:      (formData.get("riesgo_incumplimiento") as string) || undefined,
-    base_legal_incumplimiento:  (formData.get("base_legal_incumplimiento") as string) || undefined,
-  };
+    const input: Record<string, string | number | boolean | null | undefined> = {
+      nombre:                     formData.get("nombre") as string,
+      tipo_id:                    (formData.get("tipo_id") as string) || null,
+      numero_expediente:          (formData.get("numero_expediente") as string) || undefined,
+      entidad_reguladora_id:      (formData.get("entidad_reguladora_id") as string) || null,
+      responsable_id:             (formData.get("responsable_id") as string) || null,
+      responsable_nombre:         (formData.get("responsable_nombre") as string) || null,
+      ubicacion_id:               (formData.get("ubicacion_id") as string) || null,
+      ubicacion:                  (formData.get("ubicacion") as string) || undefined,
+      descripcion:                (formData.get("descripcion") as string) || undefined,
+      fecha_solicitud:            (formData.get("fecha_solicitud") as string) || undefined,
+      fecha_emision:              (formData.get("fecha_emision") as string) || undefined,
+      fecha_vencimiento:          (formData.get("fecha_vencimiento") as string) || undefined,
+      tiene_provisional:          tieneProvisionalEdit,
+      fecha_emision_provisional:  (formData.get("fecha_emision_provisional") as string) || null,
+      fecha_vencimiento_provisional: (formData.get("fecha_vencimiento_provisional") as string) || null,
+      valor_tramite:              valorTramiteEditRaw ? parseFloat(valorTramiteEditRaw) : null,
+      moneda:                     (formData.get("moneda") as string) || undefined,
+      base_legal:                 (formData.get("base_legal") as string) || undefined,
+      riesgo_incumplimiento:      (formData.get("riesgo_incumplimiento") as string) || undefined,
+      base_legal_incumplimiento:  (formData.get("base_legal_incumplimiento") as string) || undefined,
+    };
 
-  // Calcular diff de campos
-  // JOIN display names (not in input directly, must be passed separately from the form)
-  const diffExtras: Record<string, string | null> = {
-    tipo:               (formData.get("tipo_nombre") as string) || null,
-    entidad_reguladora: (formData.get("entidad_reguladora_nombre") as string) || null,
-  };
-  const fechaVencJustif = (formData.get("fecha_vencimiento_justificacion") as string) || null;
-  const cambios: Array<{ campo: string; de: string | null; a: string | null; justificacion?: string }> = [];
-  if (actual) {
-    for (const key of Object.keys(FIELD_LABELS)) {
-      const valorAntes    = (actual as unknown as Record<string, unknown>)[key];
-      const valorDespues  = key in diffExtras ? diffExtras[key] : input[key];
-      const toStr = (v: unknown): string | null => {
-        if (v === "" || v === null || v === undefined) return null;
-        return String(v);
-      };
-      if (toStr(valorAntes) !== toStr(valorDespues)) {
-        const cambio: { campo: string; de: string | null; a: string | null; justificacion?: string } = {
-          campo: FIELD_LABELS[key], de: toStr(valorAntes), a: toStr(valorDespues),
+    // Calcular diff de campos
+    // JOIN display names (not in input directly, must be passed separately from the form)
+    const diffExtras: Record<string, string | null> = {
+      tipo:               (formData.get("tipo_nombre") as string) || null,
+      entidad_reguladora: (formData.get("entidad_reguladora_nombre") as string) || null,
+    };
+    const fechaVencJustif = (formData.get("fecha_vencimiento_justificacion") as string) || null;
+    const cambios: Array<{ campo: string; de: string | null; a: string | null; justificacion?: string }> = [];
+    if (actual) {
+      for (const key of Object.keys(FIELD_LABELS)) {
+        const valorAntes    = (actual as unknown as Record<string, unknown>)[key];
+        const valorDespues  = key in diffExtras ? diffExtras[key] : input[key];
+        const toStr = (v: unknown): string | null => {
+          if (v === "" || v === null || v === undefined) return null;
+          return String(v);
         };
-        if (key === "fecha_vencimiento" && fechaVencJustif) cambio.justificacion = fechaVencJustif;
-        cambios.push(cambio);
+        if (toStr(valorAntes) !== toStr(valorDespues)) {
+          const cambio: { campo: string; de: string | null; a: string | null; justificacion?: string } = {
+            campo: FIELD_LABELS[key], de: toStr(valorAntes), a: toStr(valorDespues),
+          };
+          if (key === "fecha_vencimiento" && fechaVencJustif) cambio.justificacion = fechaVencJustif;
+          cambios.push(cambio);
+        }
       }
-    }
 
-    // Detect date changes and register history
-    const fechaEmisionCambia =
-      (actual.fecha_emision ?? null) !== ((input.fecha_emision as string) || null);
-    const fechaVencimientoCambia =
-      (actual.fecha_vencimiento ?? null) !== ((input.fecha_vencimiento as string) || null);
+      // Detect date changes and register history
+      const fechaEmisionCambia =
+        (actual.fecha_emision ?? null) !== ((input.fecha_emision as string) || null);
+      const fechaVencimientoCambia =
+        (actual.fecha_vencimiento ?? null) !== ((input.fecha_vencimiento as string) || null);
 
-    if (fechaEmisionCambia || fechaVencimientoCambia) {
-      await repo.registrarCambioFechas(id, {
-        fecha_emision_anterior:     actual.fecha_emision ?? null,
-        fecha_vencimiento_anterior: actual.fecha_vencimiento ?? null,
-        changed_by_nombre:          session.nombre,
-        motivo:                     fechaVencimientoCambia && fechaVencJustif
-          ? fechaVencJustif
-          : "Edición de permiso",
-      });
-    }
-  }
-
-  const responsableIdsEdit = (formData.getAll("responsable_ids[]") as string[]).filter(Boolean);
-  await repo.update(id, { ...input, responsable_ids: responsableIdsEdit });
-
-  // Notificar al nuevo responsable si cambió
-  const nuevoResponsableId = (input.responsable_id as string | null) || null;
-  console.log("[editarPermiso] email check:", { nuevoResponsableId, actualResponsableId: actual?.responsable_id ?? null });
-  if (nuevoResponsableId && nuevoResponsableId !== (actual?.responsable_id ?? null)) {
-    try {
-      const dest = await resolveResponsableEmail(nuevoResponsableId);
-      if (dest) {
-        await sendResponsableAsignado(dest.email, {
-          destinatarioNombre: dest.nombre,
-          asignadoPorNombre:  session.nombre_completo || session.nombre,
-          modulo:             "permisos",
-          recursoNombre:      input.nombre as string,
-          recursoId:          id,
-          fechaVencimiento:   (input.fecha_vencimiento as string | null) ?? null,
-          riesgo:             (input.riesgo_incumplimiento as string | null) ?? null,
+      if (fechaEmisionCambia || fechaVencimientoCambia) {
+        await repo.registrarCambioFechas(id, {
+          fecha_emision_anterior:     actual.fecha_emision ?? null,
+          fecha_vencimiento_anterior: actual.fecha_vencimiento ?? null,
+          changed_by_nombre:          session.nombre,
+          motivo:                     fechaVencimientoCambia && fechaVencJustif
+            ? fechaVencJustif
+            : "Edición de permiso",
         });
       }
-    } catch (e) {
-      console.error("[editarPermiso] email responsable error:", e);
     }
-  }
 
-  await logActivity({
-    tenant_id:    session.tenant_id,
-    user_id:      session.user_id,
-    user_nombre:  session.nombre,
-    accion:       "editar_permiso",
-    modulo:       "permisos",
-    recurso_id:   id,
-    recurso_desc: input.nombre as string | undefined,
-    metadata:     cambios.length > 0 ? { cambios } : undefined,
-  });
+    const responsableIdsEdit = (formData.getAll("responsable_ids[]") as string[]).filter(Boolean);
+    await repo.update(id, { ...input, responsable_ids: responsableIdsEdit });
 
-  revalidatePath(`/permisos/${id}`);
-  revalidatePath("/permisos");
-  redirect(`/permisos/${id}`);
+    // Notificar al nuevo responsable si cambió
+    const nuevoResponsableId = (input.responsable_id as string | null) || null;
+    console.log("[editarPermiso] email check:", { nuevoResponsableId, actualResponsableId: actual?.responsable_id ?? null });
+    if (nuevoResponsableId && nuevoResponsableId !== (actual?.responsable_id ?? null)) {
+      try {
+        const dest = await resolveResponsableEmail(nuevoResponsableId);
+        if (dest) {
+          await sendResponsableAsignado(dest.email, {
+            destinatarioNombre: dest.nombre,
+            asignadoPorNombre:  session.nombre_completo || session.nombre,
+            modulo:             "permisos",
+            recursoNombre:      input.nombre as string,
+            recursoId:          id,
+            fechaVencimiento:   (input.fecha_vencimiento as string | null) ?? null,
+            riesgo:             (input.riesgo_incumplimiento as string | null) ?? null,
+          });
+        }
+      } catch (e) {
+        console.error("[editarPermiso] email responsable error:", e);
+      }
+    }
+
+    await logActivity({
+      tenant_id:    session.tenant_id,
+      user_id:      session.user_id,
+      user_nombre:  session.nombre,
+      accion:       "editar_permiso",
+      modulo:       "permisos",
+      recurso_id:   id,
+      recurso_desc: input.nombre as string | undefined,
+      metadata:     cambios.length > 0 ? { cambios } : undefined,
+    });
+
+    revalidatePath(`/permisos/${id}`);
+    revalidatePath("/permisos");
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await logError(msg, {
@@ -245,6 +247,7 @@ export async function editarPermiso(id: string, formData: FormData) {
     });
     throw err;
   }
+  redirect(`/permisos/${id}`);
 }
 
 // ─── Cambiar estado (workflow) ─────────────────────────────────
@@ -335,7 +338,6 @@ export async function eliminarPermiso(id: string) {
     });
 
     revalidatePath("/permisos");
-    redirect("/permisos");
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await logError(msg, {
@@ -347,6 +349,7 @@ export async function eliminarPermiso(id: string) {
     });
     throw err;
   }
+  redirect("/permisos");
 }
 
 // ─── Exportar permisos (sin paginación) ───────────────────────
