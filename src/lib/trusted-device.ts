@@ -19,7 +19,11 @@ async function computeHmac(userId: string, expiresAt: number): Promise<string> {
   const payloadEncoded = new TextEncoder().encode(`${userId}.${expiresAt}`);
   const payload = payloadEncoded.buffer.slice(payloadEncoded.byteOffset, payloadEncoded.byteOffset + payloadEncoded.byteLength) as ArrayBuffer;
   const sig = await crypto.subtle.sign("HMAC", key, payload);
-  return btoa(String.fromCharCode(...new Uint8Array(sig)));
+  // URL-safe base64: sin +, /, ni = para evitar problemas de encoding en cookies
+  return btoa(String.fromCharCode(...new Uint8Array(sig)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 }
 
 /** Genera el token que se almacena en la cookie. */

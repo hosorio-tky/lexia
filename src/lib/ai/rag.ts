@@ -154,16 +154,34 @@ export async function getStructuredContext(tenantId: string): Promise<string> {
   const sections: string[] = [];
 
   // ── Permisos ───────────────────────────────────────────────
-  const { data: permisos } = await client
+  const { data: permisos, error: permisosError } = await client
     .from("permisos")
-    .select("id, nombre, numero_expediente, estado, fecha_solicitud, fecha_emision, fecha_vencimiento, tipo, entidad_reguladora, base_legal, riesgo_incumplimiento, descripcion, responsable_nombre")
+    .select([
+      "id, nombre, numero_expediente, fecha_solicitud, fecha_emision, fecha_vencimiento",
+      "base_legal, riesgo_incumplimiento, descripcion, responsable_nombre",
+      "deleted_at",
+      "estado_ref:workflow_estados!estado_id(valor)",
+      "tipo_cat:catalogos!tipo_id(valor)",
+      "entidad_cat:catalogos!entidad_reguladora_id(valor)",
+    ].join(", "))
     .eq("tenant_id", tenantId)
+    .is("deleted_at", null)
     .order("fecha_vencimiento", { ascending: true, nullsFirst: false })
     .limit(50);
 
+  if (permisosError) {
+    console.error("[rag:structured] permisos query error:", permisosError.message);
+  }
+
   if (permisos && permisos.length > 0) {
     const lines: string[] = ["## Permisos registrados"];
-    for (const p of permisos) {
+    for (const p of permisos as unknown as Array<{
+      id: string; nombre: string; numero_expediente?: string;
+      fecha_solicitud?: string; fecha_emision?: string; fecha_vencimiento?: string;
+      base_legal?: string; riesgo_incumplimiento?: string; descripcion?: string;
+      responsable_nombre?: string; deleted_at?: string;
+      estado_ref?: { valor: string }; tipo_cat?: { valor: string }; entidad_cat?: { valor: string };
+    }>) {
       const vence = p.fecha_vencimiento
         ? (() => {
             const dias = Math.ceil((new Date(p.fecha_vencimiento).getTime() - Date.now()) / 864e5);
@@ -173,9 +191,9 @@ export async function getStructuredContext(tenantId: string): Promise<string> {
       lines.push(
         `- [ID:${p.id}] ${p.nombre}` +
         ` | Expediente: ${p.numero_expediente ?? "–"}` +
-        ` | Estado: ${p.estado}` +
-        ` | Tipo: ${p.tipo ?? "–"}` +
-        ` | Entidad: ${p.entidad_reguladora ?? "–"}` +
+        ` | Estado: ${p.estado_ref?.valor ?? "–"}` +
+        ` | Tipo: ${p.tipo_cat?.valor ?? "–"}` +
+        ` | Entidad: ${p.entidad_cat?.valor ?? "–"}` +
         ` | Responsable: ${p.responsable_nombre ?? "–"}` +
         ` | Solicitud: ${p.fecha_solicitud ?? "–"}` +
         ` | Emisión: ${p.fecha_emision ?? "–"}` +
@@ -196,14 +214,19 @@ export async function getStructuredContext(tenantId: string): Promise<string> {
     .order("changed_at", { ascending: false })
     .limit(30);
 
+  // mapa id→nombre para lookup en historial/notas/comentarios
+  const permisoNombresMap: Record<string, string> = {};
+  for (const p of (permisos ?? []) as unknown as Array<{ id: string; nombre: string }>) {
+    permisoNombresMap[p.id] = p.nombre;
+  }
+
   if (historial && historial.length > 0) {
     const byPermiso: Record<string, typeof historial> = {};
     for (const h of historial) {
       if (!byPermiso[h.permiso_id]) byPermiso[h.permiso_id] = [];
       byPermiso[h.permiso_id].push(h);
     }
-    const permisoNombres: Record<string, string> = {};
-    for (const p of (permisos ?? [])) permisoNombres[p.id] = p.nombre;
+    const permisoNombres = permisoNombresMap;
 
     const lines: string[] = ["\n## Historial de cambios de estado (permisos)"];
     for (const [permisoId, cambios] of Object.entries(byPermiso)) {
@@ -230,9 +253,7 @@ export async function getStructuredContext(tenantId: string): Promise<string> {
     .limit(40);
 
   if (notasPermisos && notasPermisos.length > 0) {
-    const permisoNombres: Record<string, string> = {};
-    for (const p of (permisos ?? [])) permisoNombres[p.id] = p.nombre;
-
+    const permisoNombres = permisoNombresMap;
     const lines: string[] = ["\n## Notas en permisos"];
     for (const n of notasPermisos) {
       const nombre = permisoNombres[n.recurso_id] ?? n.recurso_id.slice(0, 8) + "…";
@@ -253,9 +274,7 @@ export async function getStructuredContext(tenantId: string): Promise<string> {
     .limit(40);
 
   if (comentariosPermisos && comentariosPermisos.length > 0) {
-    const permisoNombres: Record<string, string> = {};
-    for (const p of (permisos ?? [])) permisoNombres[p.id] = p.nombre;
-
+    const permisoNombres = permisoNombresMap;
     const lines: string[] = ["\n## Comentarios en permisos"];
     for (const c of comentariosPermisos) {
       const nombre = permisoNombres[c.recurso_id] ?? c.recurso_id.slice(0, 8) + "…";
@@ -267,16 +286,33 @@ export async function getStructuredContext(tenantId: string): Promise<string> {
   }
 
   // ── Contratos ──────────────────────────────────────────────
-  const { data: contratos } = await client
+  const { data: contratos, error: contratosError } = await client
     .from("contratos")
-    .select("id, titulo, numero, tipo, estado, responsable_nombre, contraparte_nombre, contraparte_email, valor, moneda, fecha_inicio, fecha_fin, fecha_firma, descripcion")
+    .select([
+      "id, titulo, numero, responsable_nombre, contraparte_nombre, contraparte_email",
+      "valor, moneda, fecha_inicio, fecha_fin, fecha_firma, descripcion",
+      "deleted_at",
+      "tipo_cat:catalogos!tipo_id(valor)",
+      "estado_ref:workflow_estados!estado_id(valor)",
+    ].join(", "))
     .eq("tenant_id", tenantId)
+    .is("deleted_at", null)
     .order("fecha_fin", { ascending: true, nullsFirst: false })
     .limit(50);
 
+  if (contratosError) {
+    console.error("[rag:structured] contratos query error:", contratosError.message);
+  }
+
   if (contratos && contratos.length > 0) {
     const lines: string[] = ["\n## Contratos registrados"];
-    for (const c of contratos) {
+    for (const c of contratos as unknown as Array<{
+      id: string; titulo: string; numero?: string;
+      responsable_nombre?: string; contraparte_nombre?: string; contraparte_email?: string;
+      valor?: number; moneda?: string; fecha_inicio?: string; fecha_fin?: string;
+      fecha_firma?: string; descripcion?: string; deleted_at?: string;
+      tipo_cat?: { valor: string }; estado_ref?: { valor: string };
+    }>) {
       const vence = c.fecha_fin
         ? (() => {
             const dias = Math.ceil((new Date(c.fecha_fin).getTime() - Date.now()) / 864e5);
@@ -289,8 +325,8 @@ export async function getStructuredContext(tenantId: string): Promise<string> {
       lines.push(
         `- [ID:${c.id}] ${c.titulo}` +
         ` | Número: ${c.numero ?? "–"}` +
-        ` | Tipo: ${c.tipo ?? "–"}` +
-        ` | Estado: ${c.estado}` +
+        ` | Tipo: ${c.tipo_cat?.valor ?? "–"}` +
+        ` | Estado: ${c.estado_ref?.valor ?? "–"}` +
         ` | Responsable: ${c.responsable_nombre ?? "–"}` +
         ` | Contraparte: ${c.contraparte_nombre ?? "–"}` +
         (c.contraparte_email ? ` (${c.contraparte_email})` : "") +
@@ -313,10 +349,14 @@ export async function getStructuredContext(tenantId: string): Promise<string> {
     .order("created_at", { ascending: false })
     .limit(40);
 
-  if (notasContratos && notasContratos.length > 0) {
-    const contratoTitulos: Record<string, string> = {};
-    for (const c of (contratos ?? [])) contratoTitulos[c.id] = c.titulo;
+  // mapa id→titulo para lookup en notas/comentarios de contratos
+  const contratoTitulosMap: Record<string, string> = {};
+  for (const c of (contratos ?? []) as unknown as Array<{ id: string; titulo: string }>) {
+    contratoTitulosMap[c.id] = c.titulo;
+  }
 
+  if (notasContratos && notasContratos.length > 0) {
+    const contratoTitulos = contratoTitulosMap;
     const lines: string[] = ["\n## Notas en contratos"];
     for (const n of notasContratos) {
       const titulo = contratoTitulos[n.recurso_id] ?? n.recurso_id.slice(0, 8) + "…";
@@ -337,9 +377,7 @@ export async function getStructuredContext(tenantId: string): Promise<string> {
     .limit(40);
 
   if (comentariosContratos && comentariosContratos.length > 0) {
-    const contratoTitulos: Record<string, string> = {};
-    for (const c of (contratos ?? [])) contratoTitulos[c.id] = c.titulo;
-
+    const contratoTitulos = contratoTitulosMap;
     const lines: string[] = ["\n## Comentarios en contratos"];
     for (const c of comentariosContratos) {
       const titulo = contratoTitulos[c.recurso_id] ?? c.recurso_id.slice(0, 8) + "…";

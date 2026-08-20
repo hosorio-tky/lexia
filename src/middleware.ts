@@ -65,8 +65,12 @@ export async function middleware(request: NextRequest) {
         // Verificar si el dispositivo ya fue marcado como confiado
         const trustedToken = request.cookies.get(TRUSTED_DEVICE_COOKIE)?.value;
         if (trustedToken && user?.id) {
-          const deviceConfiado = await verifyTrustedDeviceToken(trustedToken, user.id);
-          if (deviceConfiado) return response; // Saltear challenge
+          try {
+            const deviceConfiado = await verifyTrustedDeviceToken(trustedToken, user.id);
+            if (deviceConfiado) return response; // Saltear challenge
+          } catch (e) {
+            console.error("[middleware] trusted-device verify error:", e);
+          }
         }
         // Factor enrollado + sesión AAL1 → challenge primero (sin excepción)
         if (!isMfaRoute) return NextResponse.redirect(new URL("/mfa/challenge", request.url));

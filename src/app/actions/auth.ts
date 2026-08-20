@@ -200,7 +200,7 @@ export async function marcarDispositivoConfiado(userId: string): Promise<void> {
   cookieStore.set(TRUSTED_DEVICE_COOKIE, token, {
     httpOnly: true,
     secure:   process.env.NODE_ENV === "production",
-    sameSite: "strict",
+    sameSite: "lax",
     maxAge:   TRUSTED_DEVICE_MAX_AGE,
     path:     "/",
   });
