@@ -124,9 +124,13 @@ export function PermitFormClient({
       const r = responsables.find((r) => r.id === primaryId);
       if (r) fd.set("responsable_nombre", r.nombre);
     }
-    // Pass the original responsable_id so the action can detect assignment changes
+    // Pass previous responsable array so the action can detect newly added responsables
     // without a DB read (avoids caching/race-condition issues)
-    fd.set("prev_responsable_id", defaultValues?.responsable_id ?? "");
+    const prevIds = defaultValues?.responsable_ids?.length
+      ? defaultValues.responsable_ids
+      : defaultValues?.responsable_id ? [defaultValues.responsable_id] : [];
+    fd.delete("prev_responsable_ids[]");
+    prevIds.forEach((pid) => fd.append("prev_responsable_ids[]", pid));
 
     // Ubicación: id + nombre desnormalizado
     if (ubicacionId && ubicacionId !== "__none__") {

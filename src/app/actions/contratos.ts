@@ -87,10 +87,10 @@ export async function crearContrato(
       storagePath: input.storage_path,
     }).catch((err) => console.error("[crearContrato] indexación fallida:", err));
 
-    // Notificar al responsable principal si fue asignado
-    if (input.responsable_id) {
+    // Notificar a todos los responsables asignados al crear
+    for (const rid of input.responsable_ids) {
       try {
-        const dest = await resolveResponsableEmail(input.responsable_id);
+        const dest = await resolveResponsableEmail(rid);
         if (dest) {
           await sendResponsableAsignado(dest.email, {
             destinatarioNombre: dest.nombre,
@@ -190,13 +190,12 @@ export async function editarContrato(
       { userId: session.user_id, nombre: session.nombre_completo || session.nombre }
     );
 
-    // Notificar al nuevo responsable si cambió.
-    // prev_responsable_id viene del form, evitando race conditions con DB read.
-    const nuevoResponsableId = (input.responsable_id as string | null) || null;
-    const prevResponsableId  = (formData.get("prev_responsable_id") as string) || null;
-    if (nuevoResponsableId && nuevoResponsableId !== prevResponsableId) {
+    // Notificar a cada responsable recién agregado.
+    const prevResponsableIds = (formData.getAll("prev_responsable_ids[]") as string[]).filter(Boolean);
+    const nuevosIds = responsableIdsEdit.filter((rid) => !prevResponsableIds.includes(rid));
+    for (const rid of nuevosIds) {
       try {
-        const dest = await resolveResponsableEmail(nuevoResponsableId);
+        const dest = await resolveResponsableEmail(rid);
         if (dest) {
           await sendResponsableAsignado(dest.email, {
             destinatarioNombre: dest.nombre,

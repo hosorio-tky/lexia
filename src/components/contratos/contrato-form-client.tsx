@@ -141,7 +141,11 @@ export function ContratoFormClient({
       const r = responsables.find((r) => r.id === primaryId);
       if (r) fd.set("responsable_nombre", r.nombre);
     }
-    fd.set("prev_responsable_id", defaultValues?.responsable_id ?? "");
+    const prevIds = defaultValues?.responsable_ids?.length
+      ? defaultValues.responsable_ids
+      : defaultValues?.responsable_id ? [defaultValues.responsable_id] : [];
+    fd.delete("prev_responsable_ids[]");
+    prevIds.forEach((pid) => fd.append("prev_responsable_ids[]", pid));
 
     startTransition(() => action(null, fd));
   };

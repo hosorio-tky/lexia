@@ -83,10 +83,10 @@ export async function crearPermiso(formData: FormData) {
       recurso_desc: input.nombre,
     });
 
-    // Notificar al responsable principal si fue asignado
-    if (input.responsable_id) {
+    // Notificar a todos los responsables asignados al crear
+    for (const rid of input.responsable_ids) {
       try {
-        const dest = await resolveResponsableEmail(input.responsable_id);
+        const dest = await resolveResponsableEmail(rid);
         if (dest) {
           await sendResponsableAsignado(dest.email, {
             destinatarioNombre: dest.nombre,
@@ -201,15 +201,13 @@ export async function editarPermiso(id: string, formData: FormData) {
     const responsableIdsEdit = (formData.getAll("responsable_ids[]") as string[]).filter(Boolean);
     await repo.update(id, { ...input, responsable_ids: responsableIdsEdit });
 
-    // Notificar al nuevo responsable si cambió.
-    // prev_responsable_id viene del form (estado al cargar la página de edición),
-    // evitando race conditions con la lectura de DB.
-    const nuevoResponsableId = (input.responsable_id as string | null) || null;
-    const prevResponsableId  = (formData.get("prev_responsable_id") as string) || null;
-    console.log("[editarPermiso] email check:", { nuevoResponsableId, prevResponsableId });
-    if (nuevoResponsableId && nuevoResponsableId !== prevResponsableId) {
+    // Notificar a cada responsable recién agregado (no presente en el array anterior).
+    // prev_responsable_ids viene del form al cargar la página, evitando race conditions.
+    const prevResponsableIds = (formData.getAll("prev_responsable_ids[]") as string[]).filter(Boolean);
+    const nuevosIds = responsableIdsEdit.filter((rid) => !prevResponsableIds.includes(rid));
+    for (const rid of nuevosIds) {
       try {
-        const dest = await resolveResponsableEmail(nuevoResponsableId);
+        const dest = await resolveResponsableEmail(rid);
         if (dest) {
           await sendResponsableAsignado(dest.email, {
             destinatarioNombre: dest.nombre,
