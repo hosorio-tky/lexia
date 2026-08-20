@@ -201,10 +201,13 @@ export async function editarPermiso(id: string, formData: FormData) {
     const responsableIdsEdit = (formData.getAll("responsable_ids[]") as string[]).filter(Boolean);
     await repo.update(id, { ...input, responsable_ids: responsableIdsEdit });
 
-    // Notificar al nuevo responsable si cambió
+    // Notificar al nuevo responsable si cambió.
+    // prev_responsable_id viene del form (estado al cargar la página de edición),
+    // evitando race conditions con la lectura de DB.
     const nuevoResponsableId = (input.responsable_id as string | null) || null;
-    console.log("[editarPermiso] email check:", { nuevoResponsableId, actualResponsableId: actual?.responsable_id ?? null });
-    if (nuevoResponsableId && nuevoResponsableId !== (actual?.responsable_id ?? null)) {
+    const prevResponsableId  = (formData.get("prev_responsable_id") as string) || null;
+    console.log("[editarPermiso] email check:", { nuevoResponsableId, prevResponsableId });
+    if (nuevoResponsableId && nuevoResponsableId !== prevResponsableId) {
       try {
         const dest = await resolveResponsableEmail(nuevoResponsableId);
         if (dest) {

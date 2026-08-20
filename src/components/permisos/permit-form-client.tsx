@@ -124,6 +124,9 @@ export function PermitFormClient({
       const r = responsables.find((r) => r.id === primaryId);
       if (r) fd.set("responsable_nombre", r.nombre);
     }
+    // Pass the original responsable_id so the action can detect assignment changes
+    // without a DB read (avoids caching/race-condition issues)
+    fd.set("prev_responsable_id", defaultValues?.responsable_id ?? "");
 
     // Ubicación: id + nombre desnormalizado
     if (ubicacionId && ubicacionId !== "__none__") {

@@ -190,9 +190,11 @@ export async function editarContrato(
       { userId: session.user_id, nombre: session.nombre_completo || session.nombre }
     );
 
-    // Notificar al nuevo responsable si cambió
+    // Notificar al nuevo responsable si cambió.
+    // prev_responsable_id viene del form, evitando race conditions con DB read.
     const nuevoResponsableId = (input.responsable_id as string | null) || null;
-    if (nuevoResponsableId && nuevoResponsableId !== (actual?.responsable_id ?? null)) {
+    const prevResponsableId  = (formData.get("prev_responsable_id") as string) || null;
+    if (nuevoResponsableId && nuevoResponsableId !== prevResponsableId) {
       try {
         const dest = await resolveResponsableEmail(nuevoResponsableId);
         if (dest) {
