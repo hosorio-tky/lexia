@@ -49,6 +49,7 @@ import type { Nota } from "@/lib/repositories/notas";
 import type { ActividadEntry } from "@/lib/repositories/actividad";
 import type { RecursoAcceso, Grupo } from "@/types/access-control";
 import type { Suscripcion } from "@/lib/repositories/suscripciones";
+import type { Responsable } from "@/lib/repositories/responsables";
 
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
   return (
@@ -98,6 +99,7 @@ export function PermitDetailClient({
   timeline: initialTimeline,
   fechasHistorial: initialFechasHistorial = [],
   usuarios = [],
+  responsables = [],
   tareas = [],
   comentarios = [],
   notas = [],
@@ -114,6 +116,7 @@ export function PermitDetailClient({
   timeline: TimelineEvent[];
   fechasHistorial?: PermitFechaHistorial[];
   usuarios?: UserProfile[];
+  responsables?: Responsable[];
   tareas?: Task[];
   comentarios?: Comentario[];
   notas?: Nota[];
@@ -376,23 +379,34 @@ export function PermitDetailClient({
         {/* Columna lateral */}
         <div className="flex flex-col gap-5">
           <Section title="Responsable y Ubicación">
-            <div className="space-y-4">
-              {permit.responsable_nombre && (
-                <div className="flex items-center gap-3">
-                  <div className="grid h-9 w-9 place-items-center rounded-full bg-primary/10 text-primary text-xs font-bold">
-                    {permit.responsable_iniciales}
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium">{permit.responsable_nombre}</div>
-                    {permit.responsable_area
-                      ? <div className="text-xs text-muted-foreground">{permit.responsable_area}</div>
-                      : <div className="text-xs text-muted-foreground">Responsable</div>
-                    }
-                  </div>
-                </div>
-              )}
+            <div className="space-y-3">
+              {(() => {
+                const ids = permit.responsable_ids?.length
+                  ? permit.responsable_ids
+                  : permit.responsable_id ? [permit.responsable_id] : [];
+                if (ids.length === 0) return (
+                  <p className="text-sm text-muted-foreground italic">Sin responsable asignado.</p>
+                );
+                return ids.map((rid) => {
+                  const r = responsables.find((x) => x.id === rid);
+                  const nombre  = r?.nombre ?? permit.responsable_nombre ?? rid;
+                  const area    = r?.area ?? (rid === permit.responsable_id ? permit.responsable_area : null);
+                  const initials = nombre.split(" ").map((w: string) => w[0]).join("").substring(0, 2).toUpperCase();
+                  return (
+                    <div key={rid} className="flex items-center gap-3">
+                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary text-xs font-bold">
+                        {initials}
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium">{nombre}</div>
+                        <div className="text-xs text-muted-foreground">{area ?? "Responsable"}</div>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
               {permit.ubicacion && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground pt-1">
                   <MapPin className="h-4 w-4 shrink-0" />
                   {permit.ubicacion}
                 </div>

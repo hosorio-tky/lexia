@@ -12,6 +12,7 @@ import { createUsuariosRepository } from "@/lib/repositories/usuarios";
 import { createAccesoRepository, getUserNivel } from "@/lib/repositories/acceso";
 import { createGruposRepository } from "@/lib/repositories/grupos";
 import { createSuscripcionesRepository } from "@/lib/repositories/suscripciones";
+import { createResponsablesRepository } from "@/lib/repositories/responsables";
 import { getSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +28,7 @@ export default async function ContratoDetallePage({
 
   const suscRepo = createSuscripcionesRepository(client, session.tenant_id);
 
-  const [contrato, versiones, comentarios, notas, actividad, tareas, usuarios, accesos, grupos] = await Promise.all([
+  const [contrato, versiones, comentarios, notas, actividad, tareas, usuarios, responsables, accesos, grupos] = await Promise.all([
     repo.getById(id, { userId: session.user_id, userRol: session.rol }),
     repo.getVersiones(id),
     createComentariosRepository(client, session.tenant_id).list("contratos", id),
@@ -38,6 +39,7 @@ export default async function ContratoDetallePage({
       recurso_id:    id,
     }),
     createUsuariosRepository(client, session.tenant_id).list(),
+    createResponsablesRepository(client, session.tenant_id).list(),
     createAccesoRepository(client, session.tenant_id).listByResource("contrato", id),
     createGruposRepository(client, session.tenant_id).list(),
   ]);
@@ -71,6 +73,7 @@ export default async function ContratoDetallePage({
           actividad={actividad}
           tareas={tareas}
           usuarios={usuarios}
+          responsables={responsables}
           accesos={accesos}
           grupos={grupos}
           userId={session.user_id}

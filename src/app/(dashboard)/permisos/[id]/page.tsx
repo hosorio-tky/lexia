@@ -12,6 +12,7 @@ import { createActividadRepository } from "@/lib/repositories/actividad";
 import { createAccesoRepository, getUserNivel } from "@/lib/repositories/acceso";
 import { createGruposRepository } from "@/lib/repositories/grupos";
 import { createSuscripcionesRepository } from "@/lib/repositories/suscripciones";
+import { createResponsablesRepository } from "@/lib/repositories/responsables";
 import { getSession } from "@/lib/auth/session";
 
 export const dynamic = "force-dynamic";
@@ -28,12 +29,13 @@ export default async function PermisoDetallePage({
 
   const suscRepo = createSuscripcionesRepository(client, session.tenant_id);
 
-  const [permit, timeline, fechasHistorial, usuarios, tareas, comentarios, notas, actividad, accesos, grupos] =
+  const [permit, timeline, fechasHistorial, usuarios, responsables, tareas, comentarios, notas, actividad, accesos, grupos] =
     await Promise.all([
       repo.getById(id, { userId: session.user_id, userRol: session.rol }),
       repo.getTimeline(id),
       repo.getFechasHistorial(id),
       createUsuariosRepository(client, session.tenant_id).list(),
+      createResponsablesRepository(client, session.tenant_id).list(),
       createTareasRepository(client, session.tenant_id).list({
         modulo_origen: "permisos",
         recurso_id:    id,
@@ -71,6 +73,7 @@ export default async function PermisoDetallePage({
           timeline={timeline}
           fechasHistorial={fechasHistorial}
           usuarios={usuarios}
+          responsables={responsables}
           tareas={tareas}
           comentarios={comentarios}
           notas={notas}

@@ -30,6 +30,7 @@ interface PermisoRow {
   fecha_emision_provisional: string | null;
   fecha_vencimiento_provisional: string | null;
   responsable_id: string | null;
+  responsable_ids: string[];
   responsable_nombre: string | null;
   responsable_det: { area: string | null; user_id: string | null } | null;
   valor_tramite: number | null;
@@ -107,6 +108,7 @@ function mapRow(row: PermisoRow): Permit {
     fecha_emision_provisional:  row.fecha_emision_provisional ?? undefined,
     fecha_vencimiento_provisional: row.fecha_vencimiento_provisional ?? undefined,
     responsable_id:             row.responsable_id ?? undefined,
+    responsable_ids:            row.responsable_ids ?? [],
     responsable_nombre:         row.responsable_nombre ?? undefined,
     responsable_iniciales:      row.responsable_nombre
       ? row.responsable_nombre.split(" ").map((w: string) => w[0]).join("").substring(0, 2).toUpperCase()
@@ -330,6 +332,7 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
       fecha_emision_provisional?: string;
       fecha_vencimiento_provisional?: string;
       responsable_id?: string;
+      responsable_ids?: string[];
       responsable_nombre?: string;
       valor_tramite?: number;
       moneda?: string;

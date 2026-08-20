@@ -31,6 +31,7 @@ interface ContratoRow {
   storage_path: string | null;
   contenido_html: string | null;
   responsable_id: string | null;
+  responsable_ids: string[];
   responsable_nombre: string | null;
   responsable_det: { area: string | null; user_id: string | null } | null;
   visibilidad: string | null;
@@ -87,6 +88,7 @@ function mapRow(row: ContratoRow): Contrato {
     storage_path:        row.storage_path ?? undefined,
     contenido_html:      row.contenido_html ?? undefined,
     responsable_id:      row.responsable_id ?? undefined,
+    responsable_ids:     row.responsable_ids ?? [],
     responsable_nombre:  row.responsable_nombre ?? undefined,
     responsable_area:    row.responsable_det?.area ?? undefined,
     visibilidad:         (row.visibilidad as "publico" | "restringido") ?? "publico",
@@ -243,6 +245,7 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
       storage_path?: string;
       contenido_html?: string;
       responsable_id?: string;
+      responsable_ids?: string[];
       responsable_nombre?: string;
       created_by?: string;
     }): Promise<Contrato> {

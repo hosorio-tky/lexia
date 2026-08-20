@@ -48,6 +48,7 @@ import type { Nota } from "@/lib/repositories/notas";
 import type { ActividadEntry } from "@/lib/repositories/actividad";
 import type { RecursoAcceso, Grupo } from "@/types/access-control";
 import type { Suscripcion } from "@/lib/repositories/suscripciones";
+import type { Responsable } from "@/lib/repositories/responsables";
 
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
   return (
@@ -146,6 +147,7 @@ export function ContratoDetailClient({
   actividad,
   tareas  = [],
   usuarios = [],
+  responsables = [],
   accesos = [],
   grupos = [],
   userId = "",
@@ -161,6 +163,7 @@ export function ContratoDetailClient({
   actividad:     ActividadEntry[];
   tareas?:       Task[];
   usuarios?:     UserProfile[];
+  responsables?: Responsable[];
   accesos?:      RecursoAcceso[];
   grupos?:       Grupo[];
   userId?:       string;
@@ -352,22 +355,35 @@ export function ContratoDetailClient({
 
           <Section title="Responsable y Contraparte">
             <div className="space-y-4">
-              {contrato.responsable_nombre ? (
-                <div className="flex items-center gap-3">
-                  <div className="grid h-9 w-9 place-items-center rounded-full bg-primary/10 text-primary text-xs font-bold">
-                    {contrato.responsable_nombre.split(" ").slice(0, 2).map(w => w[0]).join("").toUpperCase()}
+              {(() => {
+                const ids = contrato.responsable_ids?.length
+                  ? contrato.responsable_ids
+                  : contrato.responsable_id ? [contrato.responsable_id] : [];
+                if (ids.length === 0) return (
+                  <p className="text-sm text-muted-foreground italic">Sin responsable asignado.</p>
+                );
+                return (
+                  <div className="space-y-3">
+                    {ids.map((rid) => {
+                      const r = responsables.find((x) => x.id === rid);
+                      const nombre  = r?.nombre ?? contrato.responsable_nombre ?? rid;
+                      const area    = r?.area ?? (rid === contrato.responsable_id ? contrato.responsable_area : null);
+                      const initials = nombre.split(" ").slice(0, 2).map((w: string) => w[0]).join("").toUpperCase();
+                      return (
+                        <div key={rid} className="flex items-center gap-3">
+                          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-primary/10 text-primary text-xs font-bold">
+                            {initials}
+                          </div>
+                          <div>
+                            <div className="text-sm font-medium">{nombre}</div>
+                            <div className="text-xs text-muted-foreground">{area ?? "Responsable"}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <div>
-                    <div className="text-sm font-medium">{contrato.responsable_nombre}</div>
-                    {contrato.responsable_area
-                      ? <div className="text-xs text-muted-foreground">{contrato.responsable_area}</div>
-                      : <div className="text-xs text-muted-foreground">Responsable</div>
-                    }
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground italic">Sin responsable asignado.</p>
-              )}
+                );
+              })()}
               {(contrato.contraparte_nombre || contrato.contraparte_email) && (
                 <>
                   <Separator />
