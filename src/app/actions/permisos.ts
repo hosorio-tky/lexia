@@ -153,12 +153,17 @@ export async function editarPermiso(id: string, formData: FormData) {
   };
 
   // Calcular diff de campos
+  // JOIN display names (not in input directly, must be passed separately from the form)
+  const diffExtras: Record<string, string | null> = {
+    tipo:               (formData.get("tipo_nombre") as string) || null,
+    entidad_reguladora: (formData.get("entidad_reguladora_nombre") as string) || null,
+  };
   const fechaVencJustif = (formData.get("fecha_vencimiento_justificacion") as string) || null;
   const cambios: Array<{ campo: string; de: string | null; a: string | null; justificacion?: string }> = [];
   if (actual) {
     for (const key of Object.keys(FIELD_LABELS)) {
       const valorAntes    = (actual as unknown as Record<string, unknown>)[key];
-      const valorDespues  = input[key];
+      const valorDespues  = key in diffExtras ? diffExtras[key] : input[key];
       const toStr = (v: unknown): string | null => {
         if (v === "" || v === null || v === undefined) return null;
         return String(v);

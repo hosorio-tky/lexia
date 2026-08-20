@@ -108,7 +108,10 @@ export function PermitFormClient({
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     fd.set("tipo_id", tipo);
-    fd.set("entidad_reguladora_id", entidad === "__none__" ? "" : entidad);
+    fd.set("tipo_nombre", tipoItems.find((t) => t.id === tipo)?.valor ?? "");
+    const entidadId = entidad === "__none__" ? "" : entidad;
+    fd.set("entidad_reguladora_id", entidadId);
+    fd.set("entidad_reguladora_nombre", entidadItems.find((e) => e.id === entidadId)?.valor ?? "");
     fd.set("moneda", moneda);
     fd.set("tiene_provisional", String(tieneProvisional));
 

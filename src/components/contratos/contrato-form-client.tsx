@@ -128,6 +128,7 @@ export function ContratoFormClient({
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     fd.set("tipo_id",        tipo);
+    fd.set("tipo_nombre",    tipoItems.find((t) => t.id === tipo)?.valor ?? "");
     fd.set("moneda",         moneda);
     fd.set("contenido_html", contenidoHtml);
     fd.set("storage_path",   storagePath);
