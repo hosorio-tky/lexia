@@ -18,13 +18,30 @@ import { invitarUsuario } from "@/app/actions/usuarios";
 import { USER_ROLES, ROLE_LABELS } from "@/types/users";
 import type { CatalogoItem } from "@/types/settings";
 
-export function UserInviteForm({
-  rolInvitador = "supervisor",
-  departamentos = [],
-}: {
+interface Props {
   rolInvitador?: string;
   departamentos?: CatalogoItem[];
-}) {
+}
+
+// ── Outer wrapper — manages the key to reset the inner form ──
+export function UserInviteForm({ rolInvitador = "supervisor", departamentos = [] }: Props) {
+  const [formKey, setFormKey] = useState(0);
+  return (
+    <InviteFormInner
+      key={formKey}
+      rolInvitador={rolInvitador}
+      departamentos={departamentos}
+      onInviteAnother={() => setFormKey((k) => k + 1)}
+    />
+  );
+}
+
+// ── Inner form — remounts cleanly on each invitation ─────────
+function InviteFormInner({
+  rolInvitador,
+  departamentos,
+  onInviteAnother,
+}: Props & { onInviteAnother: () => void }) {
   const [rol, setRol] = useState("usuario");
 
   const actionWithRol = async (_prev: unknown, formData: FormData) => {
@@ -34,7 +51,7 @@ export function UserInviteForm({
 
   const [state, formAction, isPending] = useActionState(actionWithRol, {});
 
-  // ── Éxito: email enviado ───────────────────────────────────
+  // ── Éxito ─────────────────────────────────────────────────
   if (state?.success) {
     return (
       <Card className="p-6 shadow-sm space-y-5">
@@ -49,25 +66,27 @@ export function UserInviteForm({
             El usuario debe hacer clic en el enlace para establecer su contraseña.
           </p>
         </div>
-        <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-          💡 En entorno local, el correo llega a{" "}
-          <a
-            href="http://127.0.0.1:54324"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary underline"
-          >
-            Mailpit
-          </a>
-          .
-        </div>
+
+        {process.env.NODE_ENV === "development" && (
+          <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+            💡 En entorno local, el correo llega a{" "}
+            <a
+              href="http://127.0.0.1:54324"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline"
+            >
+              Mailpit
+            </a>
+            .
+          </div>
+        )}
+
         <div className="flex gap-2">
-          <Link href="/usuarios/invitar">
-            <Button variant="outline">
-              <UserPlus className="mr-2 h-4 w-4" />
-              Invitar otro
-            </Button>
-          </Link>
+          <Button variant="outline" onClick={onInviteAnother}>
+            <UserPlus className="mr-2 h-4 w-4" />
+            Invitar otro
+          </Button>
           <Link href="/usuarios">
             <Button>Ver usuarios</Button>
           </Link>
@@ -76,6 +95,7 @@ export function UserInviteForm({
     );
   }
 
+  // ── Formulario ────────────────────────────────────────────
   return (
     <Card className="p-6 shadow-sm space-y-6">
       <div>
@@ -120,7 +140,7 @@ export function UserInviteForm({
           </div>
           <div className="space-y-1.5">
             <Label>Departamento</Label>
-            <DepartamentoField departamentos={departamentos} />
+            <DepartamentoField departamentos={departamentos ?? []} />
           </div>
         </div>
 
@@ -129,9 +149,9 @@ export function UserInviteForm({
           <span className="text-muted-foreground">Permisos del rol:</span>
           <UserRoleBadge rol={rol as "admin" | "supervisor" | "usuario" | "solo_lectura"} />
           <span className="text-xs text-muted-foreground">
-            {rol === "admin"       && "— acceso total, gestiona usuarios y configuración"}
-            {rol === "supervisor"  && "— puede crear y editar, no eliminar"}
-            {rol === "usuario"     && "— puede crear y editar permisos"}
+            {rol === "admin"        && "— acceso total, gestiona usuarios y configuración"}
+            {rol === "supervisor"   && "— puede crear y editar, no eliminar"}
+            {rol === "usuario"      && "— puede crear y editar permisos"}
             {rol === "solo_lectura" && "— solo puede ver información"}
           </span>
         </div>
