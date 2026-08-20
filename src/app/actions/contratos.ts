@@ -89,14 +89,14 @@ export async function crearContrato(
     // Notificar al responsable principal si fue asignado
     if (input.responsable_id) {
       try {
-        const { data: profile } = await createAdminClient()
-          .from("profiles")
-          .select("email, nombre, apellido")
+        const { data: resp } = await createAdminClient()
+          .from("responsables")
+          .select("email, nombre")
           .eq("id", input.responsable_id)
           .single();
-        if (profile?.email) {
-          await sendResponsableAsignado(profile.email, {
-            destinatarioNombre: profile.apellido ? `${profile.nombre} ${profile.apellido}` : profile.nombre,
+        if (resp?.email) {
+          await sendResponsableAsignado(resp.email, {
+            destinatarioNombre: resp.nombre,
             asignadoPorNombre:  session.nombre_completo || session.nombre,
             modulo:             "contratos",
             recursoNombre:      input.titulo,
@@ -193,14 +193,14 @@ export async function editarContrato(
     const nuevoResponsableId = (input.responsable_id as string | null) || null;
     if (nuevoResponsableId && nuevoResponsableId !== (actual?.responsable_id ?? null)) {
       try {
-        const { data: profile } = await createAdminClient()
-          .from("profiles")
-          .select("email, nombre, apellido")
+        const { data: resp } = await createAdminClient()
+          .from("responsables")
+          .select("email, nombre")
           .eq("id", nuevoResponsableId)
           .single();
-        if (profile?.email) {
-          await sendResponsableAsignado(profile.email, {
-            destinatarioNombre: profile.apellido ? `${profile.nombre} ${profile.apellido}` : profile.nombre,
+        if (resp?.email) {
+          await sendResponsableAsignado(resp.email, {
+            destinatarioNombre: resp.nombre,
             asignadoPorNombre:  session.nombre_completo || session.nombre,
             modulo:             "contratos",
             recursoNombre:      input.titulo as string,
@@ -281,18 +281,14 @@ export async function cambiarEstadoContrato(
     // Email al responsable
     if (actual?.responsable_id) {
       try {
-        const client2 = createAdminClient();
-        const { data: profile } = await client2
-          .from("profiles")
-          .select("email, nombre, apellido")
+        const { data: resp } = await createAdminClient()
+          .from("responsables")
+          .select("email, nombre")
           .eq("id", actual.responsable_id)
           .single();
-        if (profile?.email) {
-          const destinatarioNombre = profile.apellido
-            ? `${profile.nombre} ${profile.apellido}`
-            : profile.nombre;
-          await sendCambioEstado(profile.email, {
-            destinatarioNombre,
+        if (resp?.email) {
+          await sendCambioEstado(resp.email, {
+            destinatarioNombre: resp.nombre,
             modulo:            "contratos",
             recursoNombre:     actual.titulo,
             estadoAnterior:    actual.estado ?? "—",
