@@ -246,7 +246,7 @@ export function createContratosRepository(client: SupabaseClient, tenantId: stri
       contenido_html?: string;
       responsable_id?: string;
       responsable_ids?: string[];
-      responsable_nombre?: string;
+      responsable_nombre?: string | null;
       created_by?: string;
     }): Promise<Contrato> {
       const { data: inserted, error: insertError } = await client
