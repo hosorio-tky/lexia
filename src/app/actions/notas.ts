@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import DOMPurify from "isomorphic-dompurify";
+import sanitizeHtmlLib from "sanitize-html";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotasRepository } from "@/lib/repositories/notas";
 import { createDocumentosRepository } from "@/lib/repositories/documentos";
@@ -21,14 +21,17 @@ function textSnippet(html: string, max = 150): string {
 }
 
 function sanitizeHtml(html: string): string {
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: [
+  return sanitizeHtmlLib(html, {
+    allowedTags: [
       "p", "br", "strong", "em", "u", "s", "ul", "ol", "li",
       "blockquote", "code", "pre", "h1", "h2", "h3",
       "span", "a", "mark",
     ],
-    ALLOWED_ATTR: ["href", "target", "rel", "class", "data-type", "data-id", "data-label"],
-    ALLOW_DATA_ATTR: false,
+    allowedAttributes: {
+      "a":    ["href", "target", "rel"],
+      "span": ["class", "data-type", "data-id", "data-label"],
+      "*":    ["class"],
+    },
   });
 }
 
