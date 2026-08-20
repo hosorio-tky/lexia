@@ -200,6 +200,7 @@ export async function editarPermiso(id: string, formData: FormData) {
 
   // Notificar al nuevo responsable si cambió
   const nuevoResponsableId = (input.responsable_id as string | null) || null;
+  console.log("[editarPermiso] email check:", { nuevoResponsableId, actualResponsableId: actual?.responsable_id ?? null });
   if (nuevoResponsableId && nuevoResponsableId !== (actual?.responsable_id ?? null)) {
     try {
       const dest = await resolveResponsableEmail(nuevoResponsableId);
