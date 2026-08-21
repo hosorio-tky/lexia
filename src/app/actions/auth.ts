@@ -256,6 +256,9 @@ export async function actualizarContrasena(
   const { error } = await supabase.auth.updateUser({ password });
   if (error) return { error: error.message };
 
+  // Marcar acceso — para usuarios de invitación este es el primer acceso real.
+  await stampUltimoAcceso();
+
   // Verificar si era cambio forzado (por app_metadata o por cookie)
   const { data: { user: currentUser } } = await supabase.auth.getUser();
   const cookieStore = await cookies();

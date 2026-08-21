@@ -40,12 +40,13 @@ export default function AuthConfirmPage() {
           setErrorMsg(error.message);
           return;
         }
-        // Marcar primer acceso — resuelve el estado "Pendiente"
-        await stampUltimoAcceso();
-        // Hard navigation para que el servidor reciba las cookies recién escritas
+        // Hard navigation para que el servidor reciba las cookies recién escritas.
+        // Para flujos de invitación/recuperación NO marcamos ultimo_acceso aquí —
+        // el usuario aún no completó el registro. Se marca en actualizarContrasena.
         if (type === "recovery" || type === "invite") {
           window.location.href = "/actualizar-contrasena";
         } else {
+          await stampUltimoAcceso();
           window.location.href = "/dashboard";
         }
       });
