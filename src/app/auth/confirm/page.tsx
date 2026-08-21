@@ -13,11 +13,13 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { stampUltimoAcceso } from "@/app/actions/auth";
 
+type PageState = "loading" | "link_used" | "error";
+
 export default function AuthConfirmPage() {
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [pageState, setPageState] = useState<PageState>("loading");
 
   useEffect(() => {
-    const hash   = window.location.hash.substring(1); // quita el "#"
+    const hash   = window.location.hash.substring(1);
     const params = new URLSearchParams(hash);
 
     const accessToken  = params.get("access_token");
@@ -27,13 +29,13 @@ export default function AuthConfirmPage() {
     const supabase = createClient();
 
     if (!accessToken || !refreshToken) {
-      // Sin token en el hash — puede ser un segundo click sobre un link ya usado.
-      // Verificar si hay sesión activa con registro pendiente y redirigir directamente.
+      // Sin token — segundo click sobre link ya usado o token expirado.
+      // Intentar recuperar sesión activa antes de mostrar error.
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session?.user?.app_metadata?.must_change_password) {
           window.location.href = "/actualizar-contrasena";
         } else {
-          window.location.href = "/login";
+          setPageState("link_used");
         }
       });
       return;
@@ -50,7 +52,7 @@ export default function AuthConfirmPage() {
             window.location.href = "/actualizar-contrasena";
             return;
           }
-          setErrorMsg(error.message);
+          setPageState("link_used");
           return;
         }
         // Hard navigation para que el servidor reciba las cookies recién escritas.
@@ -65,15 +67,29 @@ export default function AuthConfirmPage() {
       });
   }, []);
 
-  if (errorMsg) {
+  if (pageState === "link_used") {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="max-w-sm text-center space-y-3">
-          <p className="text-sm font-medium text-destructive">No se pudo verificar el enlace</p>
-          <p className="text-xs text-muted-foreground">{errorMsg}</p>
-          <a href="/login" className="text-sm text-primary underline underline-offset-2">
-            Volver al inicio de sesión
+        <div className="max-w-sm text-center space-y-4">
+          <p className="text-sm font-medium">Este enlace ya fue utilizado</p>
+          <p className="text-sm text-muted-foreground">
+            Los enlaces de invitación son de un solo uso. Si aún no configuraste
+            tu contraseña, usa la opción{" "}
+            <strong>&ldquo;¿Olvidaste tu contraseña?&rdquo;</strong> en el inicio
+            de sesión para recibir un nuevo enlace, o solicita a tu administrador
+            que reenvíe la invitación.
+          </p>
+          <a
+            href="/recuperar"
+            className="inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            Recibir nuevo enlace
           </a>
+          <div>
+            <a href="/login" className="text-sm text-muted-foreground underline underline-offset-2">
+              Ir al inicio de sesión
+            </a>
+          </div>
         </div>
       </div>
     );
