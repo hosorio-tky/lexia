@@ -70,26 +70,12 @@ export default function AuthConfirmPage() {
   if (pageState === "link_used") {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="max-w-sm text-center space-y-4">
+        <div className="max-w-sm text-center space-y-3">
           <p className="text-sm font-medium">Este enlace ya fue utilizado</p>
           <p className="text-sm text-muted-foreground">
-            Los enlaces de invitación son de un solo uso. Si aún no configuraste
-            tu contraseña, usa la opción{" "}
-            <strong>&ldquo;¿Olvidaste tu contraseña?&rdquo;</strong> en el inicio
-            de sesión para recibir un nuevo enlace, o solicita a tu administrador
-            que reenvíe la invitación.
+            Los enlaces de invitación son de un solo uso. Contacta a tu
+            administrador para que te reenvíe la invitación.
           </p>
-          <a
-            href="/recuperar"
-            className="inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          >
-            Recibir nuevo enlace
-          </a>
-          <div>
-            <a href="/login" className="text-sm text-muted-foreground underline underline-offset-2">
-              Ir al inicio de sesión
-            </a>
-          </div>
         </div>
       </div>
     );
