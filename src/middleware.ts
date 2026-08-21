@@ -55,6 +55,15 @@ export async function middleware(request: NextRequest) {
   // si hay MFA enrollado pero sesión en AAL1, el challenge va PRIMERO porque
   // Supabase exige AAL2 para poder cambiar contraseña.
   if (user && !isAuthRoute) {
+    // Usuarios invitados que aún no establecieron contraseña — redirigir ANTES de MFA.
+    // must_change_password viene en los JWT claims (app_metadata) sin round-trip extra.
+    const mustSetPassword =
+      !!user?.app_metadata?.must_change_password ||
+      request.cookies.get("lexia_force_pwd")?.value === "1";
+    if (mustSetPassword) {
+      return NextResponse.redirect(new URL("/actualizar-contrasena", request.url));
+    }
+
     const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
 
     if (aal) {
@@ -75,11 +84,6 @@ export async function middleware(request: NextRequest) {
         // Factor enrollado + sesión AAL1 → challenge primero (sin excepción)
         if (!isMfaRoute) return NextResponse.redirect(new URL("/mfa/challenge", request.url));
       } else {
-        // Sin MFA enrollado (aal1/aal1) o ya verificado (aal2) → seguro para cambiar contraseña
-        const forcePasswordChange = request.cookies.get("lexia_force_pwd")?.value === "1";
-        if (forcePasswordChange) {
-          return NextResponse.redirect(new URL("/actualizar-contrasena", request.url));
-        }
         // Sin factor enrollado → forzar setup
         if (!hasMfaEnrolled && !isMfaRoute) {
           return NextResponse.redirect(new URL("/mfa/setup", request.url));

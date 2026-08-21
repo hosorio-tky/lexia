@@ -63,9 +63,11 @@ export async function invitarUsuario(
     invited_by:  session.user_id,
   });
 
-  // Actualizar app_metadata para las RLS helpers
+  // Actualizar app_metadata para las RLS helpers.
+  // must_change_password marca al usuario como pendiente de completar registro —
+  // el middleware lo redirige a /actualizar-contrasena hasta que establezca contraseña.
   await admin.auth.admin.updateUserById(userData.user.id, {
-    app_metadata: { tenant_id: session.tenant_id, rol },
+    app_metadata: { tenant_id: session.tenant_id, rol, must_change_password: true },
   });
 
   // Generar link de invitación y enviarlo via Resend con nuestra plantilla
@@ -127,6 +129,12 @@ export async function reenviarInvitacion(
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+  // Restaurar flag de pendiente — el middleware redirigirá a /actualizar-contrasena
+  // hasta que el usuario complete el registro con su nueva contraseña.
+  await admin.auth.admin.updateUserById(userId, {
+    app_metadata: { must_change_password: true },
+  });
 
   // Generar link (funciona siempre, sin importar si el email está confirmado)
   const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
