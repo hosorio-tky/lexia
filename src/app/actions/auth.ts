@@ -221,7 +221,13 @@ export async function solicitarRecuperacion(
     redirectTo: `${siteUrl}/auth/callback?next=/actualizar-contrasena`,
   });
 
-  if (error) return { error: error.message };
+  if (error) {
+    const msg = error.message.toLowerCase();
+    if (msg.includes("security purposes") || msg.includes("after") || msg.includes("rate")) {
+      return { error: "Por seguridad, espera unos segundos antes de volver a intentarlo." };
+    }
+    return { error: error.message };
+  }
   return { success: true };
 }
 
