@@ -24,19 +24,32 @@ export default function AuthConfirmPage() {
     const refreshToken = params.get("refresh_token");
     const type         = params.get("type");
 
+    const supabase = createClient();
+
     if (!accessToken || !refreshToken) {
-      // No hay token — ir al login
-      window.location.href = "/login";
+      // Sin token en el hash — puede ser un segundo click sobre un link ya usado.
+      // Verificar si hay sesión activa con registro pendiente y redirigir directamente.
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user?.app_metadata?.must_change_password) {
+          window.location.href = "/actualizar-contrasena";
+        } else {
+          window.location.href = "/login";
+        }
+      });
       return;
     }
-
-    const supabase = createClient();
 
     supabase.auth
       .setSession({ access_token: accessToken, refresh_token: refreshToken })
       .then(async ({ error }) => {
         if (error) {
           console.error("[auth/confirm] setSession error:", error.message);
+          // Token inválido/expirado — verificar si aún hay sesión pendiente de registro.
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user?.app_metadata?.must_change_password) {
+            window.location.href = "/actualizar-contrasena";
+            return;
+          }
           setErrorMsg(error.message);
           return;
         }
