@@ -105,10 +105,10 @@ export default function AppShell({
     { label: "Contratos",     href: "/contratos",       icon: <FileText className="h-4 w-4" /> },
     { label: "Tareas",        href: "/tareas",          icon: <ClipboardCheck className="h-4 w-4" /> },
     { label: "Notificaciones",href: "/notificaciones",  icon: <Bell className="h-4 w-4" /> },
-    { label: "Usuarios",      href: "/usuarios",        icon: <Users className="h-4 w-4" /> },
     { label: "Lexbase",        href: "/lexbase",          icon: <Library className="h-4 w-4" /> },
     { label: "Reportes",      href: "/reportes",         icon: <BarChart2 className="h-4 w-4" /> },
     { label: "Papelera",      href: "/papelera",         icon: <Trash2 className="h-4 w-4" /> },
+    { label: "Usuarios",      href: "/usuarios",        icon: <Users className="h-4 w-4" /> },
     { label: "Configuración", href: "/configuracion",   icon: <Settings className="h-4 w-4" /> },
   ];
 
