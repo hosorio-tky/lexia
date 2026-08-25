@@ -33,6 +33,7 @@ export default async function LexbaseEditarPage({
         nombre_completo: session.nombre_completo,
         email:           session.email,
         rol:             session.rol,
+        tenant_nombre:   session.tenant_nombre,
       }}
     >
       <LexbaseEditForm documento={documento} categorias={categorias} />

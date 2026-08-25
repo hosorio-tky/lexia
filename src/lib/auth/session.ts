@@ -16,7 +16,7 @@ export const getSession = cache(async (): Promise<SessionInfo> => {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("tenant_id, rol, nombre, apellido")
+    .select("tenant_id, rol, nombre, apellido, tenants(nombre)")
     .eq("id", user.id)
     .single();
 
@@ -26,10 +26,13 @@ export const getSession = cache(async (): Promise<SessionInfo> => {
     .filter(Boolean)
     .join(" ");
 
+  const tenant = profile.tenants as { nombre: string } | null;
+
   return {
     user_id:        user.id,
     email:          user.email!,
     tenant_id:      profile.tenant_id,
+    tenant_nombre:  tenant?.nombre ?? "",
     rol:            profile.rol as SessionInfo["rol"],
     nombre:         profile.nombre,
     nombre_completo,

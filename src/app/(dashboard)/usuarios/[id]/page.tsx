@@ -40,6 +40,7 @@ export default async function UsuarioDetallePage({
         nombre_completo: session.nombre_completo,
         email:           session.email,
         rol:             session.rol,
+        tenant_nombre:   session.tenant_nombre,
       }}
     >
       <UserDetailClient user={user} activity={activity} session={session} />

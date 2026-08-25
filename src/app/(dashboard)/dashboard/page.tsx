@@ -60,6 +60,7 @@ export default async function DashboardPage() {
         nombre_completo: session.nombre_completo,
         email:           session.email,
         rol:             session.rol,
+        tenant_nombre:   session.tenant_nombre,
       }}
     >
       <div className="flex flex-col gap-6">

@@ -64,6 +64,7 @@ export interface SessionInfo {
   user_id: string;
   email: string;
   tenant_id: string;
+  tenant_nombre: string;
   rol: UserRole;
   nombre: string;
   nombre_completo: string;

@@ -40,6 +40,7 @@ interface AppShellUser {
   nombre_completo: string;
   email: string;
   rol: string;
+  tenant_nombre?: string;
 }
 
 function SidebarNavItem({ item, active }: { item: NavItem; active: boolean }) {
@@ -187,6 +188,9 @@ export default function AppShell({
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold">{user.nombre_completo || user.nombre}</div>
                 <div className="text-xs text-muted-foreground">{rolLabel}</div>
+                {user.tenant_nombre && (
+                  <div className="truncate text-xs text-muted-foreground/70 mt-0.5">{user.tenant_nombre}</div>
+                )}
               </div>
             </div>
           </div>

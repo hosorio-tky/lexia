@@ -40,6 +40,7 @@ export default async function NuevoPermisoPage() {
         nombre_completo: session.nombre_completo,
         email:           session.email,
         rol:             session.rol,
+        tenant_nombre:   session.tenant_nombre,
       }}
     >
       <PermitFormClient

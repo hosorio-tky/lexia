@@ -25,6 +25,7 @@ export default async function TareasPage() {
         nombre_completo: session.nombre_completo,
         email:           session.email,
         rol:             session.rol,
+        tenant_nombre:   session.tenant_nombre,
       }}
     >
       <TaskBoardClient initialTasks={tasks} usuarios={usuarios} />

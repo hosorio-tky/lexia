@@ -64,6 +64,7 @@ export default async function LexbasePage({
         nombre_completo: session.nombre_completo,
         email:           session.email,
         rol:             session.rol,
+        tenant_nombre:   session.tenant_nombre,
       }}
     >
       <LexbaseListClient
