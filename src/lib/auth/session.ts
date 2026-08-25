@@ -26,7 +26,7 @@ export const getSession = cache(async (): Promise<SessionInfo> => {
     .filter(Boolean)
     .join(" ");
 
-  const tenant = profile.tenants as { nombre: string } | null;
+  const tenant = profile.tenants as unknown as { nombre: string } | null;
 
   return {
     user_id:        user.id,
