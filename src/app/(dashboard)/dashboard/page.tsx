@@ -1,6 +1,6 @@
 import Link from "next/link";
 import {
-  AlertTriangle, Bell, ClipboardCheck, FileText, ArrowRight,
+  AlertTriangle, ClipboardCheck, FileText, ShieldCheck, ArrowRight,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -36,20 +36,33 @@ export default async function DashboardPage() {
   const onboardingSteps =
     (tenantRow.data?.onboarding_steps as Record<string, boolean>) ?? {};
 
-  const { permisos, contratos, tareas, notificaciones, actividad } = stats;
+  const { permisos, contratos, tareas, actividad } = stats;
 
   const proximosVencimientos = [
     ...permisos.proximosVencimientos,
     ...contratos.proximosVencimientos,
   ].sort((a, b) => a.diasRestantes - b.diasRestantes).slice(0, 7);
 
-  // Acento de la card de alertas según gravedad
-  const alertaAccent =
+  const permisosAlertas   = permisos.vencidos + permisos.proximos30;
+  const contratosAlertas  = contratos.porVencer30;
+  const alertaTotal       = permisosAlertas + contratosAlertas;
+
+  const alertaBorder =
     permisos.vencidos > 0
-      ? "danger"
-      : permisos.proximos30 > 0
-      ? "warning"
-      : "default";
+      ? "border-red-200 bg-red-50/40 dark:border-red-900/40 dark:bg-red-950/20"
+      : alertaTotal > 0
+      ? "border-orange-200 bg-orange-50/40 dark:border-orange-900/40 dark:bg-orange-950/20"
+      : "border-border";
+  const alertaIconCls =
+    permisos.vencidos > 0
+      ? "bg-red-100 text-red-600 dark:bg-red-950/60 dark:text-red-400"
+      : alertaTotal > 0
+      ? "bg-orange-100 text-orange-600 dark:bg-orange-950/60 dark:text-orange-400"
+      : "bg-muted text-muted-foreground";
+  const alertaValueCls =
+    permisos.vencidos > 0 ? "text-red-700 dark:text-red-400"
+    : alertaTotal > 0     ? "text-orange-700 dark:text-orange-400"
+    : "text-foreground";
 
   const tareasAccent =
     tareas.urgentesAltas > 0 ? "warning" : "default";
@@ -74,6 +87,18 @@ export default async function DashboardPage() {
 
         {/* ── KPI Cards ──────────────────────────────────────── */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+          {/* 1. Permisos vigentes */}
+          <StatCard
+            title="Permisos vigentes"
+            value={permisos.activos}
+            description={`${permisos.total} en total`}
+            icon={<ShieldCheck className="h-5 w-5" />}
+            accent="success"
+            href="/permisos"
+          />
+
+          {/* 2. Contratos vigentes */}
           <StatCard
             title="Contratos vigentes"
             value={contratos.vigentes}
@@ -86,20 +111,45 @@ export default async function DashboardPage() {
             accent={contratos.porVencer30 > 0 ? "warning" : "success"}
             href="/contratos"
           />
-          <StatCard
-            title="Alertas"
-            value={permisos.vencidos + permisos.proximos30}
-            description={
-              permisos.vencidos > 0
-                ? `${permisos.vencidos} vencido${permisos.vencidos > 1 ? "s" : ""} · ${permisos.proximos30} por vencer`
-                : permisos.proximos30 > 0
-                ? `${permisos.proximos30} vence${permisos.proximos30 > 1 ? "n" : ""} en <30 días`
-                : "Sin alertas críticas"
-            }
-            icon={<AlertTriangle className="h-5 w-5" />}
-            accent={alertaAccent}
-            href="/permisos"
-          />
+
+          {/* 3. Alertas — split permisos / contratos */}
+          <Card className={`flex items-start gap-4 p-5 shadow-sm ${alertaBorder}`}>
+            <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl ${alertaIconCls}`}>
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Alertas
+              </p>
+              <p className={`mt-0.5 text-3xl font-bold leading-none tracking-tight ${alertaValueCls}`}>
+                {alertaTotal}
+              </p>
+              <div className="mt-2 space-y-1">
+                <Link
+                  href="/permisos"
+                  className="flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition-colors group"
+                >
+                  <span>
+                    <span className={permisosAlertas > 0 ? "font-semibold text-foreground" : ""}>{permisosAlertas}</span>
+                    {" "}permisos
+                  </span>
+                  <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </Link>
+                <Link
+                  href="/contratos"
+                  className="flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition-colors group"
+                >
+                  <span>
+                    <span className={contratosAlertas > 0 ? "font-semibold text-foreground" : ""}>{contratosAlertas}</span>
+                    {" "}contratos
+                  </span>
+                  <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </Link>
+              </div>
+            </div>
+          </Card>
+
+          {/* 4. Tareas activas */}
           <StatCard
             title="Tareas activas"
             value={tareas.pendientes + tareas.enProgreso}
@@ -111,14 +161,6 @@ export default async function DashboardPage() {
             icon={<ClipboardCheck className="h-5 w-5" />}
             accent={tareasAccent}
             href="/tareas"
-          />
-          <StatCard
-            title="Notificaciones"
-            value={notificaciones.sinLeer}
-            description="sin leer"
-            icon={<Bell className="h-5 w-5" />}
-            accent={notificaciones.sinLeer > 0 ? "info" : "default"}
-            href="/notificaciones"
           />
         </div>
 
