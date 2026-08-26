@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import AppShell from "@/components/layout/app-shell";
 import { UserDetailClient } from "@/components/usuarios/user-detail-client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createUsuariosRepository } from "@/lib/repositories/usuarios";
@@ -32,18 +31,11 @@ export default async function UsuarioDetallePage({
   if (user.tenant_id !== session.tenant_id) notFound();
 
   return (
-    <AppShell
-      breadcrumb={`Inicio › Usuarios › ${user.nombre_completo}`}
-      title={user.nombre_completo}
-      user={{
-        nombre:          session.nombre,
-        nombre_completo: session.nombre_completo,
-        email:           session.email,
-        rol:             session.rol,
-        tenant_nombre:   session.tenant_nombre,
-      }}
-    >
+        <>
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">{user.nombre_completo}</h1>
+      </div>
       <UserDetailClient user={user} activity={activity} session={session} />
-    </AppShell>
+    </>
   );
 }

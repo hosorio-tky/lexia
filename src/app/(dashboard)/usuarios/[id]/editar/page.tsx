@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import AppShell from "@/components/layout/app-shell";
 import { UserEditClient } from "@/components/usuarios/user-edit-client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createUsuariosRepository } from "@/lib/repositories/usuarios";
@@ -30,20 +29,13 @@ export default async function UsuarioEditarPage({
   if (user.tenant_id !== session.tenant_id) notFound();
 
   return (
-    <AppShell
-      breadcrumb={`Inicio › Usuarios › ${user.nombre_completo} › Editar`}
-      title={`Editar usuario`}
-      user={{
-        nombre:          session.nombre,
-        nombre_completo: session.nombre_completo,
-        email:           session.email,
-        rol:             session.rol,
-        tenant_nombre:   session.tenant_nombre,
-      }}
-    >
+        <>
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">{`Editar usuario`}</h1>
+      </div>
       <div className="max-w-2xl">
         <UserEditClient user={user} rolInvitador={session.rol} departamentos={departamentos} />
       </div>
-    </AppShell>
+    </>
   );
 }

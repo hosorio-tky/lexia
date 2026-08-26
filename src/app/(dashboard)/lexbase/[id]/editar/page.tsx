@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import AppShell from "@/components/layout/app-shell";
 import { LexbaseEditForm } from "@/components/lexbase/lexbase-edit-form";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createLexbaseRepository } from "@/lib/repositories/lexbase";
@@ -25,18 +24,11 @@ export default async function LexbaseEditarPage({
   if (!documento) notFound();
 
   return (
-    <AppShell
-      breadcrumb={`Inicio › Lexbase › ${documento.titulo} › Editar`}
-      title="Editar documento"
-      user={{
-        nombre:          session.nombre,
-        nombre_completo: session.nombre_completo,
-        email:           session.email,
-        rol:             session.rol,
-        tenant_nombre:   session.tenant_nombre,
-      }}
-    >
+        <>
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">Editar documento</h1>
+      </div>
       <LexbaseEditForm documento={documento} categorias={categorias} />
-    </AppShell>
+    </>
   );
 }

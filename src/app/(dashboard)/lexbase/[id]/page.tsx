@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import AppShell from "@/components/layout/app-shell";
 import { LexbaseViewer } from "@/components/lexbase/lexbase-viewer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createLexbaseRepository } from "@/lib/repositories/lexbase";
@@ -26,17 +25,6 @@ export default async function LexbaseDocumentoPage({
     : undefined;
 
   return (
-    <AppShell
-      breadcrumb={`Inicio › Lexbase › ${documento.titulo}`}
-      user={{
-        nombre:          session.nombre,
-        nombre_completo: session.nombre_completo,
-        email:           session.email,
-        rol:             session.rol,
-        tenant_nombre:   session.tenant_nombre,
-      }}
-    >
-      <LexbaseViewer documento={documento} fileUrl={fileUrl} />
-    </AppShell>
+          <LexbaseViewer documento={documento} fileUrl={fileUrl} />
   );
 }

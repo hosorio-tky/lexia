@@ -1,1 +1,3 @@
-Select * from catalogos;
+INSERT INTO tenants (nombre, slug)
+VALUES ('Teknergy', 'teknergy')
+RETURNING id;

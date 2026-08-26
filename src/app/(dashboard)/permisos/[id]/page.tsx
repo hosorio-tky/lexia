@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import AppShell from "@/components/layout/app-shell";
 import { PermitDetailClient } from "@/components/permisos/permit-detail-client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createPermisosRepository } from "@/lib/repositories/permisos";
@@ -56,18 +55,10 @@ export default async function PermisoDetallePage({
   ]);
 
   return (
-    <AppShell
-      breadcrumb={`Inicio › Permisos › ${permit.numero_expediente ?? id}`}
-      title={permit.nombre}
-      user={{
-        id:              session.user_id,
-        nombre:          session.nombre,
-        nombre_completo: session.nombre_completo,
-        email:           session.email,
-        rol:             session.rol,
-        tenant_nombre:   session.tenant_nombre,
-      }}
-    >
+        <>
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">{permit.nombre}</h1>
+      </div>
       <Suspense>
         <PermitDetailClient
           permit={permit}
@@ -88,6 +79,6 @@ export default async function PermisoDetallePage({
           suscripciones={suscripciones}
         />
       </Suspense>
-    </AppShell>
+    </>
   );
 }

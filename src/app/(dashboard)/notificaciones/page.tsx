@@ -1,4 +1,3 @@
-import AppShell from "@/components/layout/app-shell";
 import { NotificacionesClient } from "@/components/notifications/notificaciones-client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createNotificacionesRepository } from "@/lib/repositories/notificaciones";
@@ -33,18 +32,10 @@ export default async function NotificacionesPage({
   ]);
 
   return (
-    <AppShell
-      breadcrumb="Inicio › Notificaciones"
-      title="Notificaciones"
-      user={{
-        id:              session.user_id,
-        nombre:          session.nombre,
-        nombre_completo: session.nombre_completo,
-        email:           session.email,
-        rol:             session.rol,
-        tenant_nombre:   session.tenant_nombre,
-      }}
-    >
+        <>
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">Notificaciones</h1>
+      </div>
       <NotificacionesClient
         initialNotifs={notificaciones}
         totalUnread={totalUnread}
@@ -52,6 +43,6 @@ export default async function NotificacionesPage({
         page={page}
         pageSize={PAGE_SIZE}
       />
-    </AppShell>
+    </>
   );
 }

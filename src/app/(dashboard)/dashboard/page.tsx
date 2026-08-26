@@ -3,7 +3,6 @@ import {
   AlertTriangle, Bell, ClipboardCheck, FileText,
   ShieldCheck, ArrowRight,
 } from "lucide-react";
-import AppShell from "@/components/layout/app-shell";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { StatCard } from "@/components/dashboard/stat-card";
@@ -52,18 +51,7 @@ export default async function DashboardPage() {
     tareas.urgentesAltas > 0 ? "warning" : "default";
 
   return (
-    <AppShell
-      breadcrumb="Inicio › Dashboard"
-      user={{
-        id:              session.user_id,
-        nombre:          session.nombre,
-        nombre_completo: session.nombre_completo,
-        email:           session.email,
-        rol:             session.rol,
-        tenant_nombre:   session.tenant_nombre,
-      }}
-    >
-      <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-6">
 
         {/* ── Onboarding ─────────────────────────────────────── */}
         {showOnboarding && (
@@ -237,6 +225,5 @@ export default async function DashboardPage() {
         )}
 
       </div>
-    </AppShell>
   );
 }

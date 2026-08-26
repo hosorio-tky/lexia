@@ -1,4 +1,3 @@
-import AppShell from "@/components/layout/app-shell";
 import { LexbaseListClient } from "@/components/lexbase/lexbase-list-client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createLexbaseRepository } from "@/lib/repositories/lexbase";
@@ -56,17 +55,10 @@ export default async function LexbasePage({
   const allTags = [...new Set((fv ?? []).flatMap((r) => (r.tags as string[]) ?? []).filter(Boolean))].sort() as string[];
 
   return (
-    <AppShell
-      breadcrumb="Inicio › Lexbase"
-      title="Lexbase"
-      user={{
-        nombre:          session.nombre,
-        nombre_completo: session.nombre_completo,
-        email:           session.email,
-        rol:             session.rol,
-        tenant_nombre:   session.tenant_nombre,
-      }}
-    >
+        <>
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">Lexbase</h1>
+      </div>
       <LexbaseListClient
         docs={documentos}
         categorias={categorias}
@@ -77,6 +69,6 @@ export default async function LexbasePage({
         page={page}
         pageSize={PAGE_SIZE}
       />
-    </AppShell>
+    </>
   );
 }

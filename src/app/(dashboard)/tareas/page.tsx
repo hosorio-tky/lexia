@@ -1,4 +1,3 @@
-import AppShell from "@/components/layout/app-shell";
 import { TaskBoardClient } from "@/components/tareas/task-board-client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createTareasRepository } from "@/lib/repositories/tareas";
@@ -17,18 +16,11 @@ export default async function TareasPage() {
   ]);
 
   return (
-    <AppShell
-      breadcrumb="Inicio › Tareas"
-      title="Tablero de Tareas"
-      user={{
-        nombre:          session.nombre,
-        nombre_completo: session.nombre_completo,
-        email:           session.email,
-        rol:             session.rol,
-        tenant_nombre:   session.tenant_nombre,
-      }}
-    >
+        <>
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">Tablero de Tareas</h1>
+      </div>
       <TaskBoardClient initialTasks={tasks} usuarios={usuarios} />
-    </AppShell>
+    </>
   );
 }

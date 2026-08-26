@@ -1,5 +1,4 @@
 import { Suspense } from "react";
-import AppShell from "@/components/layout/app-shell";
 import { ContratoListClient } from "@/components/contratos/contrato-list-client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createContratosRepository } from "@/lib/repositories/contratos";
@@ -53,17 +52,10 @@ export default async function ContratosPage({
   const editableIds = Array.from(editableSet);
 
   return (
-    <AppShell
-      breadcrumb="Inicio › Contratos"
-      title="Contratos"
-      user={{
-        nombre:          session.nombre,
-        nombre_completo: session.nombre_completo,
-        email:           session.email,
-        rol:             session.rol,
-        tenant_nombre:   session.tenant_nombre,
-      }}
-    >
+        <>
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">Contratos</h1>
+      </div>
       <Suspense>
         <ContratoListClient
           contratos={contratos}
@@ -77,6 +69,6 @@ export default async function ContratosPage({
           pageSize={isPaginated ? PAGE_SIZE : total}
         />
       </Suspense>
-    </AppShell>
+    </>
   );
 }

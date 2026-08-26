@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import AppShell from "@/components/layout/app-shell";
 import { UserListClient } from "@/components/usuarios/user-list-client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSession } from "@/lib/auth/session";
@@ -17,18 +16,11 @@ export default async function UsuariosPage() {
   const users = await repo.list();
 
   return (
-    <AppShell
-      breadcrumb="Inicio › Usuarios"
-      title="Gestión de Usuarios"
-      user={{
-        nombre:          session.nombre,
-        nombre_completo: session.nombre_completo,
-        email:           session.email,
-        rol:             session.rol,
-        tenant_nombre:   session.tenant_nombre,
-      }}
-    >
+        <>
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">Gestión de Usuarios</h1>
+      </div>
       <UserListClient users={users} session={session} />
-    </AppShell>
+    </>
   );
 }

@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import AppShell from "@/components/layout/app-shell";
 import { ContratoFormClient } from "@/components/contratos/contrato-form-client";
 import { editarContrato } from "@/app/actions/contratos";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -39,17 +38,10 @@ export default async function EditarContratoPage({
   const boundAction = editarContrato.bind(null, id);
 
   return (
-    <AppShell
-      breadcrumb={`Inicio › Contratos › ${contrato.numero ?? id} › Editar`}
-      title="Editar Contrato"
-      user={{
-        nombre:          session.nombre,
-        nombre_completo: session.nombre_completo,
-        email:           session.email,
-        rol:             session.rol,
-        tenant_nombre:   session.tenant_nombre,
-      }}
-    >
+        <>
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">Editar Contrato</h1>
+      </div>
       <ContratoFormClient
         action={boundAction}
         mode="edit"
@@ -58,6 +50,6 @@ export default async function EditarContratoPage({
         tiposContrato={tiposContrato}
         profiles={profiles}
       />
-    </AppShell>
+    </>
   );
 }

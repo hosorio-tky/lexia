@@ -1,4 +1,3 @@
-import AppShell from "@/components/layout/app-shell";
 import { PapeleraClient } from "@/components/papelera/papelera-client";
 import { getSession } from "@/lib/auth/session";
 import {
@@ -19,22 +18,15 @@ export default async function PapeleraPage() {
   ]);
 
   return (
-    <AppShell
-      breadcrumb="Inicio › Papelera"
-      title="Papelera"
-      user={{
-        nombre:          session.nombre,
-        nombre_completo: session.nombre_completo,
-        email:           session.email,
-        rol:             session.rol,
-        tenant_nombre:   session.tenant_nombre,
-      }}
-    >
+        <>
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">Papelera</h1>
+      </div>
       <PapeleraClient
         permisos={permisos}
         contratos={contratos}
         lexbase={lexbase}
       />
-    </AppShell>
+    </>
   );
 }

@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import AppShell from "@/components/layout/app-shell";
 import { UserInviteForm } from "@/components/usuarios/user-invite-form";
 import { getSession } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -16,20 +15,13 @@ export default async function InvitarUsuarioPage() {
     .catch(() => []);
 
   return (
-    <AppShell
-      breadcrumb="Inicio › Usuarios › Invitar"
-      title="Invitar Usuario"
-      user={{
-        nombre:          session.nombre,
-        nombre_completo: session.nombre_completo,
-        email:           session.email,
-        rol:             session.rol,
-        tenant_nombre:   session.tenant_nombre,
-      }}
-    >
+        <>
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">Invitar Usuario</h1>
+      </div>
       <div className="max-w-2xl">
         <UserInviteForm rolInvitador={session.rol} departamentos={departamentos} />
       </div>
-    </AppShell>
+    </>
   );
 }

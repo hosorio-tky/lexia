@@ -1,4 +1,3 @@
-import AppShell from "@/components/layout/app-shell";
 import { PermitFormClient } from "@/components/permisos/permit-form-client";
 import { crearPermiso } from "@/app/actions/permisos";
 import { getSession } from "@/lib/auth/session";
@@ -32,17 +31,10 @@ export default async function NuevoPermisoPage() {
   }));
 
   return (
-    <AppShell
-      breadcrumb="Inicio › Permisos › Nuevo"
-      title="Crear Permiso"
-      user={{
-        nombre:          session.nombre,
-        nombre_completo: session.nombre_completo,
-        email:           session.email,
-        rol:             session.rol,
-        tenant_nombre:   session.tenant_nombre,
-      }}
-    >
+        <>
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">Crear Permiso</h1>
+      </div>
       <PermitFormClient
         action={crearPermiso}
         tiposPermiso={tiposPermiso}
@@ -51,6 +43,6 @@ export default async function NuevoPermisoPage() {
         ubicaciones={ubicaciones}
         profiles={profiles}
       />
-    </AppShell>
+    </>
   );
 }

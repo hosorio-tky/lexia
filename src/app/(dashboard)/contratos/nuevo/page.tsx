@@ -1,4 +1,3 @@
-import AppShell from "@/components/layout/app-shell";
 import { ContratoFormClient } from "@/components/contratos/contrato-form-client";
 import { crearContrato } from "@/app/actions/contratos";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -31,17 +30,10 @@ export default async function NuevoContratoPage() {
   }));
 
   return (
-    <AppShell
-      breadcrumb="Inicio › Contratos › Nuevo"
-      title="Crear Contrato"
-      user={{
-        nombre:          session.nombre,
-        nombre_completo: session.nombre_completo,
-        email:           session.email,
-        rol:             session.rol,
-        tenant_nombre:   session.tenant_nombre,
-      }}
-    >
+        <>
+      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">Crear Contrato</h1>
+      </div>
       <ContratoFormClient
         action={crearContrato}
         mode="create"
@@ -50,6 +42,6 @@ export default async function NuevoContratoPage() {
         tiposContrato={tiposContrato}
         profiles={profiles}
       />
-    </AppShell>
+    </>
   );
 }
