@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useActionState, useEffect } from "react";
-import { Plus, Trash2, Bell, BellOff, Mail, MonitorSmartphone } from "lucide-react";
+import { Plus, Trash2, Bell, Mail, MonitorSmartphone, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import {
   crearPlantilla,
+  editarPlantilla,
   eliminarPlantilla,
   togglePlantilla,
 } from "@/app/actions/configuracion";
@@ -42,30 +43,75 @@ export function PlantillaManagerClient({
   initialPlantillas: PlantillaAlerta[];
 }) {
   const [plantillas, setPlantillas] = useState(initialPlantillas);
-  const [open, setOpen]              = useState(false);
-  const [evento, setEvento]          = useState("vencimiento_proximo");
-  const [canales, setCanales]        = useState<string[]>(["in_app"]);
-  const [frecuencia, setFrecuencia]  = useState(1);
-  const [isPending, startTransition] = useTransition();
+  const [open, setOpen]             = useState(false);
 
-  function toggleCanal(value: string) {
-    setCanales((prev) =>
-      prev.includes(value)
-        ? prev.filter((c) => c !== value)
-        : [...prev, value]
-    );
-  }
+  // Shared form state (create + edit)
+  const [editingPlantilla, setEditingPlantilla] = useState<PlantillaAlerta | null>(null);
+  const [dialogNombre, setDialogNombre]         = useState("");
+  const [dialogModulo, setDialogModulo]         = useState("permisos");
+  const [evento, setEvento]                     = useState("vencimiento_proximo");
+  const [canales, setCanales]                   = useState<string[]>(["in_app"]);
+  const [frecuencia, setFrecuencia]             = useState(1);
+  const [diasAntes, setDiasAntes]               = useState("");
+  const [editError, setEditError]               = useState("");
+
+  const [isPending, startTransition] = useTransition();
   const [state, formAction, pending] = useActionState(crearPlantilla, null);
 
-  // Cerrar dialog y agregar plantillas al listado al crear con éxito
+  const isEditing    = editingPlantilla !== null;
+  const necesitaDias = evento === "vencimiento_proximo";
+
+  function resetForm() {
+    setEditingPlantilla(null);
+    setDialogNombre("");
+    setDialogModulo("permisos");
+    setEvento("vencimiento_proximo");
+    setCanales(["in_app"]);
+    setFrecuencia(1);
+    setDiasAntes("");
+    setEditError("");
+  }
+
+  function openCreate() {
+    resetForm();
+    setOpen(true);
+  }
+
+  function openEdit(p: PlantillaAlerta) {
+    setEditingPlantilla(p);
+    setDialogNombre(p.nombre);
+    setDialogModulo(p.modulo);
+    setEvento(p.evento);
+    setCanales([p.canal]);
+    setFrecuencia(p.frecuencia_dias);
+    setDiasAntes(p.dias_antes != null ? String(p.dias_antes) : "");
+    setEditError("");
+    setOpen(true);
+  }
+
+  function closeDialog() {
+    setOpen(false);
+    resetForm();
+  }
+
+  function toggleCanal(value: string) {
+    if (isEditing) {
+      // Single-select in edit mode (each record = one canal)
+      setCanales([value]);
+    } else {
+      setCanales((prev) =>
+        prev.includes(value) ? prev.filter((c) => c !== value) : [...prev, value]
+      );
+    }
+  }
+
+  // Create success: add new plantillas to list and close
   useEffect(() => {
     if (state?.nuevas && state.nuevas.length > 0) {
       setPlantillas((prev) => [...prev, ...state.nuevas!]);
-      setOpen(false);
-      setEvento("vencimiento_proximo");
-      setCanales(["in_app"]);
-      setFrecuencia(1);
+      closeDialog();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
   function handleDelete(id: string) {
@@ -84,7 +130,36 @@ export function PlantillaManagerClient({
     });
   }
 
-  const necesitaDias = evento === "vencimiento_proximo";
+  function handleEditSubmit(e: React.FormEvent) {
+    if (!isEditing) return; // let form action handle create
+    e.preventDefault();
+
+    if (!dialogNombre.trim() || canales.length === 0) {
+      setEditError("Todos los campos son obligatorios");
+      return;
+    }
+
+    setEditError("");
+    startTransition(async () => {
+      const result = await editarPlantilla(editingPlantilla!.id, {
+        nombre:          dialogNombre.trim(),
+        modulo:          dialogModulo,
+        evento,
+        dias_antes:      necesitaDias && diasAntes ? parseInt(diasAntes, 10) : undefined,
+        frecuencia_dias: necesitaDias ? frecuencia : 1,
+        canal:           canales[0],
+      });
+
+      if (result.updated) {
+        setPlantillas((prev) =>
+          prev.map((p) => (p.id === editingPlantilla!.id ? result.updated! : p))
+        );
+        closeDialog();
+      } else if (result.error) {
+        setEditError(result.error);
+      }
+    });
+  }
 
   return (
     <div className="space-y-6">
@@ -95,7 +170,7 @@ export function PlantillaManagerClient({
             Define cuándo y cómo se notifican los eventos de cada módulo.
           </p>
         </div>
-        <Button onClick={() => setOpen(true)} size="sm">
+        <Button onClick={openCreate} size="sm">
           <Plus className="mr-2 h-4 w-4" />
           Nueva plantilla
         </Button>
@@ -107,7 +182,7 @@ export function PlantillaManagerClient({
           <p className="text-sm text-muted-foreground">
             No hay plantillas de alerta configuradas.
           </p>
-          <Button size="sm" onClick={() => setOpen(true)}>
+          <Button size="sm" onClick={openCreate}>
             <Plus className="mr-2 h-4 w-4" />
             Crear primera plantilla
           </Button>
@@ -115,10 +190,7 @@ export function PlantillaManagerClient({
       ) : (
         <Card className="divide-y">
           {plantillas.map((p) => (
-            <div
-              key={p.id}
-              className="flex items-center gap-4 px-5 py-4"
-            >
+            <div key={p.id} className="flex items-center gap-4 px-5 py-4">
               <div
                 className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ring-1 ${
                   p.activo
@@ -149,7 +221,7 @@ export function PlantillaManagerClient({
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 <Switch
                   checked={p.activo}
                   onCheckedChange={() => handleToggle(p.id, p.activo)}
@@ -157,9 +229,19 @@ export function PlantillaManagerClient({
                 />
                 <button
                   type="button"
+                  onClick={() => openEdit(p)}
+                  disabled={isPending}
+                  className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                  title="Editar"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
                   onClick={() => handleDelete(p.id)}
                   disabled={isPending}
                   className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive"
+                  title="Eliminar"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -169,42 +251,51 @@ export function PlantillaManagerClient({
         </Card>
       )}
 
-      {/* Dialog: nueva plantilla */}
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEvento("vencimiento_proximo"); setCanales(["in_app"]); setFrecuencia(1); } }}>
+      {/* Dialog: crear / editar plantilla */}
+      <Dialog open={open} onOpenChange={(v) => { if (!v) closeDialog(); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nueva plantilla de alerta</DialogTitle>
+            <DialogTitle>
+              {isEditing ? "Editar plantilla" : "Nueva plantilla de alerta"}
+            </DialogTitle>
           </DialogHeader>
 
-          <form action={formAction} className="space-y-4">
+          <form
+            action={isEditing ? undefined : formAction}
+            onSubmit={isEditing ? handleEditSubmit : undefined}
+            className="space-y-4"
+          >
             <div className="space-y-1.5">
               <Label>Nombre</Label>
               <Input
                 name="nombre"
                 placeholder="Ej. Aviso 30 días antes de vencimiento"
                 required
+                value={dialogNombre}
+                onChange={(e) => setDialogNombre(e.target.value)}
               />
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label>Módulo</Label>
-                <Select name="modulo" defaultValue="permisos">
+                <Select
+                  name="modulo"
+                  value={dialogModulo}
+                  onValueChange={setDialogModulo}
+                >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="permisos">Permisos</SelectItem>
                     <SelectItem value="contratos">Contratos</SelectItem>
                   </SelectContent>
                 </Select>
+                <input type="hidden" name="modulo" value={dialogModulo} />
               </div>
 
               <div className="space-y-1.5">
                 <Label>Evento</Label>
-                <Select
-                  name="evento"
-                  value={evento}
-                  onValueChange={setEvento}
-                >
+                <Select name="evento" value={evento} onValueChange={setEvento}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {EVENTOS_ALERTA.map((e) => (
@@ -226,6 +317,8 @@ export function PlantillaManagerClient({
                     min={1}
                     max={365}
                     placeholder="Ej. 30"
+                    value={diasAntes}
+                    onChange={(e) => setDiasAntes(e.target.value)}
                   />
                 </div>
 
@@ -250,7 +343,12 @@ export function PlantillaManagerClient({
             )}
 
             <div className="space-y-1.5">
-              <Label>Canal de notificación</Label>
+              <Label>
+                Canal de notificación
+                {isEditing && (
+                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">(selecciona uno)</span>
+                )}
+              </Label>
               <div className="flex gap-3">
                 {(["in_app", "email"] as const).map((c) => {
                   const selected = canales.includes(c);
@@ -273,7 +371,6 @@ export function PlantillaManagerClient({
                   );
                 })}
               </div>
-              {/* Un input hidden por cada canal seleccionado */}
               {canales.map((c) => (
                 <input key={c} type="hidden" name="canal" value={c} />
               ))}
@@ -282,16 +379,23 @@ export function PlantillaManagerClient({
               )}
             </div>
 
-            {state?.error && (
-              <p className="text-sm text-destructive">{state.error}</p>
+            {(state?.error || editError) && (
+              <p className="text-sm text-destructive">{state?.error ?? editError}</p>
             )}
 
+            <Separator />
+
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              <Button type="button" variant="outline" onClick={closeDialog}>
                 Cancelar
               </Button>
-              <Button type="submit" disabled={pending || canales.length === 0}>
-                {pending ? "Guardando…" : "Crear plantilla"}
+              <Button
+                type="submit"
+                disabled={(isEditing ? isPending : pending) || canales.length === 0}
+              >
+                {isEditing
+                  ? (isPending ? "Guardando…" : "Guardar cambios")
+                  : (pending  ? "Creando…"   : "Crear plantilla")}
               </Button>
             </DialogFooter>
           </form>

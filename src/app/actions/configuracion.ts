@@ -261,6 +261,46 @@ export async function crearPlantilla(
   return { nuevas };
 }
 
+export async function editarPlantilla(
+  id: string,
+  data: {
+    nombre: string;
+    modulo: string;
+    evento: string;
+    dias_antes?: number;
+    frecuencia_dias: number;
+    canal: string;
+  }
+): Promise<{ error?: string; updated?: PlantillaAlerta }> {
+  const session = await getSession();
+  requireRole(session, ["admin"]);
+
+  const client = createAdminClient();
+  const repo   = createConfiguracionRepository(client, session.tenant_id);
+
+  const updated = await repo.updatePlantilla(id, data);
+
+  await logActivity({
+    tenant_id:    session.tenant_id,
+    user_id:      session.user_id,
+    user_nombre:  session.nombre,
+    accion:       "editar_plantilla_alerta",
+    modulo:       "configuracion",
+    recurso_id:   id,
+    recurso_desc: data.nombre,
+    metadata: {
+      modulo:          data.modulo,
+      evento:          data.evento,
+      canal:           data.canal,
+      dias_antes:      data.dias_antes ?? null,
+      frecuencia_dias: data.frecuencia_dias,
+    },
+  });
+
+  revalidatePath("/configuracion/alertas");
+  return { updated };
+}
+
 export async function eliminarPlantilla(id: string): Promise<void> {
   const session = await getSession();
   requireRole(session, ["admin"]);
