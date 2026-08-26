@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
+import NextTopLoader from "nextjs-toploader";
 import "./globals.css";
 
 const inter = Inter({
@@ -20,6 +21,7 @@ export default function RootLayout({
   return (
     <html lang="es" className={`${inter.variable} h-full`}>
       <body className="min-h-full bg-background text-foreground antialiased">
+        <NextTopLoader color="hsl(221 83% 53%)" height={3} showSpinner={false} />
         {children}
       </body>
     </html>
