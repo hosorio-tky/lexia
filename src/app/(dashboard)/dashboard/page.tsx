@@ -92,9 +92,13 @@ export default async function DashboardPage() {
           <StatCard
             title="Permisos vigentes"
             value={permisos.activos}
-            description={`${permisos.total} en total`}
+            description={
+              permisos.proximos30 > 0
+                ? `${permisos.proximos30} vence${permisos.proximos30 > 1 ? "n" : ""} en <30 días`
+                : "Sin vencimientos próximos"
+            }
             icon={<ShieldCheck className="h-5 w-5" />}
-            accent="success"
+            accent={permisos.proximos30 > 0 ? "warning" : "success"}
             href="/permisos"
           />
 
@@ -124,26 +128,23 @@ export default async function DashboardPage() {
               <p className={`mt-0.5 text-3xl font-bold leading-none tracking-tight ${alertaValueCls}`}>
                 {alertaTotal}
               </p>
-              <div className="mt-2 space-y-1">
+              <div className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
                 <Link
                   href="/permisos"
-                  className="flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition-colors group"
+                  className="flex items-center gap-0.5 hover:text-foreground transition-colors"
                 >
-                  <span>
-                    <span className={permisosAlertas > 0 ? "font-semibold text-foreground" : ""}>{permisosAlertas}</span>
-                    {" "}permisos
-                  </span>
-                  <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <span className={permisosAlertas > 0 ? "font-semibold text-foreground" : ""}>{permisosAlertas}</span>
+                  <span>permisos</span>
+                  <ArrowRight className="h-3 w-3" />
                 </Link>
+                <span className="text-muted-foreground/40">·</span>
                 <Link
                   href="/contratos"
-                  className="flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition-colors group"
+                  className="flex items-center gap-0.5 hover:text-foreground transition-colors"
                 >
-                  <span>
-                    <span className={contratosAlertas > 0 ? "font-semibold text-foreground" : ""}>{contratosAlertas}</span>
-                    {" "}contratos
-                  </span>
-                  <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <span className={contratosAlertas > 0 ? "font-semibold text-foreground" : ""}>{contratosAlertas}</span>
+                  <span>contratos</span>
+                  <ArrowRight className="h-3 w-3" />
                 </Link>
               </div>
             </div>
