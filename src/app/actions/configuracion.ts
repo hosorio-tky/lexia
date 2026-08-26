@@ -234,6 +234,22 @@ export async function crearPlantilla(
   const client = createAdminClient();
   const repo   = createConfiguracionRepository(client, session.tenant_id);
 
+  // Validar duplicados exactos antes de crear
+  const existentes = await repo.getPlantillas();
+  for (const canal of canales) {
+    const duplicado = existentes.some(
+      (p) =>
+        p.modulo          === modulo &&
+        p.evento          === evento &&
+        p.canal           === canal &&
+        p.dias_antes      === dias_antes &&
+        p.frecuencia_dias === frecuencia_dias
+    );
+    if (duplicado) {
+      return { error: "Ya existe una plantilla idéntica con el mismo módulo, evento, canal, días y frecuencia." };
+    }
+  }
+
   // Crear un registro por cada canal seleccionado
   const nuevas: PlantillaAlerta[] = [];
   for (const canal of canales) {
@@ -277,6 +293,21 @@ export async function editarPlantilla(
 
   const client = createAdminClient();
   const repo   = createConfiguracionRepository(client, session.tenant_id);
+
+  // Validar duplicado exacto (excluyendo el registro que se está editando)
+  const existentes = await repo.getPlantillas();
+  const duplicado = existentes.some(
+    (p) =>
+      p.id              !== id &&
+      p.modulo          === data.modulo &&
+      p.evento          === data.evento &&
+      p.canal           === data.canal &&
+      p.dias_antes      === data.dias_antes &&
+      p.frecuencia_dias === data.frecuencia_dias
+  );
+  if (duplicado) {
+    return { error: "Ya existe una plantilla idéntica con el mismo módulo, evento, canal, días y frecuencia." };
+  }
 
   const updated = await repo.updatePlantilla(id, data);
 

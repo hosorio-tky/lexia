@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition, useActionState, useEffect } from "react";
-import { Plus, Trash2, Bell, Mail, MonitorSmartphone, Pencil } from "lucide-react";
+import { Plus, Trash2, Bell, Mail, MonitorSmartphone, Pencil, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -60,6 +60,41 @@ export function PlantillaManagerClient({
 
   const isEditing    = editingPlantilla !== null;
   const necesitaDias = evento === "vencimiento_proximo";
+
+  // Advertencia de solapamiento: misma combinación módulo+evento+canal en otra plantilla
+  const overlapWarning = (() => {
+    const diasNum = diasAntes ? parseInt(diasAntes, 10) : undefined;
+    return canales.flatMap((canal) => {
+      const solapadas = plantillas.filter(
+        (p) =>
+          p.id     !== editingPlantilla?.id &&
+          p.modulo === dialogModulo &&
+          p.evento === evento &&
+          p.canal  === canal
+      );
+      if (solapadas.length === 0) return [];
+      // Duplicado exacto (el server lo bloqueará, pero avisamos antes)
+      const exacto = solapadas.find(
+        (p) => p.dias_antes === diasNum && p.frecuencia_dias === frecuencia
+      );
+      if (exacto) {
+        return [`Ya existe una plantilla idéntica: "${exacto.nombre}". No se puede guardar.`];
+      }
+      // Solapamiento de rango
+      if (evento === "vencimiento_proximo" && diasNum != null) {
+        const minDias = Math.min(diasNum, ...solapadas.map((p) => p.dias_antes ?? 0));
+        const nombres = solapadas.map((p) => `"${p.nombre}"`).join(" y ");
+        return [
+          `Cuando queden ${minDias} días o menos, el responsable recibirá ${solapadas.length + 1} notificaciones simultáneas por ${nombres}.`,
+        ];
+      }
+      if (evento === "vencimiento_ocurrido") {
+        const nombres = solapadas.map((p) => `"${p.nombre}"`).join(" y ");
+        return [`Ya existe ${nombres} con el mismo evento y canal. Se generarán notificaciones duplicadas.`];
+      }
+      return [];
+    });
+  })();
 
   function resetForm() {
     setEditingPlantilla(null);
@@ -379,6 +414,17 @@ export function PlantillaManagerClient({
               )}
             </div>
 
+            {overlapWarning.length > 0 && (
+              <div className="space-y-1.5">
+                {overlapWarning.map((msg, i) => (
+                  <div key={i} className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 dark:border-amber-800/40 dark:bg-amber-950/30 dark:text-amber-300">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{msg}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {(state?.error || editError) && (
               <p className="text-sm text-destructive">{state?.error ?? editError}</p>
             )}
@@ -391,7 +437,11 @@ export function PlantillaManagerClient({
               </Button>
               <Button
                 type="submit"
-                disabled={(isEditing ? isPending : pending) || canales.length === 0}
+                disabled={
+                  (isEditing ? isPending : pending) ||
+                  canales.length === 0 ||
+                  overlapWarning.some((m) => m.startsWith("Ya existe una plantilla idéntica"))
+                }
               >
                 {isEditing
                   ? (isPending ? "Guardando…" : "Guardar cambios")
