@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { differenceInDays, parseISO, addDays } from "date-fns";
-import { ESTADOS_PERMISO } from "@/lib/constants/estados";
+import { ESTADOS_PERMISO, ESTADOS_CONTRATO } from "@/lib/constants/estados";
 
 // ─── Tipos de salida ──────────────────────────────────────────
 
@@ -17,6 +17,7 @@ export interface ProximoVencimiento {
   fecha_vencimiento: string;
   diasRestantes: number;
   semaforo: "vencido" | "critico" | "advertencia" | "proximo" | "ok";
+  modulo: "permiso" | "contrato";
 }
 
 export interface TareaUrgente {
@@ -45,6 +46,11 @@ export interface DashboardStats {
     proximos30: number;   // vencen en ≤30 días (no vencidos)
     proximos90: number;   // vencen en ≤90 días (no vencidos)
     porEstado: EstadoCount[];
+    proximosVencimientos: ProximoVencimiento[];
+  };
+  contratos: {
+    vigentes: number;
+    porVencer30: number;
     proximosVencimientos: ProximoVencimiento[];
   };
   tareas: {
@@ -86,6 +92,7 @@ export function createDashboardRepository(
       // ── Fetch paralelo ────────────────────────────────────
       const [
         permisosRes,
+        contratosRes,
         tareasRes,
         tareasUrgentesRes,
         notifsRes,
@@ -99,14 +106,24 @@ export function createDashboardRepository(
           )
           .eq("tenant_id", tenantId),
 
-        // 2. Todas las tareas no canceladas
+        // 2. Contratos activos (excluye terminados y cancelados)
+        client
+          .from("contratos")
+          .select(
+            "id, titulo, numero, estado_id, estado_ref:workflow_estados!estado_id(valor), fecha_fin"
+          )
+          .eq("tenant_id", tenantId)
+          .not("estado_id", "in", `("${ESTADOS_CONTRATO.TERMINADO}","${ESTADOS_CONTRATO.CANCELADO}")`)
+          .is("deleted_at", null),
+
+        // 3. Todas las tareas no canceladas
         client
           .from("tareas")
           .select("id, titulo, estado, prioridad, asignado_nombre, fecha_limite")
           .eq("tenant_id", tenantId)
           .neq("estado", "cancelada"),
 
-        // 3. Tareas urgente/alta no completadas (para la lista)
+        // 4. Tareas urgente/alta no completadas (para la lista)
         client
           .from("tareas")
           .select("id, titulo, prioridad, estado, asignado_nombre, fecha_limite")
@@ -117,7 +134,7 @@ export function createDashboardRepository(
           .order("created_at", { ascending: false })
           .limit(5),
 
-        // 4. Conteo notificaciones sin leer
+        // 5. Conteo notificaciones sin leer
         client
           .from("notificaciones")
           .select("id", { count: "exact", head: true })
@@ -125,7 +142,7 @@ export function createDashboardRepository(
           .eq("user_id", userId)
           .eq("leida", false),
 
-        // 5. Actividad reciente
+        // 6. Actividad reciente
         client
           .from("user_activity_log")
           .select(
@@ -166,7 +183,7 @@ export function createDashboardRepository(
         .map(([estado, count]) => ({ estado, count }))
         .sort((a, b) => b.count - a.count);
 
-      // Próximos vencimientos (≤90 días, no vencidos en estado)
+      // Próximos vencimientos de permisos (≤90 días, no rechazados)
       const proximosVencimientos: ProximoVencimiento[] = permisos
         .filter((p) => {
           if (!p.fecha_vencimiento) return false;
@@ -183,6 +200,7 @@ export function createDashboardRepository(
             fecha_vencimiento: p.fecha_vencimiento!,
             diasRestantes:     dias,
             semaforo:          getSemaforo(dias),
+            modulo:            "permiso" as const,
           };
         })
         .sort((a, b) => a.diasRestantes - b.diasRestantes)
@@ -190,6 +208,45 @@ export function createDashboardRepository(
 
       const proximos30 = proximosVencimientos.filter((p) => p.diasRestantes <= 30).length;
       const proximos90 = proximosVencimientos.length;
+
+      // ── Contratos ─────────────────────────────────────────
+      type ContratoRaw = {
+        id: string;
+        titulo: string;
+        numero: string | null;
+        estado_id: string;
+        estado_ref: Array<{ valor: string }> | { valor: string } | null;
+        fecha_fin: string | null;
+      };
+      const contratos = ((contratosRes.data ?? []) as unknown as ContratoRaw[]).map((c) => {
+        const ref = Array.isArray(c.estado_ref) ? c.estado_ref[0] : c.estado_ref;
+        return { ...c, estado: ref?.valor ?? c.estado_id };
+      });
+
+      const vigentes = contratos.filter((c) => c.estado_id === ESTADOS_CONTRATO.VIGENTE).length;
+
+      const contratosProximos: ProximoVencimiento[] = contratos
+        .filter((c) => {
+          if (!c.fecha_fin) return false;
+          return parseISO(c.fecha_fin) <= en90;
+        })
+        .map((c) => {
+          const dias = differenceInDays(parseISO(c.fecha_fin!), hoy);
+          return {
+            id:                c.id,
+            nombre:            c.titulo,
+            numero_expediente: c.numero,
+            estado:            c.estado,
+            fecha_vencimiento: c.fecha_fin!,
+            diasRestantes:     dias,
+            semaforo:          getSemaforo(dias),
+            modulo:            "contrato" as const,
+          };
+        })
+        .sort((a, b) => a.diasRestantes - b.diasRestantes)
+        .slice(0, 7);
+
+      const porVencer30 = contratosProximos.filter((c) => c.diasRestantes <= 30).length;
 
       // ── Tareas ────────────────────────────────────────────
       const tareas = (tareasRes.data ?? []) as Array<{
@@ -236,6 +293,11 @@ export function createDashboardRepository(
           proximos90,
           porEstado,
           proximosVencimientos,
+        },
+        contratos: {
+          vigentes,
+          porVencer30,
+          proximosVencimientos: contratosProximos,
         },
         tareas: {
           total: tareas.length,

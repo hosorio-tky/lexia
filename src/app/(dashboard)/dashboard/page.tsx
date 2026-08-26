@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
-  AlertTriangle, Bell, ClipboardCheck, FileText,
-  ShieldCheck, ArrowRight,
+  AlertTriangle, Bell, ClipboardCheck, FileText, ArrowRight,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -37,7 +36,12 @@ export default async function DashboardPage() {
   const onboardingSteps =
     (tenantRow.data?.onboarding_steps as Record<string, boolean>) ?? {};
 
-  const { permisos, tareas, notificaciones, actividad } = stats;
+  const { permisos, contratos, tareas, notificaciones, actividad } = stats;
+
+  const proximosVencimientos = [
+    ...permisos.proximosVencimientos,
+    ...contratos.proximosVencimientos,
+  ].sort((a, b) => a.diasRestantes - b.diasRestantes).slice(0, 7);
 
   // Acento de la card de alertas según gravedad
   const alertaAccent =
@@ -71,12 +75,16 @@ export default async function DashboardPage() {
         {/* ── KPI Cards ──────────────────────────────────────── */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
-            title="Permisos activos"
-            value={permisos.activos}
-            description={`${permisos.total} en total`}
-            icon={<ShieldCheck className="h-5 w-5" />}
-            accent="success"
-            href="/permisos"
+            title="Contratos vigentes"
+            value={contratos.vigentes}
+            description={
+              contratos.porVencer30 > 0
+                ? `${contratos.porVencer30} vence${contratos.porVencer30 > 1 ? "n" : ""} en <30 días`
+                : "Sin vencimientos próximos"
+            }
+            icon={<FileText className="h-5 w-5" />}
+            accent={contratos.porVencer30 > 0 ? "warning" : "success"}
+            href="/contratos"
           />
           <StatCard
             title="Alertas"
@@ -179,21 +187,13 @@ export default async function DashboardPage() {
 
           {/* Vencimientos próximos */}
           <Card className="lg:col-span-3 p-5 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-semibold">Vencimientos próximos</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Próximos 90 días
-                </p>
-              </div>
-              <Link
-                href="/permisos"
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition"
-              >
-                Ver todos <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
+            <div className="mb-3">
+              <h2 className="text-sm font-semibold">Vencimientos próximos</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Permisos y contratos · próximos 90 días
+              </p>
             </div>
-            <ExpiryList items={permisos.proximosVencimientos} />
+            <ExpiryList items={proximosVencimientos} />
           </Card>
 
           {/* Tareas urgentes */}
