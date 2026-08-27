@@ -37,7 +37,12 @@ export async function middleware(request: NextRequest) {
   // getSession() lee el JWT de la cookie localmente — sin llamada de red para sesiones
   // activas o usuarios no autenticados. Solo hace red si el token expiró (refresh).
   // El check de MFA y validación profunda ocurre en el layout (Node.js, sin límite Edge).
+  // Silenciamos el warning de consola de Supabase sobre getSession() en middleware:
+  // la seguridad real se aplica con getUser() en los server components.
+  const origWarn = console.warn;
+  console.warn = () => {};
   const { data: { session } } = await supabase.auth.getSession();
+  console.warn = origWarn;
   const user = session?.user ?? null;
 
   const isAuthRoute = AUTH_ROUTES.some((r) => pathname.startsWith(r));
