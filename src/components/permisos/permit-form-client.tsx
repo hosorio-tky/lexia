@@ -14,7 +14,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { MONEDAS, type Permit } from "@/types/permits";
-import { ESTADOS_PERMISO, ESTADOS_PERMISO_OPTIONS } from "@/lib/constants/estados";
 import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { DateChangeConfirmDialog } from "@/components/shared/date-change-confirm-dialog";
 import { CatalogAddDialog } from "@/components/shared/catalog-add-dialog";
@@ -81,7 +80,6 @@ export function PermitFormClient({
 
   const [isPending, startTransition] = useTransition();
   const [tipo, setTipo]             = useState(defaultValues?.tipo_id ?? "");
-  const [estado, setEstado]         = useState(defaultValues?.estado_id ?? ESTADOS_PERMISO.CREADO);
   const [entidad, setEntidad]       = useState(defaultValues?.entidad_reguladora_id ?? "");
   const [responsableIds, setResponsableIds] = useState<string[]>(() => {
     if (defaultValues?.responsable_ids?.length) return defaultValues.responsable_ids;
@@ -237,25 +235,9 @@ export function PermitFormClient({
                 />
               </Field>
 
-              {/* Estado del trámite (only shown when editing) */}
-              {isEditing && (
-                <Field label="Estado del trámite">
-                  <Select value={estado} onValueChange={(v) => {
-                    setEstado(v);
-                    if (v === ESTADOS_PERMISO.CON_PERMISO_PROVISIONAL) setTieneProvisional(true);
-                  }}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ESTADOS_PERMISO_OPTIONS.map((o) => (
-                        <SelectItem key={o.id} value={o.id}>{o.valor}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <input type="hidden" name="estado" value={estado} />
-                </Field>
-              )}
+              {/* El estado del trámite se cambia exclusivamente desde el botón
+                  "Cambiar estado" en el detalle del permiso (workflow validado,
+                  con historial y notificaciones) — no hay un control aquí. */}
 
               <div className="sm:col-span-2">
                 <Field label="Descripción">

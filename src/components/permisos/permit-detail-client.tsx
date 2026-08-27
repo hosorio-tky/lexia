@@ -5,16 +5,16 @@ import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft, Calendar, ChevronDown, ChevronUp,
-  Edit, MapPin, RefreshCw, Trash2,
+  Edit, MapPin, RefreshCw, RotateCcw, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { PermitStatusBadge, VigenciaBadge } from "./permit-status-badge";
+import { PermitStatusStepper } from "./permit-status-stepper";
 import { PermitTimeline } from "./permit-timeline";
 import { PermitWorkflowModal } from "./permit-workflow-modal";
 import { cambiarEstado, eliminarPermiso } from "@/app/actions/permisos";
@@ -33,7 +33,6 @@ import {
   ESTADOS_PERMISO,
   PERMISO_TRANSITIONS,
   ESTADOS_PERMISO_LABELS,
-  ESTADOS_PERMISO_ORDEN,
 } from "@/lib/constants/estados";
 import { TaskQuickCreate } from "@/components/tareas/task-quick-create";
 import { RelatedTasksWidget } from "@/components/shared/related-tasks-widget";
@@ -65,11 +64,6 @@ function formatDate(iso?: string) {
   return new Date(iso).toLocaleDateString("es-SV", {
     day: "2-digit", month: "long", year: "numeric",
   });
-}
-
-function workflowProgress(estadoId: string): number {
-  const orden = ESTADOS_PERMISO_ORDEN[estadoId] ?? 1;
-  return Math.round((orden / Object.keys(ESTADOS_PERMISO_ORDEN).length) * 100);
 }
 
 function Section({ title, children, defaultOpen = true }: {
@@ -182,8 +176,8 @@ export function PermitDetailClient({
     id,
     valor: ESTADOS_PERMISO_LABELS[id] ?? id,
   }));
+  const isRechazado = permit.estado_id === ESTADOS_PERMISO.RECHAZADO;
 
-  const progress = workflowProgress(permit.estado_id);
   const vigencia = calcularVigencia(permit.fecha_vencimiento);
 
   // Check if provisional is still active
@@ -214,14 +208,9 @@ export function PermitDetailClient({
               </span>
             )}
           </div>
-          <span className="text-sm text-muted-foreground">{progress}% del flujo</span>
         </div>
-        <Progress value={progress} className="mt-3 h-2" />
-        <div className="mt-2 flex justify-between px-0.5 text-[10px] text-muted-foreground">
-          <span>Creado</span>
-          <span>Presentado</span>
-          <span>Aprobado</span>
-          <span>Actualizar</span>
+        <div className="mt-4">
+          <PermitStatusStepper estadoId={permit.estado_id} />
         </div>
       </Card>
 
@@ -447,8 +436,17 @@ export function PermitDetailClient({
                   onClick={() => setWorkflowOpen(true)}
                   disabled={isPending}
                 >
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Cambiar estado
+                  {isRechazado ? (
+                    <>
+                      <RotateCcw className="mr-2 h-4 w-4" />
+                      Reabrir
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Cambiar estado
+                    </>
+                  )}
                 </Button>
               )}
               {canEdit && (

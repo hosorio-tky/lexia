@@ -69,7 +69,9 @@ export const PERMISO_TRANSITIONS: Record<string, string[]> = {
   [ESTADOS_PERMISO.CON_PERMISO_PROVISIONAL]: [ESTADOS_PERMISO.APROBADO, ESTADOS_PERMISO.RECHAZADO],
   [ESTADOS_PERMISO.APROBADO]:                [ESTADOS_PERMISO.ACTUALIZAR_PERMISO],
   [ESTADOS_PERMISO.ACTUALIZAR_PERMISO]:      [ESTADOS_PERMISO.APROBADO, ESTADOS_PERMISO.RECHAZADO],
-  [ESTADOS_PERMISO.RECHAZADO]:               [],
+  // "Rechazado" no es un callejón sin salida: se puede reabrir el trámite
+  // hacia "En Gestión" (botón "Reabrir" en el detalle del permiso).
+  [ESTADOS_PERMISO.RECHAZADO]:               [ESTADOS_PERMISO.EN_GESTION],
 };
 
 export const CONTRATO_TRANSITIONS: Record<string, string[]> = {
