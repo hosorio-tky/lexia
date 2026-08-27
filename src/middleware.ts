@@ -35,14 +35,15 @@ export async function middleware(request: NextRequest) {
   // Rutas públicas — pasar siempre (antes de cualquier llamada de red)
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) return response;
 
-  // Ambas llamadas en paralelo para evitar dos round-trips secuenciales
-  const [
-    { data: { user } },
-    { data: aal },
-  ] = await Promise.all([
-    supabase.auth.getUser(),
-    supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
-  ]);
+  // getSession() decodifica el JWT de la cookie localmente — sin llamada de red a Supabase.
+  // getAuthenticatorAssuranceLevel() también es local (lee los claims AMR del JWT).
+  // Ambas operaciones son <1ms → elimina el MIDDLEWARE_INVOCATION_TIMEOUT.
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
+
+  const { data: aal } = user
+    ? await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+    : { data: null };
 
   const isAuthRoute = AUTH_ROUTES.some((r) => pathname.startsWith(r));
   const isMfaRoute  = pathname.startsWith("/mfa");
