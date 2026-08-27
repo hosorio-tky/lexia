@@ -11,9 +11,9 @@ import { Card } from "@/components/ui/card";
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { ContratoStatusBadge } from "./contrato-status-badge";
+import { ContratoStatusStepper } from "./contrato-status-stepper";
 import { ContratoVersionHistory } from "./contrato-version-history";
 import { ContratoWorkflowModal } from "./contrato-workflow-modal";
 import { RelatedTasksWidget } from "@/components/shared/related-tasks-widget";
@@ -31,10 +31,8 @@ import {
   type ContratoVersion,
 } from "@/types/contratos";
 import {
-  ESTADOS_CONTRATO,
   CONTRATO_TRANSITIONS,
   ESTADOS_CONTRATO_LABELS,
-  ESTADOS_CONTRATO_ORDEN,
 } from "@/lib/constants/estados";
 import type { UserProfile } from "@/types/users";
 import type { Task } from "@/types/tasks";
@@ -125,20 +123,6 @@ function ProgresoTemporal({ contrato }: { contrato: Contrato }) {
   );
 }
 
-// Flujo lineal para la barra de progreso (estados terminales laterales excluidos)
-const FLUJO_LINEAL_IDS = [
-  ESTADOS_CONTRATO.EN_REVISION,
-  ESTADOS_CONTRATO.PENDIENTE_FIRMA,
-  ESTADOS_CONTRATO.VIGENTE,
-  ESTADOS_CONTRATO.TERMINADO,
-];
-
-function workflowProgress(estadoId: string): number {
-  const orden = ESTADOS_CONTRATO_ORDEN[estadoId];
-  if (orden === undefined) return 100; // estados terminales laterales = 100%
-  return Math.round((orden / Object.keys(ESTADOS_CONTRATO_ORDEN).length) * 100);
-}
-
 export function ContratoDetailClient({
   contrato:           initialContrato,
   versiones,
@@ -192,7 +176,6 @@ export function ContratoDetailClient({
     valor: ESTADOS_CONTRATO_LABELS[id] ?? id,
   }));
 
-  const progress      = workflowProgress(contrato.estado_id);
   const tieneProgreso = !!(contrato.fecha_inicio && contrato.fecha_fin);
 
   return (
@@ -214,13 +197,9 @@ export function ContratoDetailClient({
               <span className="font-mono text-xs text-muted-foreground">{contrato.numero}</span>
             )}
           </div>
-          <span className="text-sm text-muted-foreground">{progress}% del flujo</span>
         </div>
-        <Progress value={progress} className="mt-3 h-2" />
-        <div className="mt-2 flex justify-between px-0.5 text-[10px] text-muted-foreground">
-          {FLUJO_LINEAL_IDS.map((id) => (
-            <span key={id}>{ESTADOS_CONTRATO_LABELS[id]}</span>
-          ))}
+        <div className="mt-4">
+          <ContratoStatusStepper estadoId={contrato.estado_id} />
         </div>
       </Card>
 
