@@ -88,21 +88,22 @@ export async function importarPermisos(
   const ws         = wb.Sheets[sheetName];
 
   // Estructura de la plantilla:
-  //   Fila 1: headers  → keys del objeto (nombre, tipo, ...)
-  //   Fila 2: ejemplo  → se detecta y omite automáticamente
-  //   Fila 3+: datos reales
+  //   Fila 1: headers → keys del objeto (nombre, tipo, ...)
+  //   Fila 2+: datos  → incluye la fila de ejemplo de la plantilla si el
+  //                     usuario no la borró ni la sobrescribió; se procesa
+  //                     igual que cualquier otra fila (sin caso especial
+  //                     por nombre) para que el comportamiento sea
+  //                     predecible: lo que está en el Excel se importa.
   //
-  // Se omiten filas donde "nombre" esté vacío o sea el texto de ejemplo exacto.
+  // Se omiten únicamente filas completamente vacías o sin "nombre".
   const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, {
     defval: "",
     raw: true,
   });
 
-  const NOMBRE_EJEMPLO = "Registro Sanitario Planta Norte";
-
   const filas = raw.filter((row) => {
     const nombre = String(row["nombre"] ?? "").trim();
-    if (!nombre || nombre === NOMBRE_EJEMPLO) return false;
+    if (!nombre) return false;
     return Object.values(row).some((v) => v !== "" && v !== null && v !== undefined);
   });
 
@@ -134,7 +135,7 @@ export async function importarPermisos(
 
   for (let i = 0; i < filas.length; i++) {
     const row       = filas[i];
-    const numFila   = i + 3; // fila 1=headers, fila 2=ejemplo, fila 3+=datos
+    const numFila   = i + 2; // fila 1=headers, fila 2+=datos
     const errores: string[] = [];
 
     // ── Validaciones ────────────────────────────────────────
