@@ -94,18 +94,17 @@ export async function importarPermisos(
   //                     igual que cualquier otra fila (sin caso especial
   //                     por nombre) para que el comportamiento sea
   //                     predecible: lo que está en el Excel se importa.
-  //
-  // Se omiten únicamente filas completamente vacías o sin "nombre".
   const raw = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, {
     defval: "",
     raw: true,
   });
 
-  const filas = raw.filter((row) => {
-    const nombre = String(row["nombre"] ?? "").trim();
-    if (!nombre) return false;
-    return Object.values(row).some((v) => v !== "" && v !== null && v !== undefined);
-  });
+  // Solo se descartan filas totalmente vacías (ej: filas sobrantes al final
+  // del archivo). Cualquier fila con algún dato, incluida una sin "nombre",
+  // se valida y reporta — nunca se descarta en silencio.
+  const filas = raw.filter((row) =>
+    Object.values(row).some((v) => v !== "" && v !== null && v !== undefined)
+  );
 
   const result: ImportResult = { total: filas.length, exitosos: 0, errores: [] };
 
@@ -132,6 +131,18 @@ export async function importarPermisos(
       createResponsablesRepository(client, session.tenant_id).list().catch(() => []),
       fetchEstadosPermiso(),
     ]);
+
+  // ── Fase 1: validar TODAS las filas antes de escribir nada ──────
+  // Importación todo-o-nada: si cualquier fila falla, no se crea ningún
+  // permiso — se reportan todos los errores para corregir el Excel de
+  // una vez y volver a subirlo, sin dejar registros a medias ni FKs
+  // huérfanas.
+  interface FilaValida {
+    numFila: number;
+    nombre: string;
+    data: Parameters<typeof repo.create>[0];
+  }
+  const validas: FilaValida[] = [];
 
   for (let i = 0; i < filas.length; i++) {
     const row       = filas[i];
@@ -235,9 +246,10 @@ export async function importarPermisos(
       continue;
     }
 
-    // ── Inserción ────────────────────────────────────────────
-    try {
-      await repo.create({
+    validas.push({
+      numFila,
+      nombre,
+      data: {
         tenant_id:                     session.tenant_id,
         nombre,
         tipo_id:                       tipoId,
@@ -261,7 +273,20 @@ export async function importarPermisos(
         tiene_provisional:             tieneProvisional ?? undefined,
         fecha_emision_provisional:     fechaEmisionProvisional,
         fecha_vencimiento_provisional: fechaVencimientoProvisional,
-      });
+      },
+    });
+  }
+
+  // Si CUALQUIER fila falló la validación, no se escribe nada — se
+  // reportan todos los errores para corregir el Excel completo de una vez.
+  if (result.errores.length > 0) {
+    return result;
+  }
+
+  // ── Fase 2: todas las filas son válidas — insertar ──────────────
+  for (const { numFila, nombre, data } of validas) {
+    try {
+      await repo.create(data);
       result.exitosos++;
     } catch (err) {
       result.errores.push({
