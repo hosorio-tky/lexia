@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -141,29 +142,32 @@ export async function signIn(
     return { error: "Correo o contraseña incorrectos", email };
   }
 
-  // Log de actividad
+  // Log de actividad y último acceso — no bloquean el redirect, se ejecutan
+  // después de enviar la respuesta (after() mantiene viva la función serverless).
   if (data.user) {
-    const admin = createAdminClient();
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("tenant_id, nombre")
-      .eq("id", data.user.id)
-      .single();
-
-    if (profile) {
-      await admin.from("user_activity_log").insert({
-        tenant_id:   profile.tenant_id,
-        user_id:     data.user.id,
-        user_nombre: profile.nombre,
-        accion:      "login",
-        modulo:      "auth",
-      });
-      // Actualizar último acceso
-      await admin
+    const userId = data.user.id;
+    after(async () => {
+      const admin = createAdminClient();
+      const { data: profile } = await admin
         .from("profiles")
-        .update({ ultimo_acceso: new Date().toISOString() })
-        .eq("id", data.user.id);
-    }
+        .select("tenant_id, nombre")
+        .eq("id", userId)
+        .single();
+
+      if (profile) {
+        await admin.from("user_activity_log").insert({
+          tenant_id:   profile.tenant_id,
+          user_id:     userId,
+          user_nombre: profile.nombre,
+          accion:      "login",
+          modulo:      "auth",
+        });
+        await admin
+          .from("profiles")
+          .update({ ultimo_acceso: new Date().toISOString() })
+          .eq("id", userId);
+      }
+    });
   }
 
   // Gestionar cookie de contraseña temporal — limpiar siempre primero para
