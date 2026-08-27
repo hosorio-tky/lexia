@@ -60,7 +60,7 @@ function SidebarNavItem({ item, active }: { item: NavItem; active: boolean }) {
       : "bg-background ring-border group-hover:bg-background");
 
   return (
-    <Link href={item.disabled ? "#" : item.href} className={cls}>
+    <Link href={item.disabled ? "#" : item.href} className={cls} prefetch={false}>
       <span className="flex items-center gap-2.5">
         <span className={iconCls}>{item.icon}</span>
         <span>{item.label}</span>
