@@ -1,6 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { verifyTrustedDeviceToken, TRUSTED_DEVICE_COOKIE } from "@/lib/trusted-device";
 
 const AUTH_ROUTES       = ["/login", "/registro", "/recuperar", "/actualizar-contrasena", "/mfa"];
 const REDIRECT_IF_AUTHED = ["/login", "/registro", "/recuperar"];
@@ -35,18 +34,11 @@ export async function middleware(request: NextRequest) {
   // Rutas públicas — pasar siempre (antes de cualquier llamada de red)
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) return response;
 
-  // getSession() decodifica el JWT de la cookie localmente — sin llamada de red a Supabase.
-  // getAuthenticatorAssuranceLevel() también es local (lee los claims AMR del JWT).
-  // Ambas operaciones son <1ms → elimina el MIDDLEWARE_INVOCATION_TIMEOUT.
-  const { data: { session } } = await supabase.auth.getSession();
-  const user = session?.user ?? null;
-
-  const { data: aal } = user
-    ? await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
-    : { data: null };
+  // Una sola llamada de red en Edge middleware.
+  // El check de MFA se hace en el layout del dashboard (Node.js, sin timeout de Edge).
+  const { data: { user } } = await supabase.auth.getUser();
 
   const isAuthRoute = AUTH_ROUTES.some((r) => pathname.startsWith(r));
-  const isMfaRoute  = pathname.startsWith("/mfa");
 
   // Usuario no autenticado intenta acceder al dashboard
   if (!user && !isAuthRoute) {
@@ -60,42 +52,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
-  // MFA y contraseña obligatoria — el orden importa:
-  // si hay MFA enrollado pero sesión en AAL1, el challenge va PRIMERO porque
-  // Supabase exige AAL2 para poder cambiar contraseña.
+  // Usuarios invitados que aún no establecieron contraseña.
+  // app_metadata viene en los JWT claims — no hay round-trip extra.
   if (user && !isAuthRoute) {
-    // Usuarios invitados que aún no establecieron contraseña — redirigir ANTES de MFA.
-    // must_change_password viene en los JWT claims (app_metadata) sin round-trip extra.
     const mustSetPassword =
       !!user?.app_metadata?.must_change_password ||
       request.cookies.get("lexia_force_pwd")?.value === "1";
     if (mustSetPassword) {
       return NextResponse.redirect(new URL("/actualizar-contrasena", request.url));
-    }
-
-    if (aal) {
-      const hasMfaEnrolled = aal.nextLevel === "aal2";
-      const mfaVerified    = aal.currentLevel === "aal2";
-
-      if (hasMfaEnrolled && !mfaVerified) {
-        // Verificar si el dispositivo ya fue marcado como confiado
-        const trustedToken = request.cookies.get(TRUSTED_DEVICE_COOKIE)?.value;
-        if (trustedToken && user?.id) {
-          try {
-            const deviceConfiado = await verifyTrustedDeviceToken(trustedToken, user.id);
-            if (deviceConfiado) return response; // Saltear challenge
-          } catch (e) {
-            console.error("[middleware] trusted-device verify error:", e);
-          }
-        }
-        // Factor enrollado + sesión AAL1 → challenge primero (sin excepción)
-        if (!isMfaRoute) return NextResponse.redirect(new URL("/mfa/challenge", request.url));
-      } else {
-        // Sin factor enrollado → forzar setup
-        if (!hasMfaEnrolled && !isMfaRoute) {
-          return NextResponse.redirect(new URL("/mfa/setup", request.url));
-        }
-      }
     }
   }
 
