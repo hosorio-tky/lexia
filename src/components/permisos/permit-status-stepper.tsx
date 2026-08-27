@@ -1,4 +1,4 @@
-import { Check, ArrowRight, RefreshCw, TriangleAlert } from "lucide-react";
+import { Check, ArrowRight, TriangleAlert } from "lucide-react";
 import { ESTADOS_PERMISO } from "@/lib/constants/estados";
 import { cn } from "@/lib/utils";
 
@@ -61,12 +61,6 @@ export function PermitStatusStepper({ estadoId }: { estadoId: string }) {
                 >
                   {step.label}
                 </span>
-                {isCurrent && isActualizar && (
-                  <span className="inline-flex items-center gap-0.5 text-[9px] font-medium text-orange-600">
-                    <RefreshCw className="h-2.5 w-2.5" />
-                    Actualizando
-                  </span>
-                )}
               </div>
               {i < HAPPY_PATH.length - 1 && (
                 <ArrowRight
@@ -82,6 +76,13 @@ export function PermitStatusStepper({ estadoId }: { estadoId: string }) {
         <div className="flex w-fit items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700">
           <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
           Con Permiso Provisional — trámite definitivo en gestión
+        </div>
+      )}
+
+      {isActualizar && (
+        <div className="flex w-fit items-center gap-1.5 rounded-lg border border-orange-200 bg-orange-50 px-3 py-1.5 text-xs font-medium text-orange-700">
+          <span className="h-1.5 w-1.5 rounded-full bg-orange-500" />
+          En actualización — se está gestionando una renovación o modificación
         </div>
       )}
     </div>
