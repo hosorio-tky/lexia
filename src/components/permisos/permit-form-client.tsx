@@ -102,8 +102,6 @@ export function PermitFormClient({
   );
   const formRef = useRef<HTMLFormElement>(null);
 
-  const showProvisional = estado === ESTADOS_PERMISO.CON_PERMISO_PROVISIONAL || tieneProvisional;
-
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
@@ -357,45 +355,45 @@ export function PermitFormClient({
             />
           </Card>
 
-          {/* Permiso Provisional */}
-          {showProvisional && (
-            <Card className="p-6 shadow-sm space-y-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-sm font-semibold">Permiso Provisional</h2>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Indica si existe un permiso provisional mientras se gestiona el definitivo.
-                  </p>
-                </div>
-                <Switch
-                  checked={tieneProvisional}
-                  onCheckedChange={setTieneProvisional}
-                  aria-label="Tiene permiso provisional"
-                />
+          {/* Permiso Provisional — siempre visible, independiente del estado del workflow.
+              También se puede activar automáticamente al cambiar el estado a
+              "Con Permiso Provisional" desde el modal de cambio de estado. */}
+          <Card className="p-6 shadow-sm space-y-5">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold">Permiso Provisional</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Indica si existe un permiso provisional mientras se gestiona el definitivo.
+                </p>
               </div>
-              {tieneProvisional && (
-                <>
-                  <Separator />
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Fecha de emisión provisional">
-                      <DatePickerInput
-                        name="fecha_emision_provisional"
-                        defaultValue={defaultValues?.fecha_emision_provisional}
-                        placeholder="Seleccionar"
-                      />
-                    </Field>
-                    <Field label="Fecha de vencimiento provisional">
-                      <DatePickerInput
-                        name="fecha_vencimiento_provisional"
-                        defaultValue={defaultValues?.fecha_vencimiento_provisional}
-                        placeholder="Seleccionar"
-                      />
-                    </Field>
-                  </div>
-                </>
-              )}
-            </Card>
-          )}
+              <Switch
+                checked={tieneProvisional}
+                onCheckedChange={setTieneProvisional}
+                aria-label="Tiene permiso provisional"
+              />
+            </div>
+            {tieneProvisional && (
+              <>
+                <Separator />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Fecha de emisión provisional">
+                    <DatePickerInput
+                      name="fecha_emision_provisional"
+                      defaultValue={defaultValues?.fecha_emision_provisional}
+                      placeholder="Seleccionar"
+                    />
+                  </Field>
+                  <Field label="Fecha de vencimiento provisional">
+                    <DatePickerInput
+                      name="fecha_vencimiento_provisional"
+                      defaultValue={defaultValues?.fecha_vencimiento_provisional}
+                      placeholder="Seleccionar"
+                    />
+                  </Field>
+                </div>
+              </>
+            )}
+          </Card>
 
           {/* Marco legal y riesgo */}
           <Card className="p-6 shadow-sm space-y-5">

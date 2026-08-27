@@ -9,6 +9,7 @@ import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/logger";
 import { sendCambioEstado, sendResponsableAsignado } from "@/lib/email/send";
 import { resolveResponsableEmail } from "@/lib/email/resolve-responsable";
+import { ESTADOS_PERMISO } from "@/lib/constants/estados";
 import type { PermitFilters } from "@/types/permits";
 import type { Permit } from "@/types/permits";
 
@@ -27,6 +28,9 @@ const FIELD_LABELS: Record<string, string> = {
   base_legal:                "Base legal",
   riesgo_incumplimiento:     "Riesgo de incumplimiento",
   base_legal_incumplimiento: "Base legal de incumplimiento",
+  tiene_provisional:             "Permiso provisional",
+  fecha_emision_provisional:     "Fecha emisión provisional",
+  fecha_vencimiento_provisional: "Fecha vencimiento provisional",
 };
 
 // ─── Crear permiso ─────────────────────────────────────────────
@@ -169,6 +173,7 @@ export async function editarPermiso(id: string, formData: FormData) {
         const valorDespues  = key in diffExtras ? diffExtras[key] : input[key];
         const toStr = (v: unknown): string | null => {
           if (v === "" || v === null || v === undefined) return null;
+          if (key === "tiene_provisional") return v ? "Sí" : "No";
           return String(v);
         };
         if (toStr(valorAntes) !== toStr(valorDespues)) {
@@ -256,7 +261,9 @@ export async function cambiarEstado(
   id: string,
   newEstadoId: string,
   newLabel: string,
-  comment?: string
+  comment?: string,
+  fechaEmisionProvisional?: string,
+  fechaVencimientoProvisional?: string
 ) {
   const session = await getSession();
   try {
@@ -265,7 +272,20 @@ export async function cambiarEstado(
 
     // Obtener estado anterior para el metadata
     const actual = await repo.getById(id);
-    await repo.changeStatus(id, newEstadoId, comment);
+
+    const esProvisional = newEstadoId === ESTADOS_PERMISO.CON_PERMISO_PROVISIONAL;
+    await repo.changeStatus(
+      id,
+      newEstadoId,
+      comment,
+      esProvisional
+        ? {
+            tiene_provisional:             true,
+            fecha_emision_provisional:     fechaEmisionProvisional,
+            fecha_vencimiento_provisional: fechaVencimientoProvisional,
+          }
+        : undefined
+    );
 
     await logActivity({
       tenant_id:    session.tenant_id,
@@ -279,6 +299,12 @@ export async function cambiarEstado(
         estado_anterior: actual?.estado ?? null,
         estado_nuevo:    newLabel,
         comentario:      comment || null,
+        ...(esProvisional
+          ? {
+              fecha_emision_provisional:     fechaEmisionProvisional     || null,
+              fecha_vencimiento_provisional: fechaVencimientoProvisional || null,
+            }
+          : {}),
       },
     });
 

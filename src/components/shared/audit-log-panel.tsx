@@ -83,10 +83,12 @@ function ActionDetail({ accion, metadata }: { accion: string; metadata: Record<s
   }
 
   if (accion === "cambiar_estado" || accion === "cambiar_estado_contrato") {
-    const { estado_anterior, estado_nuevo, comentario } = metadata as {
+    const { estado_anterior, estado_nuevo, comentario, fecha_emision_provisional, fecha_vencimiento_provisional } = metadata as {
       estado_anterior?: string | null;
       estado_nuevo?: string;
       comentario?: string | null;
+      fecha_emision_provisional?: string | null;
+      fecha_vencimiento_provisional?: string | null;
     };
     return (
       <div className="mt-1.5 text-xs text-muted-foreground space-y-0.5">
@@ -98,6 +100,11 @@ function ActionDetail({ accion, metadata }: { accion: string; metadata: Record<s
           </p>
         )}
         {comentario && <p className="italic">"{comentario}"</p>}
+        {(fecha_emision_provisional || fecha_vencimiento_provisional) && (
+          <p>
+            Permiso provisional: {fecha_emision_provisional ?? "—"} → {fecha_vencimiento_provisional ?? "—"}
+          </p>
+        )}
       </div>
     );
   }

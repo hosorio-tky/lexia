@@ -139,7 +139,13 @@ export function PermitDetailClient({
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const [isPending, startTransition]    = useTransition();
 
-  const handleWorkflowConfirm = (newEstadoId: string, newLabel: string, comment: string) => {
+  const handleWorkflowConfirm = (
+    newEstadoId: string,
+    newLabel: string,
+    comment: string,
+    fechaEmisionProvisional?: string,
+    fechaVencimientoProvisional?: string
+  ) => {
     const event: TimelineEvent = {
       id: `temp-${Date.now()}`,
       permit_id:          permit.id,
@@ -151,10 +157,24 @@ export function PermitDetailClient({
       changed_by_nombre:  "Usuario Demo",
       created_at:         new Date().toISOString(),
     };
-    setPermit((p) => ({ ...p, estado_id: newEstadoId, estado: newLabel }));
+    const esProvisional = newEstadoId === ESTADOS_PERMISO.CON_PERMISO_PROVISIONAL;
+    setPermit((p) => ({
+      ...p,
+      estado_id: newEstadoId,
+      estado:    newLabel,
+      ...(esProvisional
+        ? {
+            tiene_provisional:             true,
+            fecha_emision_provisional:     fechaEmisionProvisional     ?? p.fecha_emision_provisional,
+            fecha_vencimiento_provisional: fechaVencimientoProvisional ?? p.fecha_vencimiento_provisional,
+          }
+        : {}),
+    }));
     setTimeline((t) => [...t, event]);
 
-    startTransition(() => cambiarEstado(permit.id, newEstadoId, newLabel, comment));
+    startTransition(() =>
+      cambiarEstado(permit.id, newEstadoId, newLabel, comment, fechaEmisionProvisional, fechaVencimientoProvisional)
+    );
   };
 
   const nextIds     = PERMISO_TRANSITIONS[permit.estado_id] ?? [];

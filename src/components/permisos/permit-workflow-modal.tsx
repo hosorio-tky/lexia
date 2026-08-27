@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePickerInput } from "@/components/ui/date-picker-input";
 import { PermitStatusBadge } from "./permit-status-badge";
 import { ESTADOS_PERMISO } from "@/lib/constants/estados";
 
@@ -23,7 +24,13 @@ interface WorkflowModalProps {
   currentLabel: string;
   permitName: string;
   nextEstados: Array<{ id: string; valor: string }>;
-  onConfirm: (newEstadoId: string, newLabel: string, comment: string) => void;
+  onConfirm: (
+    newEstadoId: string,
+    newLabel: string,
+    comment: string,
+    fechaEmisionProvisional?: string,
+    fechaVencimientoProvisional?: string
+  ) => void;
 }
 
 const STATUS_ICONS: Record<string, React.ElementType> = {
@@ -43,18 +50,32 @@ export function PermitWorkflowModal({
 }: WorkflowModalProps) {
   const [selectedNext, setSelectedNext] = useState<{ id: string; valor: string } | null>(null);
   const [comment, setComment] = useState("");
+  const [fechaEmisionProvisional, setFechaEmisionProvisional]         = useState("");
+  const [fechaVencimientoProvisional, setFechaVencimientoProvisional] = useState("");
+
+  const vaAProvisional = selectedNext?.id === ESTADOS_PERMISO.CON_PERMISO_PROVISIONAL;
 
   const handleConfirm = () => {
     if (!selectedNext) return;
-    onConfirm(selectedNext.id, selectedNext.valor, comment);
+    onConfirm(
+      selectedNext.id,
+      selectedNext.valor,
+      comment,
+      vaAProvisional ? fechaEmisionProvisional || undefined : undefined,
+      vaAProvisional ? fechaVencimientoProvisional || undefined : undefined
+    );
     setSelectedNext(null);
     setComment("");
+    setFechaEmisionProvisional("");
+    setFechaVencimientoProvisional("");
     onOpenChange(false);
   };
 
   const handleClose = () => {
     setSelectedNext(null);
     setComment("");
+    setFechaEmisionProvisional("");
+    setFechaVencimientoProvisional("");
     onOpenChange(false);
   };
 
@@ -101,6 +122,34 @@ export function PermitWorkflowModal({
                     </button>
                   );
                 })}
+              </div>
+            </div>
+          )}
+
+          {vaAProvisional && (
+            <div className="space-y-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3">
+              <Label className="text-amber-900">
+                Fechas del permiso provisional <span className="text-muted-foreground font-normal">(opcional)</span>
+              </Label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label className="text-xs font-normal text-muted-foreground">Fecha de emisión</Label>
+                  <DatePickerInput
+                    value={fechaEmisionProvisional}
+                    onChange={setFechaEmisionProvisional}
+                    placeholder="Seleccionar"
+                    name="fecha_emision_provisional_workflow"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs font-normal text-muted-foreground">Fecha de vencimiento</Label>
+                  <DatePickerInput
+                    value={fechaVencimientoProvisional}
+                    onChange={setFechaVencimientoProvisional}
+                    placeholder="Seleccionar"
+                    name="fecha_vencimiento_provisional_workflow"
+                  />
+                </div>
               </div>
             </div>
           )}

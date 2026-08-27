@@ -401,11 +401,21 @@ export function createPermisosRepository(client: SupabaseClient, tenantId: strin
     async changeStatus(
       id: string,
       newEstadoId: string,
-      comment?: string
+      comment?: string,
+      provisional?: {
+        tiene_provisional?: boolean;
+        fecha_emision_provisional?: string;
+        fecha_vencimiento_provisional?: string;
+      }
     ): Promise<Permit> {
       const { error: updateError } = await client
         .from("permisos")
-        .update({ estado_id: newEstadoId })
+        .update({
+          estado_id: newEstadoId,
+          ...(provisional?.tiene_provisional ? { tiene_provisional: true } : {}),
+          ...(provisional?.fecha_emision_provisional ? { fecha_emision_provisional: provisional.fecha_emision_provisional } : {}),
+          ...(provisional?.fecha_vencimiento_provisional ? { fecha_vencimiento_provisional: provisional.fecha_vencimiento_provisional } : {}),
+        })
         .eq("id", id)
         .eq("tenant_id", tenantId);
       if (updateError) throw updateError;
