@@ -30,11 +30,19 @@ export async function middleware(request: NextRequest) {
     }
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
 
-  // Rutas públicas — pasar siempre
+  // Rutas públicas — pasar siempre (antes de cualquier llamada de red)
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) return response;
+
+  // Ambas llamadas en paralelo para evitar dos round-trips secuenciales
+  const [
+    { data: { user } },
+    { data: aal },
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.auth.mfa.getAuthenticatorAssuranceLevel(),
+  ]);
 
   const isAuthRoute = AUTH_ROUTES.some((r) => pathname.startsWith(r));
   const isMfaRoute  = pathname.startsWith("/mfa");
@@ -63,8 +71,6 @@ export async function middleware(request: NextRequest) {
     if (mustSetPassword) {
       return NextResponse.redirect(new URL("/actualizar-contrasena", request.url));
     }
-
-    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
 
     if (aal) {
       const hasMfaEnrolled = aal.nextLevel === "aal2";
