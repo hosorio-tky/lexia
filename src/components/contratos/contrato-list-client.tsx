@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, useCallback, useTransition } from "react"
 import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
-  Filter, KanbanSquare, LayoutList, Plus, Search, Trash2, X, ChevronLeft, ChevronRight, ChevronDown, FileDown,
+  Filter, KanbanSquare, LayoutList, Plus, Search, Trash2, X, ChevronLeft, ChevronRight, ChevronDown, FileDown, Upload,
 } from "lucide-react";
 import { SortableTh } from "@/components/ui/sortable-th";
 import { ActivityCell } from "@/components/ui/activity-cell";
@@ -37,6 +37,7 @@ import {
 import { ContratoStatCards } from "./contrato-stat-cards";
 import { ContratoStatusBadge } from "./contrato-status-badge";
 import { ContratoKanban } from "./contrato-kanban";
+import { ContratoImportDialog } from "./contrato-import-dialog";
 import { eliminarContrato, obtenerContratosParaExportar } from "@/app/actions/contratos";
 import { descargarExcel } from "@/lib/export-excel";
 import { diasRestantes, type Contrato } from "@/types/contratos";
@@ -207,6 +208,7 @@ export function ContratoListClient({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   const [exporting, setExporting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   async function handleExportExcel() {
     setExporting(true);
     try {
@@ -353,10 +355,20 @@ export function ContratoListClient({
                 <FileDown className="mr-2 h-4 w-4" />
                 {exporting ? "Exportando…" : "Exportar a Excel"}
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setImportOpen(true)}>
+                <Upload className="mr-2 h-4 w-4" />
+                Importar desde Excel
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
+
+      <ContratoImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onSuccess={() => {}}
+      />
 
       {/* Contador */}
       {total > 0 && pageSize < total && viewMode === "tabla" && (
