@@ -34,9 +34,11 @@ export async function middleware(request: NextRequest) {
   // Rutas públicas — pasar siempre (antes de cualquier llamada de red)
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) return response;
 
-  // Una sola llamada de red en Edge middleware.
-  // El check de MFA se hace en el layout del dashboard (Node.js, sin timeout de Edge).
-  const { data: { user } } = await supabase.auth.getUser();
+  // getSession() lee el JWT de la cookie localmente — sin llamada de red para sesiones
+  // activas o usuarios no autenticados. Solo hace red si el token expiró (refresh).
+  // El check de MFA y validación profunda ocurre en el layout (Node.js, sin límite Edge).
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
 
   const isAuthRoute = AUTH_ROUTES.some((r) => pathname.startsWith(r));
 
@@ -53,7 +55,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Usuarios invitados que aún no establecieron contraseña.
-  // app_metadata viene en los JWT claims — no hay round-trip extra.
+  // app_metadata viene en los JWT claims — sin round-trip de red.
   if (user && !isAuthRoute) {
     const mustSetPassword =
       !!user?.app_metadata?.must_change_password ||
