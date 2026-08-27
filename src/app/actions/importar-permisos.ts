@@ -144,7 +144,9 @@ export async function importarPermisos(
 
     const tipoRaw = String(row["tipo"] ?? "").trim();
     let tipoId: string | undefined;
-    if (tipoRaw) {
+    if (!tipoRaw) {
+      errores.push("El campo 'tipo' es obligatorio");
+    } else {
       const match = tiposCatalogo.find((c) => c.valor.toLowerCase() === tipoRaw.toLowerCase());
       if (match) {
         tipoId = match.id;
