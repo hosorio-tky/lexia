@@ -46,6 +46,46 @@ export function chunkText(
 
 /** Extrae texto de un PDF (buffer) — usa pdfjs-dist (maneja formatos modernos que pdf-parse no soporta) */
 export async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
+  // pdfjs-dist legacy intenta polyfill de DOMMatrix vía @napi-rs/canvas, que no existe en Vercel.
+  // Instalamos stubs mínimos antes de importar el módulo (solo extracción de texto, no rendering).
+  const g = globalThis as Record<string, unknown>;
+  if (typeof g.DOMMatrix === "undefined") {
+    g.DOMMatrix = class DOMMatrix {
+      a=1; b=0; c=0; d=1; e=0; f=0;
+      m11=1; m12=0; m13=0; m14=0;
+      m21=0; m22=1; m23=0; m24=0;
+      m31=0; m32=0; m33=1; m34=0;
+      m41=0; m42=0; m43=0; m44=1;
+      is2D=true; isIdentity=true;
+      constructor(_init?: string | number[]) {}
+      multiply() { return this; }
+      translate() { return this; }
+      scale() { return this; }
+      rotate() { return this; }
+      rotateAxisAngle() { return this; }
+      skewX() { return this; }
+      skewY() { return this; }
+      flipX() { return this; }
+      flipY() { return this; }
+      inverse() { return this; }
+      transformPoint(p?: {x?:number;y?:number;z?:number;w?:number}) { return {x:p?.x??0,y:p?.y??0,z:p?.z??0,w:p?.w??1}; }
+      toFloat32Array() { return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]); }
+      toFloat64Array() { return new Float64Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]); }
+      toString() { return "matrix(1, 0, 0, 1, 0, 0)"; }
+    };
+  }
+  if (typeof g.Path2D === "undefined") {
+    g.Path2D = class Path2D {
+      constructor(_path?: string | Path2D) {}
+      addPath() {}
+      closePath() {}
+      moveTo() {}
+      lineTo() {}
+      rect() {}
+      arc() {}
+    };
+  }
+
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
   // En Node.js/Vercel serverless no hay Web Workers — ejecutar en el hilo principal
