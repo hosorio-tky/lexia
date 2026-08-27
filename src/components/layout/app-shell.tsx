@@ -130,7 +130,7 @@ export default function AppShell({
     <div className="min-h-svh bg-background text-foreground">
       {/* ── Header ── */}
       <div className="fixed inset-x-0 top-0 z-40 h-16 border-b bg-background/80 backdrop-blur">
-        <div className="mx-auto flex h-full max-w-[1400px] items-center gap-4 px-4 lg:px-6">
+        <div className="mx-auto flex h-full max-w-[1400px] items-center gap-4 px-4 lg:pl-[256px] lg:pr-6">
           <div className="text-sm text-muted-foreground lg:hidden">{breadcrumb}</div>
 
           <div className="mx-auto hidden w-full max-w-xl items-center lg:flex">
