@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useTransition, useRef } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { useState } from "react";
 import { formatDistanceToNow, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import {
@@ -17,12 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import {
-  obtenerNotificacionesRecientes,
-  marcarComoLeida,
-  marcarTodosComoLeidos,
-  eliminarNotificacion,
-} from "@/app/actions/notificaciones";
+import { useNotifications } from "./notifications-context";
 import type { Notificacion } from "@/types/notifications";
 
 const MODULO_ICONS: Record<string, React.ReactNode> = {
@@ -58,7 +52,6 @@ function NotifItem({
         !notif.leida && "bg-primary/5"
       )}
     >
-      {/* Icono del módulo */}
       <div
         className={cn(
           "mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg",
@@ -70,34 +63,20 @@ function NotifItem({
         {MODULO_ICONS[notif.modulo ?? ""] ?? <Bell className="h-3.5 w-3.5" />}
       </div>
 
-      {/* Contenido */}
       <div className="min-w-0 flex-1">
-        <p
-          className={cn(
-            "text-sm leading-snug",
-            !notif.leida ? "font-medium" : "text-muted-foreground"
-          )}
-        >
+        <p className={cn("text-sm leading-snug", !notif.leida ? "font-medium" : "text-muted-foreground")}>
           {notif.titulo}
         </p>
         {notif.mensaje && (
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">
-            {notif.mensaje}
-          </p>
+          <p className="mt-0.5 truncate text-xs text-muted-foreground">{notif.mensaje}</p>
         )}
         <p className="mt-1 text-[11px] text-muted-foreground/70">
-          {formatDistanceToNow(parseISO(notif.created_at), {
-            addSuffix: true,
-            locale: es,
-          })}
+          {formatDistanceToNow(parseISO(notif.created_at), { addSuffix: true, locale: es })}
         </p>
       </div>
 
-      {/* Acciones */}
       <div className="flex shrink-0 flex-col items-end justify-between gap-1">
-        {!notif.leida && (
-          <span className="mt-1 h-2 w-2 rounded-full bg-primary" />
-        )}
+        {!notif.leida && <span className="mt-1 h-2 w-2 rounded-full bg-primary" />}
         <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
           {href && (
             <Link href={href} onClick={() => onRead(notif.id)}>
@@ -107,23 +86,11 @@ function NotifItem({
             </Link>
           )}
           {!notif.leida && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              title="Marcar leída"
-              onClick={() => onRead(notif.id)}
-            >
+            <Button variant="ghost" size="icon" className="h-6 w-6" title="Marcar leída" onClick={() => onRead(notif.id)}>
               <Check className="h-3 w-3" />
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 text-muted-foreground hover:text-destructive"
-            title="Eliminar"
-            onClick={() => onDelete(notif.id)}
-          >
+          <Button variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-destructive" title="Eliminar" onClick={() => onDelete(notif.id)}>
             <Trash2 className="h-3 w-3" />
           </Button>
         </div>
@@ -133,82 +100,11 @@ function NotifItem({
 }
 
 export function NotificationBell() {
-  const [notifs, setNotifs]     = useState<Notificacion[]>([]);
-  const [open, setOpen]         = useState(false);
-  const [loaded, setLoaded]     = useState(false);
-  const [, startTransition]     = useTransition();
-  const channelRef              = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
-
-  const unreadCount = notifs.filter((n) => !n.leida).length;
-
-  // Carga inicial + suscripción Realtime
-  useEffect(() => {
-    let cancelled = false;
-    const supabase = createClient();
-
-    obtenerNotificacionesRecientes().then((data) => {
-      if (!cancelled) {
-        setNotifs(data);
-        setLoaded(true);
-      }
-    });
-
-    supabase.auth.getUser().then(({ data }) => {
-      if (cancelled) return;
-      const userId = data.user?.id;
-      if (!userId) return;
-
-      const channel = supabase
-        .channel(`notificaciones:${userId}`)
-        .on(
-          "postgres_changes",
-          {
-            event:  "INSERT",
-            schema: "public",
-            table:  "notificaciones",
-            filter: `user_id=eq.${userId}`,
-          },
-          (payload) => {
-            setNotifs((prev) => [payload.new as Notificacion, ...prev]);
-          }
-        )
-        .subscribe();
-
-      channelRef.current = channel;
-    });
-
-    return () => {
-      cancelled = true;
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
-    };
-  }, []);
-
-  function handleOpen(v: boolean) {
-    setOpen(v);
-  }
-
-  function handleRead(id: string) {
-    setNotifs((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, leida: true } : n))
-    );
-    startTransition(() => marcarComoLeida(id));
-  }
-
-  function handleDelete(id: string) {
-    setNotifs((prev) => prev.filter((n) => n.id !== id));
-    startTransition(() => eliminarNotificacion(id));
-  }
-
-  function handleMarkAllRead() {
-    setNotifs((prev) => prev.map((n) => ({ ...n, leida: true })));
-    startTransition(() => marcarTodosComoLeidos());
-  }
+  const { notifs, unreadCount, loaded, handleRead, handleDelete, handleMarkAllRead } = useNotifications();
+  const [open, setOpen] = useState(false);
 
   return (
-    <Popover open={open} onOpenChange={handleOpen}>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           className="relative grid h-10 w-10 place-items-center rounded-xl bg-muted text-muted-foreground ring-1 ring-border transition hover:text-foreground"
@@ -223,21 +119,11 @@ export function NotificationBell() {
         </button>
       </PopoverTrigger>
 
-      <PopoverContent
-        align="end"
-        sideOffset={8}
-        className="w-80 p-0 shadow-lg"
-      >
-        {/* Header */}
+      <PopoverContent align="end" sideOffset={8} className="w-80 p-0 shadow-lg">
         <div className="flex items-center justify-between px-4 py-3">
           <span className="text-sm font-semibold">Notificaciones</span>
           {unreadCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1 text-xs"
-              onClick={handleMarkAllRead}
-            >
+            <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs" onClick={handleMarkAllRead}>
               <CheckCheck className="h-3.5 w-3.5" />
               Marcar todas
             </Button>
@@ -245,7 +131,6 @@ export function NotificationBell() {
         </div>
         <Separator />
 
-        {/* Lista */}
         <div className="max-h-[360px] overflow-y-auto">
           {!loaded ? (
             <div className="flex flex-col gap-2 px-4 py-6">
@@ -256,35 +141,23 @@ export function NotificationBell() {
           ) : notifs.length === 0 ? (
             <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
               <Bell className="h-8 w-8 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">
-                Sin notificaciones pendientes
-              </p>
+              <p className="text-sm text-muted-foreground">Sin notificaciones pendientes</p>
             </div>
           ) : (
             <div className="divide-y">
               {notifs.map((n) => (
-                <NotifItem
-                  key={n.id}
-                  notif={n}
-                  onRead={handleRead}
-                  onDelete={handleDelete}
-                />
+                <NotifItem key={n.id} notif={n} onRead={handleRead} onDelete={handleDelete} />
               ))}
             </div>
           )}
         </div>
 
-        {/* Footer */}
         {notifs.length > 0 && (
           <>
             <Separator />
             <div className="px-4 py-2">
               <Link href="/notificaciones">
-                <Button
-                  variant="ghost"
-                  className="h-8 w-full text-xs"
-                  onClick={() => setOpen(false)}
-                >
+                <Button variant="ghost" className="h-8 w-full text-xs" onClick={() => setOpen(false)}>
                   Ver todas las notificaciones
                 </Button>
               </Link>

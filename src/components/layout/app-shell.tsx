@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
 import { NotificationBell } from "@/components/notifications/notification-bell";
+import { NotificationsProvider, useNotifications } from "@/components/notifications/notifications-context";
 import { ChatSidebar } from "@/components/ai/chat-sidebar";
 import { SearchDialog } from "@/components/search/search-dialog";
 import { ROLE_LABELS } from "@/types/users";
@@ -83,6 +84,16 @@ function UserInitials({ nombre }: { nombre: string }) {
   );
 }
 
+function NotifBadge() {
+  const { unreadCount, loaded } = useNotifications();
+  if (!loaded || unreadCount === 0) return null;
+  return (
+    <span className="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground">
+      {unreadCount > 9 ? "9+" : unreadCount}
+    </span>
+  );
+}
+
 export default function AppShell({
   title,
   breadcrumb,
@@ -104,7 +115,7 @@ export default function AppShell({
     { label: "Permisos",      href: "/permisos",        icon: <FileText className="h-4 w-4" /> },
     { label: "Contratos",     href: "/contratos",       icon: <FileText className="h-4 w-4" /> },
     { label: "Tareas",        href: "/tareas",          icon: <ClipboardCheck className="h-4 w-4" /> },
-    { label: "Notificaciones",href: "/notificaciones",  icon: <Bell className="h-4 w-4" /> },
+    { label: "Notificaciones",href: "/notificaciones",  icon: <Bell className="h-4 w-4" />, badge: <NotifBadge /> },
     { label: "Lexbase",        href: "/lexbase",          icon: <Library className="h-4 w-4" /> },
     { label: "Reportes",      href: "/reportes",         icon: <BarChart2 className="h-4 w-4" /> },
     { label: "Papelera",      href: "/papelera",         icon: <Trash2 className="h-4 w-4" /> },
@@ -115,6 +126,7 @@ export default function AppShell({
   const rolLabel = ROLE_LABELS[user.rol as UserRole] ?? user.rol;
 
   return (
+    <NotificationsProvider>
     <div className="min-h-svh bg-background text-foreground">
       {/* ── Header ── */}
       <div className="fixed inset-x-0 top-0 z-40 h-16 border-b bg-background/80 backdrop-blur">
@@ -211,5 +223,6 @@ export default function AppShell({
       {/* ── AI Chat Sidebar ── */}
       <ChatSidebar open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
+    </NotificationsProvider>
   );
 }
