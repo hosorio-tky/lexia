@@ -34,30 +34,41 @@ export async function middleware(request: NextRequest) {
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) return response;
 
   const { data: { session } } = await supabase.auth.getSession();
-  const user = session?.user ?? null;
 
-  const isAuthRoute = AUTH_ROUTES.some((r) => pathname.startsWith(r));
+  // Supabase envuelve `session.user` en un Proxy que emite un console.warn
+  // la PRIMERA vez que se lee cualquier propiedad string (no en getSession() en sí).
+  // Se silencia solo durante esa lectura; try/finally garantiza restaurar
+  // console.warn aunque el bloque retorne temprano (redirects).
+  const origWarn = console.warn;
+  console.warn = () => {};
+  try {
+    const user = session?.user ?? null;
 
-  if (!user && !isAuthRoute) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("next", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
+    const isAuthRoute = AUTH_ROUTES.some((r) => pathname.startsWith(r));
 
-  if (user && REDIRECT_IF_AUTHED.some((r) => pathname.startsWith(r))) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
-  }
-
-  if (user && !isAuthRoute) {
-    const mustSetPassword =
-      !!user?.app_metadata?.must_change_password ||
-      request.cookies.get("lexia_force_pwd")?.value === "1";
-    if (mustSetPassword) {
-      return NextResponse.redirect(new URL("/actualizar-contrasena", request.url));
+    if (!user && !isAuthRoute) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("next", pathname);
+      return NextResponse.redirect(loginUrl);
     }
-  }
 
-  return response;
+    if (user && REDIRECT_IF_AUTHED.some((r) => pathname.startsWith(r))) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+
+    if (user && !isAuthRoute) {
+      const mustSetPassword =
+        !!user?.app_metadata?.must_change_password ||
+        request.cookies.get("lexia_force_pwd")?.value === "1";
+      if (mustSetPassword) {
+        return NextResponse.redirect(new URL("/actualizar-contrasena", request.url));
+      }
+    }
+
+    return response;
+  } finally {
+    console.warn = origWarn;
+  }
 }
 
 export const config = {
