@@ -252,7 +252,8 @@ export async function editarContrato(
 export async function cambiarEstadoContrato(
   id: string,
   nuevoEstadoId: string,
-  nuevoLabel: string
+  nuevoLabel: string,
+  comment?: string
 ): Promise<void> {
   const session = await getSession();
   try {
@@ -273,6 +274,7 @@ export async function cambiarEstadoContrato(
       metadata: {
         estado_anterior: actual?.estado ?? null,
         estado_nuevo:    nuevoLabel,
+        comentario:      comment || null,
       },
     });
 
@@ -288,7 +290,7 @@ export async function cambiarEstadoContrato(
             estadoAnterior:    actual.estado ?? "—",
             estadoNuevo:       nuevoLabel,
             cambiadoPorNombre: session.nombre_completo || session.nombre,
-            comentario:        null,
+            comentario:        comment ?? null,
             recursoId:         id,
           });
         }

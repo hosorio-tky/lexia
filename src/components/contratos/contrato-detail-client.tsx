@@ -181,9 +181,9 @@ export function ContratoDetailClient({
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const [isPending, startTransition]    = useTransition();
 
-  const handleWorkflowConfirm = (nuevoEstadoId: string, nuevoLabel: string, _comment: string) => {
+  const handleWorkflowConfirm = (nuevoEstadoId: string, nuevoLabel: string, comment: string) => {
     setContrato((c) => ({ ...c, estado_id: nuevoEstadoId, estado: nuevoLabel }));
-    startTransition(() => cambiarEstadoContrato(contrato.id, nuevoEstadoId, nuevoLabel));
+    startTransition(() => cambiarEstadoContrato(contrato.id, nuevoEstadoId, nuevoLabel, comment));
   };
 
   const nextIds     = CONTRATO_TRANSITIONS[contrato.estado_id] ?? [];
