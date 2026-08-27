@@ -44,14 +44,33 @@ export function chunkText(
   return chunks.filter((c) => c.length > 30); // descartar fragmentos muy cortos
 }
 
-/** Extrae texto de un PDF (buffer) — usa pdf-parse v1 (Node.js compatible) */
+/** Extrae texto de un PDF (buffer) — usa pdfjs-dist (maneja formatos modernos que pdf-parse no soporta) */
 export async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
-  // Importar desde la ruta interna para evitar que pdf-parse intente cargar
-  // su PDF de test al inicializarse (falla en Next.js/webpack)
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const pdfParse = require("pdf-parse/lib/pdf-parse") as (buf: Buffer) => Promise<{ text: string }>;
-  const data = await pdfParse(Buffer.from(buffer));
-  return data.text ?? "";
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+
+  // En Node.js/Vercel serverless no hay Web Workers — ejecutar en el hilo principal
+  pdfjs.GlobalWorkerOptions.workerSrc = "";
+
+  const loadingTask = pdfjs.getDocument({
+    data: new Uint8Array(buffer),
+    useSystemFonts: true,
+    disableFontFace: true,
+  });
+
+  const pdf = await loadingTask.promise;
+  const parts: string[] = [];
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const text = (content.items as Array<{ str?: string }>)
+      .filter((item) => typeof item.str === "string")
+      .map((item) => item.str as string)
+      .join(" ");
+    if (text.trim()) parts.push(text.trim());
+  }
+
+  return parts.join("\n\n");
 }
 
 /** Extrae texto de un DOCX (buffer) */

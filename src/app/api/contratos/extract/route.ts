@@ -56,36 +56,31 @@ export async function POST(req: NextRequest) {
 
     // 2. Extraer texto
     let texto: string | null = null;
-    let textError: string | null = null;
     try {
       texto = await extractText(buffer, mimeType);
     } catch (textErr) {
-      textError = textErr instanceof Error ? textErr.message : String(textErr);
       console.error("[contratos/extract] extractText:", textErr);
-      return NextResponse.json({ storage_path: storagePath, fields: {}, contenido_html: "", _debug: { step: "text_extraction_failed", error: textError } });
+      return NextResponse.json({ storage_path: storagePath, fields: {}, contenido_html: "" });
     }
 
-    const textLength = texto?.trim().length ?? 0;
-    if (!texto || textLength < 50) {
-      return NextResponse.json({ storage_path: storagePath, fields: {}, contenido_html: "", _debug: { step: "text_too_short", textLength } });
+    if (!texto || texto.trim().length < 50) {
+      return NextResponse.json({ storage_path: storagePath, fields: {}, contenido_html: "" });
     }
 
     // 3. Extraer campos con IA y convertir a HTML (en paralelo)
     let fields = {};
     let contenido_html = "";
-    let aiError: string | null = null;
     try {
       [fields, contenido_html] = await Promise.all([
         extraerCamposContrato(texto),
         Promise.resolve(textoAHtml(texto)),
       ]);
     } catch (err) {
-      aiError = err instanceof Error ? err.message : String(err);
       console.error("[contratos/extract] AI extraction:", err);
       contenido_html = textoAHtml(texto);
     }
 
-    return NextResponse.json({ storage_path: storagePath, fields, contenido_html, _debug: { step: aiError ? "ai_failed" : "success", textLength, aiError } });
+    return NextResponse.json({ storage_path: storagePath, fields, contenido_html });
   } catch (err) {
     console.error("[contratos/extract] unhandled:", err);
     const msg = err instanceof Error ? err.message : "Error interno del servidor";

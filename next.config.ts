@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // pdf-parse y mammoth usan require() dinámico con acceso a filesystem;
   // deben quedar fuera del bundle de webpack para funcionar en Vercel serverless.
-  serverExternalPackages: ["pdf-parse", "mammoth"],
+  serverExternalPackages: ["pdf-parse", "mammoth", "pdfjs-dist"],
   experimental: {
     serverActions: {
       bodySizeLimit: "20mb",
