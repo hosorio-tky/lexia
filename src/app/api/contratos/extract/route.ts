@@ -47,6 +47,7 @@ export async function POST(req: NextRequest) {
       .upload(storagePath, buffer, { contentType: mimeType, upsert: false });
 
     if (uploadError) {
+      console.error("[contratos/extract] storage upload:", uploadError);
       return NextResponse.json(
         { error: `Error al subir el archivo: ${uploadError.message}` },
         { status: 500 }
@@ -54,21 +55,37 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Extraer texto
-    const texto = await extractText(buffer, mimeType);
+    let texto: string | null = null;
+    try {
+      texto = await extractText(buffer, mimeType);
+    } catch (textErr) {
+      console.error("[contratos/extract] extractText:", textErr);
+      // Subida exitosa pero extracción de texto falló — continuar sin autocompletar
+      return NextResponse.json({ storage_path: storagePath, fields: {}, contenido_html: "" });
+    }
+
     if (!texto || texto.trim().length < 50) {
-      // Subida exitosa pero sin texto legible — devolver solo el path
       return NextResponse.json({ storage_path: storagePath, fields: {}, contenido_html: "" });
     }
 
     // 3. Extraer campos con IA y convertir a HTML (en paralelo)
-    const [fields, contenido_html] = await Promise.all([
-      extraerCamposContrato(texto),
-      Promise.resolve(textoAHtml(texto)),
-    ]);
+    let fields = {};
+    let contenido_html = "";
+    try {
+      [fields, contenido_html] = await Promise.all([
+        extraerCamposContrato(texto),
+        Promise.resolve(textoAHtml(texto)),
+      ]);
+    } catch (aiErr) {
+      console.error("[contratos/extract] AI extraction:", aiErr);
+      // Texto extraído OK pero IA falló — devolver texto plano sin campos
+      contenido_html = textoAHtml(texto);
+    }
 
     return NextResponse.json({ storage_path: storagePath, fields, contenido_html });
   } catch (err) {
-    console.error("[contratos/extract]", err);
-    return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
+    console.error("[contratos/extract] unhandled:", err);
+    const msg = err instanceof Error ? err.message : "Error interno del servidor";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
