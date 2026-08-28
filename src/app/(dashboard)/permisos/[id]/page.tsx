@@ -49,7 +49,7 @@ export default async function PermisoDetallePage({
   if (!permit) notFound();
 
   const [nivel, isSuscrito, suscripciones] = await Promise.all([
-    getUserNivel(client, session.tenant_id, "permiso", id, session.user_id, session.rol, permit.created_by),
+    getUserNivel(client, session.tenant_id, "permiso", id, session.user_id, session.rol, permit.created_by, permit.visibilidad),
     suscRepo.isSuscrito("permiso", id, session.user_id),
     suscRepo.listByResource("permiso", id),
   ]);

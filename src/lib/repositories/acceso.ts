@@ -57,12 +57,18 @@ export async function getUserNivel(
   userId: string,
   userRol: string,
   createdBy?: string,
+  visibilidad?: string | null,
 ): Promise<"edicion" | "lectura" | "none"> {
   if (userRol === "admin") return "edicion";
   // "solo_lectura" nunca debe llegar a "edicion", ni siquiera si es el
   // creador del recurso (ej. su rol se degradó después de crearlo) o si
   // tiene un grant explícito de edición otorgado por error.
   if (userRol !== "solo_lectura" && createdBy === userId) return "edicion";
+  // Recursos "público" (o sin visibilidad definida) son editables por
+  // cualquier rol con permiso de edición según la matriz de roles — igual
+  // que getEditableIds(). Solo los recursos "restringido" pasan a depender
+  // de un grant explícito en recurso_acceso.
+  if (userRol !== "solo_lectura" && (!visibilidad || visibilidad === "publico")) return "edicion";
 
   const [{ data: direct }, { data: memberships }] = await Promise.all([
     client

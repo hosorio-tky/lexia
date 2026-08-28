@@ -46,7 +46,7 @@ export default async function ContratoDetallePage({
   if (!contrato) notFound();
 
   const [nivel, isSuscrito, suscripciones] = await Promise.all([
-    getUserNivel(client, session.tenant_id, "contrato", id, session.user_id, session.rol, contrato.created_by),
+    getUserNivel(client, session.tenant_id, "contrato", id, session.user_id, session.rol, contrato.created_by, contrato.visibilidad),
     suscRepo.isSuscrito("contrato", id, session.user_id),
     suscRepo.listByResource("contrato", id),
   ]);
