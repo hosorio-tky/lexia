@@ -64,12 +64,16 @@ function DetallePanel({
   onClose,
   onRestore,
   onHardDelete,
+  canRestore,
+  canHardDelete,
 }: {
   modulo: ModuloPapelera;
   item: PermisoEliminado | ContratoEliminado | LexbaseEliminado;
   onClose: () => void;
   onRestore: () => void;
   onHardDelete: () => void;
+  canRestore: boolean;
+  canHardDelete: boolean;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -192,55 +196,61 @@ function DetallePanel({
       </div>
 
       {/* Acciones */}
-      <div className="border-t px-5 py-4 flex flex-col gap-2">
-        <Button
-          size="sm"
-          variant="outline"
-          className="w-full justify-start gap-2"
-          disabled={isPending}
-          onClick={() => startTransition(onRestore)}
-        >
-          <RotateCcw className="h-4 w-4" />
-          Restaurar
-        </Button>
+      {(canRestore || canHardDelete) && (
+        <div className="border-t px-5 py-4 flex flex-col gap-2">
+          {canRestore && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full justify-start gap-2"
+              disabled={isPending}
+              onClick={() => startTransition(onRestore)}
+            >
+              <RotateCcw className="h-4 w-4" />
+              Restaurar
+            </Button>
+          )}
 
-        {!confirmDelete ? (
-          <Button
-            size="sm"
-            variant="ghost"
-            className="w-full justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            onClick={() => setConfirmDelete(true)}
-          >
-            <Trash2 className="h-4 w-4" />
-            Eliminar definitivamente
-          </Button>
-        ) : (
-          <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 flex flex-col gap-2">
-            <p className="text-xs text-destructive font-medium">
-              Esta acción es irreversible. ¿Confirmas?
-            </p>
-            <div className="flex gap-2">
+          {canHardDelete && (
+            !confirmDelete ? (
               <Button
                 size="sm"
-                variant="destructive"
-                className="flex-1"
-                disabled={isPending}
-                onClick={() => startTransition(onHardDelete)}
+                variant="ghost"
+                className="w-full justify-start gap-2 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                onClick={() => setConfirmDelete(true)}
               >
-                Sí, eliminar
+                <Trash2 className="h-4 w-4" />
+                Eliminar definitivamente
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1"
-                onClick={() => setConfirmDelete(false)}
-              >
-                Cancelar
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
+            ) : (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 flex flex-col gap-2">
+                <p className="text-xs text-destructive font-medium">
+                  Esta acción es irreversible. ¿Confirmas?
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="flex-1"
+                    disabled={isPending}
+                    onClick={() => startTransition(onHardDelete)}
+                  >
+                    Sí, eliminar
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setConfirmDelete(false)}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -288,6 +298,8 @@ function TabPanel({
   modulo,
   getLabel,
   getSublabel,
+  canRestore,
+  canHardDelete,
 }: {
   items: AnyEliminado[];
   modulo: ModuloPapelera;
@@ -295,6 +307,8 @@ function TabPanel({
   getLabel: (item: any) => string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getSublabel: (item: any) => string;
+  canRestore: boolean;
+  canHardDelete: boolean;
 }) {
   const [selected, setSelected] = useState<AnyEliminado | null>(null);
   const [, startTransition] = useTransition();
@@ -341,6 +355,8 @@ function TabPanel({
               await eliminarDefinitivamente(selected.id, modulo);
               setSelected(null);
             })}
+            canRestore={canRestore}
+            canHardDelete={canHardDelete}
           />
         </div>
       )}
@@ -360,12 +376,20 @@ export function PapeleraClient({
   permisos,
   contratos,
   lexbase,
+  userRol,
 }: {
   permisos:  PermisoEliminado[];
   contratos: ContratoEliminado[];
   lexbase:   LexbaseEliminado[];
+  userRol:   string;
 }) {
   const [tab, setTab] = useState<ModuloPapelera>("permisos");
+
+  // Mismas reglas que el servidor (restaurar()/eliminarDefinitivamente()
+  // en src/app/actions/papelera.ts): restaurar = admin/supervisor/usuario,
+  // eliminar definitivamente = solo admin.
+  const canRestore    = userRol === "admin" || userRol === "supervisor" || userRol === "usuario";
+  const canHardDelete = userRol === "admin";
 
   const totalItems = permisos.length + contratos.length + lexbase.length;
 
@@ -419,6 +443,8 @@ export function PapeleraClient({
               modulo="permisos"
               getLabel={(p) => p.nombre}
               getSublabel={(p) => [p.tipo, p.estado, p.responsable_nombre].filter(Boolean).join(" · ")}
+              canRestore={canRestore}
+              canHardDelete={canHardDelete}
             />
           )}
           {tab === "contratos" && (
@@ -427,6 +453,8 @@ export function PapeleraClient({
               modulo="contratos"
               getLabel={(c) => c.titulo}
               getSublabel={(c) => [c.tipo, c.contraparte_nombre, c.responsable_nombre].filter(Boolean).join(" · ")}
+              canRestore={canRestore}
+              canHardDelete={canHardDelete}
             />
           )}
           {tab === "lexbase" && (
@@ -435,6 +463,8 @@ export function PapeleraClient({
               modulo="lexbase"
               getLabel={(l) => l.titulo}
               getSublabel={(l) => [l.tipo, l.pais, l.organo_emisor].filter(Boolean).join(" · ")}
+              canRestore={canRestore}
+              canHardDelete={canHardDelete}
             />
           )}
         </div>

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getSession } from "@/lib/auth/session";
+import { getSession, requireRole } from "@/lib/auth/session";
 import { createPermisosRepository } from "@/lib/repositories/permisos";
 import { createContratosRepository } from "@/lib/repositories/contratos";
 import { createLexbaseRepository } from "@/lib/repositories/lexbase";
@@ -40,6 +40,7 @@ export async function listarPapeleraLexbase() {
 
 export async function restaurar(id: string, modulo: ModuloPapelera): Promise<void> {
   const session = await getSession();
+  requireRole(session, ["admin", "supervisor", "usuario"]);
   const client  = createAdminClient();
 
   try {
@@ -85,6 +86,7 @@ export async function restaurar(id: string, modulo: ModuloPapelera): Promise<voi
 
 export async function eliminarDefinitivamente(id: string, modulo: ModuloPapelera): Promise<void> {
   const session = await getSession();
+  requireRole(session, ["admin"]);
   const client  = createAdminClient();
 
   try {

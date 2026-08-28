@@ -28,7 +28,7 @@ export default async function TareasPage() {
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Tablero de Tareas</h1>
       </div>
-      <TaskBoardClient initialTasks={tasks} initialHasMore={hasMore} usuarios={usuarios} />
+      <TaskBoardClient initialTasks={tasks} initialHasMore={hasMore} usuarios={usuarios} userRol={session.rol} />
     </>
   );
 }

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createContratosRepository } from "@/lib/repositories/contratos";
-import { getSession } from "@/lib/auth/session";
+import { getSession, requireRole } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/logger";
 import { indexContrato } from "@/lib/ai/contrato-indexer";
@@ -37,6 +37,7 @@ export async function crearContrato(
 ): Promise<{ error?: string } | void> {
   const session = await getSession();
   try {
+    requireRole(session, ["admin", "supervisor", "usuario"]);
     const client = createAdminClient();
     const repo   = createContratosRepository(client, session.tenant_id);
 
@@ -132,6 +133,7 @@ export async function editarContrato(
 ): Promise<{ error?: string } | void> {
   const session = await getSession();
   try {
+    requireRole(session, ["admin", "supervisor", "usuario"]);
     const client = createAdminClient();
     const repo   = createContratosRepository(client, session.tenant_id);
 
@@ -257,6 +259,7 @@ export async function cambiarEstadoContrato(
 ): Promise<void> {
   const session = await getSession();
   try {
+    requireRole(session, ["admin", "supervisor", "usuario"]);
     const client = createAdminClient();
     const repo   = createContratosRepository(client, session.tenant_id);
 
@@ -317,6 +320,7 @@ export async function cambiarEstadoContrato(
 // ─── Eliminar contrato ─────────────────────────────────────────
 export async function eliminarContrato(id: string): Promise<void> {
   const session = await getSession();
+  requireRole(session, ["admin"]);
   try {
     const client = createAdminClient();
     const repo   = createContratosRepository(client, session.tenant_id);
@@ -357,6 +361,7 @@ export async function obtenerUrlSubidaContrato(input: {
   fileExt:    string;
 }): Promise<{ error?: string; signedUrl?: string; storagePath?: string }> {
   const session     = await getSession();
+  requireRole(session, ["admin", "supervisor", "usuario"]);
   const client      = createAdminClient();
   const uuid        = crypto.randomUUID();
   const storagePath = `${session.tenant_id}/contratos/${input.contratoId}/${uuid}.${input.fileExt}`;

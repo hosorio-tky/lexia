@@ -109,6 +109,33 @@ export const PERMISOS_MATRIZ: { grupo: string; items: PermisoRol[] }[] = [
     ],
   },
   {
+    grupo: "Contratos",
+    items: [
+      { accion: "Ver listado y detalle",  descripcion: "Consultar contratos del tenant",         admin: true,  supervisor: true,  usuario: true,  solo_lectura: true  },
+      { accion: "Crear contrato",         descripcion: "Registrar un nuevo contrato",            admin: true,  supervisor: true,  usuario: true,  solo_lectura: false },
+      { accion: "Editar contrato",        descripcion: "Modificar datos del contrato",           admin: true,  supervisor: true,  usuario: true,  solo_lectura: false },
+      { accion: "Cambiar estado",         descripcion: "Avanzar el contrato en el workflow",     admin: true,  supervisor: true,  usuario: true,  solo_lectura: false },
+      { accion: "Eliminar contrato",      descripcion: "Borrar permanentemente",                 admin: true,  supervisor: false, usuario: false, solo_lectura: false },
+    ],
+  },
+  {
+    grupo: "Tareas",
+    items: [
+      { accion: "Ver tablero",            descripcion: "Consultar tareas del tenant",            admin: true,  supervisor: true,  usuario: true,  solo_lectura: true  },
+      { accion: "Crear tarea",            descripcion: "Registrar una nueva tarea",              admin: true,  supervisor: true,  usuario: true,  solo_lectura: false },
+      { accion: "Editar tarea",           descripcion: "Modificar datos de la tarea",            admin: true,  supervisor: true,  usuario: true,  solo_lectura: false },
+      { accion: "Cambiar estado",         descripcion: "Mover la tarea entre columnas",          admin: true,  supervisor: true,  usuario: true,  solo_lectura: false },
+      { accion: "Eliminar tarea",         descripcion: "Borrar permanentemente",                 admin: true,  supervisor: false, usuario: false, solo_lectura: false },
+    ],
+  },
+  {
+    grupo: "Papelera",
+    items: [
+      { accion: "Restaurar",              descripcion: "Recuperar un registro eliminado",        admin: true,  supervisor: true,  usuario: true,  solo_lectura: false },
+      { accion: "Eliminar definitivamente", descripcion: "Borrar de forma permanente e irreversible", admin: true, supervisor: false, usuario: false, solo_lectura: false },
+    ],
+  },
+  {
     grupo: "Usuarios",
     items: [
       { accion: "Ver lista de usuarios",  descripcion: "Consultar usuarios del tenant",          admin: true,  supervisor: true,  usuario: false, solo_lectura: false },

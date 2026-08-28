@@ -178,6 +178,11 @@ export function ContratoDetailClient({
 
   const tieneProgreso = !!(contrato.fecha_inicio && contrato.fecha_fin);
 
+  // Eliminar es más restrictivo que editar: solo admin, sin importar si
+  // el usuario tiene acceso de edición sobre este registro específico
+  // (misma regla que ya aplica eliminarContrato() en el servidor).
+  const canDelete = userRol === "admin";
+
   return (
     <div className="flex flex-col gap-5">
       <Link
@@ -424,7 +429,7 @@ export function ContratoDetailClient({
                   Exportar PDF
                 </Button>
               </a>
-              {canEdit && (
+              {canDelete && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <button className="mt-1 flex w-full items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors py-1">

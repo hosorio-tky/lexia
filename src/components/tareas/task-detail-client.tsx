@@ -67,11 +67,14 @@ export function TaskDetailClient({
   task: initialTask,
   comentarios: initialComentarios,
   usuarios = [],
+  userRol = "usuario",
 }: {
   task: Task;
   comentarios: TaskComment[];
   usuarios?: UserProfile[];
+  userRol?: string;
 }) {
+  const canDelete = userRol === "admin";
   const [task, setTask]             = useState(initialTask);
   const [comentarios, setComentarios] = useState(initialComentarios);
   const [editOpen, setEditOpen]     = useState(false);
@@ -315,7 +318,8 @@ export function TaskDetailClient({
             Editar tarea
           </Button>
 
-          {/* Eliminar */}
+          {/* Eliminar — solo admin */}
+          {canDelete && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" className="w-full text-destructive hover:text-destructive">
@@ -342,6 +346,7 @@ export function TaskDetailClient({
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          )}
         </div>
       </div>
 

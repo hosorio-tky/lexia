@@ -30,7 +30,7 @@ export default async function TareaDetallePage({
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold tracking-tight">{tarea.titulo}</h1>
       </div>
-      <TaskDetailClient task={tarea} comentarios={comentarios} usuarios={usuarios} />
+      <TaskDetailClient task={tarea} comentarios={comentarios} usuarios={usuarios} userRol={session.rol} />
     </>
   );
 }

@@ -133,6 +133,11 @@ export function PermitDetailClient({
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const [isPending, startTransition]    = useTransition();
 
+  // Eliminar es más restrictivo que editar: solo admin, sin importar si
+  // el usuario tiene acceso de edición sobre este registro específico
+  // (misma regla que ya aplica eliminarPermiso() en el servidor).
+  const canDelete = userRol === "admin";
+
   const handleWorkflowConfirm = (
     newEstadoId: string,
     newLabel: string,
@@ -472,7 +477,7 @@ export function PermitDetailClient({
                   Acceso de solo lectura
                 </p>
               )}
-              {canEdit && (
+              {canDelete && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <button className="mt-1 flex w-full items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition-colors py-1">

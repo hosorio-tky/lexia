@@ -101,11 +101,13 @@ export function PermitTable({
           <thead>
             <tr className="border-b bg-muted/30">
               <th className="h-10 w-[40px] px-4 align-middle">
-                <Checkbox
-                  checked={editableInView.length > 0 && selected.length === editableInView.length}
-                  onCheckedChange={onToggleAll}
-                  disabled={editableInView.length === 0}
-                />
+                {userRol === "admin" && (
+                  <Checkbox
+                    checked={editableInView.length > 0 && selected.length === editableInView.length}
+                    onCheckedChange={onToggleAll}
+                    disabled={editableInView.length === 0}
+                  />
+                )}
               </th>
               <SortableTh label="Permiso"     sortKey="nombre"     sort={sort} onSort={onSort} />
               <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground hidden sm:table-cell">Expediente</th>
@@ -132,7 +134,7 @@ export function PermitTable({
                 className="border-b transition-colors hover:bg-muted/40 group"
               >
                 <td className="p-4 align-middle">
-                  {editableSet.has(permit.id) && (
+                  {userRol === "admin" && (
                     <Checkbox
                       checked={selected.includes(permit.id)}
                       onCheckedChange={() => onToggle(permit.id)}
@@ -222,7 +224,7 @@ export function PermitTable({
                             </Link>
                           </DropdownMenuItem>
                         )}
-                        {editableSet.has(permit.id) && onDelete && (
+                        {userRol === "admin" && onDelete && (
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem

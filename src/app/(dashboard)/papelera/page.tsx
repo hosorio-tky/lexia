@@ -26,6 +26,7 @@ export default async function PapeleraPage() {
         permisos={permisos}
         contratos={contratos}
         lexbase={lexbase}
+        userRol={session.rol}
       />
     </>
   );

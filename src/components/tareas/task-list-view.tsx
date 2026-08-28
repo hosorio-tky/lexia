@@ -92,6 +92,7 @@ interface TaskListViewProps {
   onEdit: (task: Task) => void;
   onTaskUpdated: (task: Task) => void;
   onTaskDeleted: (id: string) => void;
+  userRol?: string;
 }
 
 export function TaskListView({
@@ -99,7 +100,9 @@ export function TaskListView({
   onEdit,
   onTaskUpdated,
   onTaskDeleted,
+  userRol = "usuario",
 }: TaskListViewProps) {
+  const canDelete = userRol === "admin";
   const [, startTransition] = useTransition();
   const [sort, setSort] = useState<SortState<TaskSortKey>>({ key: "actividad", dir: "desc" });
 
@@ -161,6 +164,7 @@ export function TaskListView({
             onEdit={onEdit}
             onStatusToggle={handleStatusToggle}
             onDeleted={onTaskDeleted}
+            canDelete={canDelete}
           />
         ))}
       </div>
@@ -173,11 +177,13 @@ function TaskListRow({
   onEdit,
   onStatusToggle,
   onDeleted,
+  canDelete,
 }: {
   task: Task;
   onEdit: (task: Task) => void;
   onStatusToggle: (task: Task) => void;
   onDeleted: (id: string) => void;
+  canDelete: boolean;
 }) {
   const isOverdue =
     task.fecha_limite &&
@@ -315,38 +321,40 @@ function TaskListRow({
           <Pencil className="h-3.5 w-3.5" />
         </Button>
 
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 text-muted-foreground hover:text-destructive"
-              title="Eliminar"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>¿Eliminar esta tarea?</AlertDialogTitle>
-              <AlertDialogDescription>
-                Esta acción no se puede deshacer.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                onClick={() => {
-                  onDeleted(task.id);
-                  eliminarTarea(task.id);
-                }}
+        {canDelete && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                title="Eliminar"
               >
-                Eliminar
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Eliminar esta tarea?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta acción no se puede deshacer.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  onClick={() => {
+                    onDeleted(task.id);
+                    eliminarTarea(task.id);
+                  }}
+                >
+                  Eliminar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
       </div>
     </div>
   );

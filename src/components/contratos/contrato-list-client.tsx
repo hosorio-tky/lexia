@@ -386,11 +386,13 @@ export function ContratoListClient({
               <thead>
                 <tr className="border-b bg-muted/40">
                   <th className="px-4 py-3 w-10">
-                    <Checkbox
-                      checked={editableVisible.length > 0 && selected.length === editableVisible.length}
-                      onCheckedChange={toggleAll}
-                      disabled={editableVisible.length === 0}
-                    />
+                    {userRol === "admin" && (
+                      <Checkbox
+                        checked={editableVisible.length > 0 && selected.length === editableVisible.length}
+                        onCheckedChange={toggleAll}
+                        disabled={editableVisible.length === 0}
+                      />
+                    )}
                   </th>
                   <SortableTh label="Título"      sortKey="titulo"      sort={sort} onSort={handleSort} className="w-[280px]" />
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground text-xs">N°</th>
@@ -415,7 +417,7 @@ export function ContratoListClient({
                   contratos.map((c) => (
                     <tr key={c.id} className={cn("border-b transition-colors hover:bg-muted/30", selected.includes(c.id) && "bg-muted/20")}>
                       <td className="px-4 py-3">
-                        {editableSet.has(c.id) && (
+                        {userRol === "admin" && (
                           <Checkbox
                             checked={selected.includes(c.id)}
                             onCheckedChange={() => toggleSelect(c.id)}
@@ -483,7 +485,7 @@ export function ContratoListClient({
                                 </Link>
                               </DropdownMenuItem>
                             )}
-                            {editableSet.has(c.id) && (
+                            {userRol === "admin" && (
                               <>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem

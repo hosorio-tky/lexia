@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createTareasRepository } from "@/lib/repositories/tareas";
 import { createUsuariosRepository } from "@/lib/repositories/usuarios";
-import { getSession } from "@/lib/auth/session";
+import { getSession, requireRole } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
 import { sendTareaAsignada } from "@/lib/email/send";
 import {
@@ -33,6 +33,7 @@ export async function crearTarea(
   formData: FormData
 ): Promise<{ error?: string; taskId?: string }> {
   const session = await getSession();
+  requireRole(session, ["admin", "supervisor", "usuario"]);
   const client  = createAdminClient();
   const repo    = createTareasRepository(client, session.tenant_id);
 
@@ -129,6 +130,7 @@ export async function editarTarea(
   formData: FormData
 ): Promise<{ error?: string; success?: boolean }> {
   const session = await getSession();
+  requireRole(session, ["admin", "supervisor", "usuario"]);
   const client  = createAdminClient();
   const repo    = createTareasRepository(client, session.tenant_id);
 
@@ -191,6 +193,7 @@ export async function cambiarEstadoTarea(
   nuevoEstado: TaskStatus
 ): Promise<void> {
   const session = await getSession();
+  requireRole(session, ["admin", "supervisor", "usuario"]);
   const client  = createAdminClient();
   const repo    = createTareasRepository(client, session.tenant_id);
 
@@ -218,6 +221,7 @@ export async function cambiarEstadoTarea(
 // ─── Eliminar tarea ────────────────────────────────────────────
 export async function eliminarTarea(id: string): Promise<void> {
   const session = await getSession();
+  requireRole(session, ["admin"]);
   const client  = createAdminClient();
   const repo    = createTareasRepository(client, session.tenant_id);
 

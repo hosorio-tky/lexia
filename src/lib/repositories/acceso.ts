@@ -58,7 +58,11 @@ export async function getUserNivel(
   userRol: string,
   createdBy?: string,
 ): Promise<"edicion" | "lectura" | "none"> {
-  if (userRol === "admin" || createdBy === userId) return "edicion";
+  if (userRol === "admin") return "edicion";
+  // "solo_lectura" nunca debe llegar a "edicion", ni siquiera si es el
+  // creador del recurso (ej. su rol se degradó después de crearlo) o si
+  // tiene un grant explícito de edición otorgado por error.
+  if (userRol !== "solo_lectura" && createdBy === userId) return "edicion";
 
   const [{ data: direct }, { data: memberships }] = await Promise.all([
     client
@@ -99,6 +103,7 @@ export async function getUserNivel(
       ? "lectura"
       : "none";
 
+  if (userRol === "solo_lectura" && efectivo === "edicion") return "lectura";
   return efectivo;
 }
 
@@ -118,6 +123,11 @@ export async function getEditableIds(
 ): Promise<Set<string>> {
   if (userRol === "admin" || resources.length === 0) {
     return new Set(resources.map((r) => r.id));
+  }
+  // "solo_lectura" nunca puede editar nada, sin importar visibilidad,
+  // autoría o grants explícitos.
+  if (userRol === "solo_lectura") {
+    return new Set();
   }
 
   const editableIds = new Set<string>();

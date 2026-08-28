@@ -218,10 +218,12 @@ export function TaskBoardClient({
   initialTasks,
   initialHasMore = false,
   usuarios,
+  userRol = "usuario",
 }: {
   initialTasks: Task[];
   initialHasMore?: boolean;
   usuarios: UserProfile[];
+  userRol?: string;
 }) {
   const [tasks, setTasks]           = useState<Task[]>(initialTasks);
   const [activeTask, setActiveTask] = useState<Task | null>(null);
@@ -514,6 +516,7 @@ export function TaskBoardClient({
             )
           }
           onTaskDeleted={handleTaskDeleted}
+          userRol={userRol}
         />
       )}
 

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createPermisosRepository } from "@/lib/repositories/permisos";
-import { getSession } from "@/lib/auth/session";
+import { getSession, requireRole } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
 import { logError } from "@/lib/logger";
 import { sendCambioEstado, sendResponsableAsignado } from "@/lib/email/send";
@@ -36,6 +36,7 @@ const FIELD_LABELS: Record<string, string> = {
 // ─── Crear permiso ─────────────────────────────────────────────
 export async function crearPermiso(formData: FormData) {
   const session = await getSession();
+  requireRole(session, ["admin", "supervisor", "usuario"]);
   let permisoId = "";
   try {
     const client  = createAdminClient();
@@ -126,6 +127,7 @@ export async function crearPermiso(formData: FormData) {
 export async function editarPermiso(id: string, formData: FormData) {
   console.log("[editarPermiso] ENTRY id:", id);
   const session = await getSession();
+  requireRole(session, ["admin", "supervisor", "usuario"]);
   try {
     const client  = createAdminClient();
     const repo    = createPermisosRepository(client, session.tenant_id);
@@ -266,6 +268,7 @@ export async function cambiarEstado(
   fechaVencimientoProvisional?: string
 ) {
   const session = await getSession();
+  requireRole(session, ["admin", "supervisor", "usuario"]);
   try {
     const client  = createAdminClient();
     const repo    = createPermisosRepository(client, session.tenant_id);
@@ -351,6 +354,7 @@ export async function cambiarEstado(
 // ─── Eliminar permiso ──────────────────────────────────────────
 export async function eliminarPermiso(id: string) {
   const session = await getSession();
+  requireRole(session, ["admin"]);
   try {
     const client  = createAdminClient();
     const repo    = createPermisosRepository(client, session.tenant_id);
