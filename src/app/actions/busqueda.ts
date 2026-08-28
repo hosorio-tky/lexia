@@ -1,7 +1,28 @@
 "use server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getSession } from "@/lib/auth/session";
+import { getAccessibleIds } from "@/lib/repositories/acceso";
+import type { ResourceType } from "@/types/access-control";
+
+// Mismo control de acceso que ya aplican permisos.list()/contratos.list():
+// admins ven todo; el resto solo ve recursos públicos, propios, o donde
+// tiene un grant explícito en recurso_acceso (directo o por grupo).
+async function accessOrClause(
+  client: SupabaseClient,
+  tenantId: string,
+  resourceType: ResourceType,
+  userId: string,
+  userRol: string
+): Promise<string | null> {
+  if (userRol === "admin") return null;
+  const accessibleIds = await getAccessibleIds(client, tenantId, resourceType, userId);
+  const idsClause = [...accessibleIds].map((id) => `id.eq.${id}`).join(",");
+  return idsClause
+    ? `visibilidad.neq.restringido,created_by.eq.${userId},${idsClause}`
+    : `visibilidad.neq.restringido,created_by.eq.${userId}`;
+}
 
 export type ModuloSearch = "permisos" | "contratos" | "tareas" | "lexbase";
 
@@ -57,13 +78,18 @@ export async function buscarGlobal(
   const buckets = await Promise.all(
     modulos.map(async (mod): Promise<SearchResultItem[]> => {
       if (mod === "permisos") {
-        const { data } = await client
+        let dbQuery = client
           .from("permisos")
           .select(SELECT_PERMISO_SEARCH)
           .eq("tenant_id", session.tenant_id)
           .is("deleted_at", null)
           .or(`nombre.ilike.%${q}%,numero_expediente.ilike.%${q}%`)
           .limit(8);
+
+        const orClause = await accessOrClause(client, session.tenant_id, "permiso", session.user_id, session.rol);
+        if (orClause) dbQuery = dbQuery.or(orClause);
+
+        const { data } = await dbQuery;
 
         return (data ?? []).map((r) => {
           const row = r as unknown as Record<string, unknown>;
@@ -83,13 +109,18 @@ export async function buscarGlobal(
       }
 
       if (mod === "contratos") {
-        const { data } = await client
+        let dbQuery = client
           .from("contratos")
           .select(SELECT_CONTRATO_SEARCH)
           .eq("tenant_id", session.tenant_id)
           .is("deleted_at", null)
           .or(`titulo.ilike.%${q}%,numero.ilike.%${q}%,contraparte_nombre.ilike.%${q}%`)
           .limit(8);
+
+        const orClause = await accessOrClause(client, session.tenant_id, "contrato", session.user_id, session.rol);
+        if (orClause) dbQuery = dbQuery.or(orClause);
+
+        const { data } = await dbQuery;
 
         return (data ?? []).map((r) => {
           const row = r as unknown as Record<string, unknown>;
@@ -166,12 +197,16 @@ export async function obtenerItemPreview(id: string, modulo: ModuloSearch): Prom
   const client  = createAdminClient();
 
   if (modulo === "permisos") {
-    const { data } = await client
+    let dbQuery = client
       .from("permisos")
       .select(SELECT_PERMISO_SEARCH)
       .eq("tenant_id", session.tenant_id)
-      .eq("id", id)
-      .single();
+      .eq("id", id);
+
+    const orClause = await accessOrClause(client, session.tenant_id, "permiso", session.user_id, session.rol);
+    if (orClause) dbQuery = dbQuery.or(orClause);
+
+    const { data } = await dbQuery.single();
     if (!data) return null;
     const row = data as unknown as Record<string, unknown>;
     return {
@@ -189,12 +224,16 @@ export async function obtenerItemPreview(id: string, modulo: ModuloSearch): Prom
   }
 
   if (modulo === "contratos") {
-    const { data } = await client
+    let dbQuery = client
       .from("contratos")
       .select(SELECT_CONTRATO_SEARCH)
       .eq("tenant_id", session.tenant_id)
-      .eq("id", id)
-      .single();
+      .eq("id", id);
+
+    const orClause = await accessOrClause(client, session.tenant_id, "contrato", session.user_id, session.rol);
+    if (orClause) dbQuery = dbQuery.or(orClause);
+
+    const { data } = await dbQuery.single();
     if (!data) return null;
     const row = data as unknown as Record<string, unknown>;
     return {
