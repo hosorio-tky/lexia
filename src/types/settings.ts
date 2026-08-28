@@ -136,6 +136,21 @@ export const PERMISOS_MATRIZ: { grupo: string; items: PermisoRol[] }[] = [
     ],
   },
   {
+    grupo: "Lexbase",
+    items: [
+      { accion: "Ver listado y detalle",  descripcion: "Consultar documentos del tenant",        admin: true,  supervisor: true,  usuario: true,  solo_lectura: true  },
+      { accion: "Subir documento",        descripcion: "Cargar un nuevo documento",              admin: true,  supervisor: true,  usuario: true,  solo_lectura: false },
+      { accion: "Editar documento",       descripcion: "Modificar datos o re-indexar",           admin: true,  supervisor: true,  usuario: true,  solo_lectura: false },
+      { accion: "Eliminar documento",     descripcion: "Borrar permanentemente",                 admin: true,  supervisor: false, usuario: false, solo_lectura: false },
+    ],
+  },
+  {
+    grupo: "Reportes",
+    items: [
+      { accion: "Ver reportes",           descripcion: "Consultar reportes del tenant",          admin: true,  supervisor: true,  usuario: true,  solo_lectura: true  },
+    ],
+  },
+  {
     grupo: "Usuarios",
     items: [
       { accion: "Ver lista de usuarios",  descripcion: "Consultar usuarios del tenant",          admin: true,  supervisor: true,  usuario: false, solo_lectura: false },

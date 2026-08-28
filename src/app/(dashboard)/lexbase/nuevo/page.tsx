@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { LexbaseUploadForm } from "@/components/lexbase/lexbase-upload-form";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createLexbaseRepository } from "@/lib/repositories/lexbase";
@@ -7,6 +8,8 @@ export const dynamic = "force-dynamic";
 
 export default async function LexbaseNuevoPage() {
   const session = await getSession();
+  if (session.rol === "solo_lectura") notFound();
+
   const client  = createAdminClient();
   const repo    = createLexbaseRepository(client, session.tenant_id);
 

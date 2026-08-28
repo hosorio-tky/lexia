@@ -19,6 +19,7 @@ export function LexbaseListClient({
   total,
   page,
   pageSize,
+  userRol = "usuario",
 }: {
   docs:       LexbaseDocumento[];
   categorias: LexbaseCategoria[];
@@ -28,7 +29,9 @@ export function LexbaseListClient({
   total:      number;
   page:       number;
   pageSize:   number;
+  userRol?:   string;
 }) {
+  const canCreate = userRol !== "solo_lectura";
   const searchParams = useSearchParams();
   const router       = useRouter();
   const pathname     = usePathname();
@@ -104,12 +107,14 @@ export function LexbaseListClient({
           paises={paises}
           tags={allTags}
         />
-        <Link href="/lexbase/nuevo">
-          <Button size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            Nuevo Documento
-          </Button>
-        </Link>
+        {canCreate && (
+          <Link href="/lexbase/nuevo">
+            <Button size="sm">
+              <Plus className="mr-2 h-4 w-4" />
+              Nuevo Documento
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* Contador */}
@@ -127,12 +132,14 @@ export function LexbaseListClient({
       {docs.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
           <p className="text-muted-foreground text-sm">No se encontraron documentos</p>
-          <Link href="/lexbase/nuevo" className="mt-3">
-            <Button size="sm" variant="outline">
-              <Plus className="mr-2 h-4 w-4" />
-              Agregar primer documento
-            </Button>
-          </Link>
+          {canCreate && (
+            <Link href="/lexbase/nuevo" className="mt-3">
+              <Button size="sm" variant="outline">
+                <Plus className="mr-2 h-4 w-4" />
+                Agregar primer documento
+              </Button>
+            </Link>
+          )}
         </div>
       ) : viewMode === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

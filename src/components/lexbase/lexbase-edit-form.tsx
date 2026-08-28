@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 interface LexbaseEditFormProps {
   documento:  LexbaseDocumento;
   categorias: LexbaseCategoria[];
+  userRol?:   string;
 }
 
 const PAISES = [
@@ -33,7 +34,8 @@ const PAISES = [
 
 const ACCEPTED_TYPES = ".pdf,.docx,.doc,.txt";
 
-export function LexbaseEditForm({ documento, categorias }: LexbaseEditFormProps) {
+export function LexbaseEditForm({ documento, categorias, userRol = "usuario" }: LexbaseEditFormProps) {
+  const canDelete = userRol === "admin";
   const router  = useRouter();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -321,7 +323,7 @@ export function LexbaseEditForm({ documento, categorias }: LexbaseEditFormProps)
       <div className="flex items-center justify-between gap-3 border-t pt-4">
         {/* Delete */}
         <div>
-          {confirmDelete ? (
+          {!canDelete ? null : confirmDelete ? (
             <div className="flex items-center gap-2">
               <span className="text-sm text-destructive">¿Eliminar definitivamente?</span>
               <Button

@@ -19,13 +19,15 @@ import { cn } from "@/lib/utils";
 interface LexbaseViewerProps {
   documento: LexbaseDocumento;
   fileUrl?: string;
+  userRol?: string;
 }
 
 const PDF_MIMES = new Set([
   "application/pdf",
 ]);
 
-export function LexbaseViewer({ documento, fileUrl }: LexbaseViewerProps) {
+export function LexbaseViewer({ documento, fileUrl, userRol = "usuario" }: LexbaseViewerProps) {
+  const canEdit = userRol !== "solo_lectura";
   const [isPending, startTransition]      = useTransition();
   const [reindexResult, setReindexResult] = useState<string | null>(null);
 
@@ -112,19 +114,21 @@ export function LexbaseViewer({ documento, fileUrl }: LexbaseViewerProps) {
             </a>
           )}
 
-          {documento.storage_path && (
+          {documento.storage_path && canEdit && (
             <Button variant="outline" size="sm" onClick={handleReindex} disabled={isPending}>
               <RefreshCw className={cn("mr-1.5 h-4 w-4", isPending && "animate-spin")} />
               {isPending ? "Indexando…" : "Re-indexar"}
             </Button>
           )}
 
-          <Link href={`/lexbase/${documento.id}/editar`}>
-            <Button variant="outline" size="sm">
-              <Edit className="mr-1.5 h-4 w-4" />
-              Editar
-            </Button>
-          </Link>
+          {canEdit && (
+            <Link href={`/lexbase/${documento.id}/editar`}>
+              <Button variant="outline" size="sm">
+                <Edit className="mr-1.5 h-4 w-4" />
+                Editar
+              </Button>
+            </Link>
+          )}
         </div>
       </div>
 
@@ -166,9 +170,11 @@ export function LexbaseViewer({ documento, fileUrl }: LexbaseViewerProps) {
         /* No file attached */
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-card" style={{ height: "40vh" }}>
           <p className="text-sm text-muted-foreground">Este documento no tiene archivo adjunto.</p>
-          <Link href={`/lexbase/${documento.id}/editar`}>
-            <Button variant="outline" size="sm">Agregar archivo</Button>
-          </Link>
+          {canEdit && (
+            <Link href={`/lexbase/${documento.id}/editar`}>
+              <Button variant="outline" size="sm">Agregar archivo</Button>
+            </Link>
+          )}
         </div>
       )}
     </div>

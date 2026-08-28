@@ -68,6 +68,7 @@ export default async function LexbasePage({
         total={total}
         page={page}
         pageSize={PAGE_SIZE}
+        userRol={session.rol}
       />
     </>
   );

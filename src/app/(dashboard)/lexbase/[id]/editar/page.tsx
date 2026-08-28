@@ -13,6 +13,8 @@ export default async function LexbaseEditarPage({
 }) {
   const { id } = await params;
   const session = await getSession();
+  if (session.rol === "solo_lectura") notFound();
+
   const client  = createAdminClient();
   const repo    = createLexbaseRepository(client, session.tenant_id);
 
@@ -28,7 +30,7 @@ export default async function LexbaseEditarPage({
       <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold tracking-tight">Editar documento</h1>
       </div>
-      <LexbaseEditForm documento={documento} categorias={categorias} />
+      <LexbaseEditForm documento={documento} categorias={categorias} userRol={session.rol} />
     </>
   );
 }

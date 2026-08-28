@@ -25,6 +25,6 @@ export default async function LexbaseDocumentoPage({
     : undefined;
 
   return (
-          <LexbaseViewer documento={documento} fileUrl={fileUrl} />
+          <LexbaseViewer documento={documento} fileUrl={fileUrl} userRol={session.rol} />
   );
 }

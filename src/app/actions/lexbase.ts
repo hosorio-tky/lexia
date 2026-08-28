@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createLexbaseRepository } from "@/lib/repositories/lexbase";
-import { getSession } from "@/lib/auth/session";
+import { getSession, requireRole } from "@/lib/auth/session";
 import { indexLexbaseDocument } from "@/lib/ai/lexbase-indexer";
 import { logError } from "@/lib/logger";
 
@@ -19,6 +19,8 @@ export async function subirDocumento(formData: FormData) {
   let indexMimeType:    string | undefined;
 
   try {
+    requireRole(session, ["admin", "supervisor", "usuario"]);
+
     const client = createAdminClient();
     const repo   = createLexbaseRepository(client, session.tenant_id);
 
@@ -115,6 +117,8 @@ export async function subirDocumento(formData: FormData) {
 export async function actualizarDocumento(id: string, formData: FormData) {
   const session = await getSession();
   try {
+    requireRole(session, ["admin", "supervisor", "usuario"]);
+
     const client = createAdminClient();
     const repo   = createLexbaseRepository(client, session.tenant_id);
 
@@ -161,6 +165,8 @@ export async function actualizarDocumento(id: string, formData: FormData) {
 export async function eliminarDocumento(id: string) {
   const session = await getSession();
   try {
+    requireRole(session, ["admin"]);
+
     const client = createAdminClient();
     const repo   = createLexbaseRepository(client, session.tenant_id);
 
@@ -186,6 +192,8 @@ export async function eliminarDocumento(id: string) {
 export async function crearCategoria(formData: FormData) {
   const session = await getSession();
   try {
+    requireRole(session, ["admin"]);
+
     const client = createAdminClient();
     const repo   = createLexbaseRepository(client, session.tenant_id);
 
@@ -217,6 +225,8 @@ export async function crearCategoria(formData: FormData) {
 export async function actualizarCategoria(id: string, formData: FormData) {
   const session = await getSession();
   try {
+    requireRole(session, ["admin"]);
+
     const client = createAdminClient();
     const repo   = createLexbaseRepository(client, session.tenant_id);
 
@@ -244,6 +254,8 @@ export async function actualizarCategoria(id: string, formData: FormData) {
 export async function eliminarCategoria(id: string) {
   const session = await getSession();
   try {
+    requireRole(session, ["admin"]);
+
     const client = createAdminClient();
     const repo   = createLexbaseRepository(client, session.tenant_id);
 
@@ -266,6 +278,8 @@ export async function eliminarCategoria(id: string) {
 export async function reindexarDocumento(id: string) {
   const session = await getSession();
   try {
+    requireRole(session, ["admin", "supervisor", "usuario"]);
+
     const client = createAdminClient();
     const repo   = createLexbaseRepository(client, session.tenant_id);
 
