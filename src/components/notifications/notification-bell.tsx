@@ -25,12 +25,6 @@ const MODULO_ICONS: Record<string, React.ReactNode> = {
   tareas:    <ClipboardCheck className="h-3.5 w-3.5" />,
 };
 
-const MODULO_HREFS: Record<string, string> = {
-  permisos:  "/permisos",
-  contratos: "/contratos",
-  tareas:    "/tareas",
-};
-
 function NotifItem({
   notif,
   onRead,
@@ -40,9 +34,13 @@ function NotifItem({
   onRead: (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+  // notif.modulo ya es el segmento de ruta real ("permisos", "contratos", ...)
+  // — viene tal cual de dónde se generó la notificación (ComentariosPanel/
+  // NotasPanel/alertas). Un mapa aparte aquí solo se desincroniza cuando se
+  // agrega un módulo nuevo (pasó con "contratos" en la página de Notificaciones).
   const href =
     notif.modulo && notif.recurso_id
-      ? `${MODULO_HREFS[notif.modulo] ?? ""}/${notif.recurso_id}`
+      ? `/${notif.modulo}/${notif.recurso_id}`
       : null;
 
   return (

@@ -7,7 +7,7 @@ import { formatDistanceToNow, format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import {
   Bell, Check, CheckCheck, ExternalLink,
-  FileText, ClipboardCheck, RefreshCw, Trash2,
+  FileText, FileSignature, ClipboardCheck, RefreshCw, Trash2,
   ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,18 +30,15 @@ import {
 import type { Notificacion } from "@/types/notifications";
 
 const MODULO_LABELS: Record<string, string> = {
-  permisos: "Permisos",
-  tareas:   "Tareas",
+  permisos:  "Permisos",
+  contratos: "Contratos",
+  tareas:    "Tareas",
 };
 
 const MODULO_ICONS: Record<string, React.ReactNode> = {
-  permisos: <FileText       className="h-4 w-4" />,
-  tareas:   <ClipboardCheck className="h-4 w-4" />,
-};
-
-const MODULO_HREFS: Record<string, string> = {
-  permisos: "/permisos",
-  tareas:   "/tareas",
+  permisos:  <FileText       className="h-4 w-4" />,
+  contratos: <FileSignature  className="h-4 w-4" />,
+  tareas:    <ClipboardCheck className="h-4 w-4" />,
 };
 
 export function NotificacionesClient({
@@ -250,9 +247,13 @@ function NotifRow({
   onRead:   (id: string) => void;
   onDelete: (id: string) => void;
 }) {
+  // notif.modulo ya es el segmento de ruta real ("permisos", "contratos", ...)
+  // — viene tal cual de dónde se generó la notificación (ComentariosPanel/
+  // NotasPanel/alertas). Un mapa aparte aquí solo se desincroniza cuando se
+  // agrega un módulo nuevo (era el caso de "contratos": generaba un link roto).
   const href =
     notif.modulo && notif.recurso_id
-      ? `${MODULO_HREFS[notif.modulo] ?? ""}/${notif.recurso_id}`
+      ? `/${notif.modulo}/${notif.recurso_id}`
       : null;
 
   return (
