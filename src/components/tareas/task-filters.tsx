@@ -3,16 +3,7 @@
 import { Search, Plus, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { FilterMultiSelect } from "./task-filter-multiselect";
 import {
   TASK_STATUSES,
   TASK_STATUS_LABELS,
@@ -27,6 +18,8 @@ interface TaskFiltersProps {
   onFiltersChange: (f: TaskFilters) => void;
   usuarios: UserProfile[];
   onNewTask: () => void;
+  /** En Kanban el filtro de Estado no aplica — ocultar/mostrar columnas cumple ese rol. */
+  showEstadoFilter?: boolean;
 }
 
 export function TaskFilters({
@@ -34,6 +27,7 @@ export function TaskFilters({
   onFiltersChange,
   usuarios,
   onNewTask,
+  showEstadoFilter = true,
 }: TaskFiltersProps) {
   function set<K extends keyof TaskFilters>(key: K, value: TaskFilters[K]) {
     onFiltersChange({ ...filters, [key]: value });
@@ -41,9 +35,9 @@ export function TaskFilters({
 
   const hasFilters =
     filters.search ||
-    filters.estado ||
-    filters.prioridad ||
-    filters.asignado ||
+    filters.estado.length > 0 ||
+    filters.prioridad.length > 0 ||
+    filters.asignado.length > 0 ||
     filters.modulo_origen;
 
   return (
@@ -59,67 +53,31 @@ export function TaskFilters({
         />
       </div>
 
-      {/* Estado */}
-      <Select
-        value={filters.estado || "_todos"}
-        onValueChange={(v) => set("estado", v === "_todos" ? "" : v as TaskFilters["estado"])}
-      >
-        <SelectTrigger className="w-36">
-          <SelectValue placeholder="Estado" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="_todos">Todos</SelectItem>
-          {TASK_STATUSES.map((s) => (
-            <SelectItem key={s} value={s}>{TASK_STATUS_LABELS[s]}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {/* Estado — solo en la vista Lista; en Kanban el rol lo cumple ocultar/mostrar columnas */}
+      {showEstadoFilter && (
+        <FilterMultiSelect
+          label="Estado"
+          options={TASK_STATUSES.map((s) => ({ value: s, label: TASK_STATUS_LABELS[s] }))}
+          selected={filters.estado}
+          onChange={(v) => set("estado", v as TaskFilters["estado"])}
+        />
+      )}
 
       {/* Prioridad */}
-      <Select
-        value={filters.prioridad || "_todas"}
-        onValueChange={(v) => set("prioridad", v === "_todas" ? "" : v as TaskFilters["prioridad"])}
-      >
-        <SelectTrigger className="w-36">
-          <SelectValue placeholder="Prioridad" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="_todas">Todas</SelectItem>
-          {TASK_PRIORITIES.map((p) => (
-            <SelectItem key={p} value={p}>{PRIORITY_LABELS[p]}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <FilterMultiSelect
+        label="Prioridad"
+        options={TASK_PRIORITIES.map((p) => ({ value: p, label: PRIORITY_LABELS[p] }))}
+        selected={filters.prioridad}
+        onChange={(v) => set("prioridad", v as TaskFilters["prioridad"])}
+      />
 
       {/* Asignado */}
-      <Select
-        value={filters.asignado || "_todos"}
-        onValueChange={(v) => set("asignado", v === "_todos" ? "" : v)}
-      >
-        <SelectTrigger className="w-44">
-          <SelectValue placeholder="Asignado a" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="_todos">Todos</SelectItem>
-          {usuarios.map((u) => (
-            <SelectItem key={u.id} value={u.id}>
-              {u.nombre_completo}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      {/* Canceladas */}
-      <div className="flex items-center gap-2">
-        <Switch
-          id="canceladas"
-          checked={filters.mostrar_canceladas}
-          onCheckedChange={(v) => set("mostrar_canceladas", v)}
-        />
-        <Label htmlFor="canceladas" className="text-sm cursor-pointer whitespace-nowrap">
-          Ver canceladas
-        </Label>
-      </div>
+      <FilterMultiSelect
+        label="Asignado a"
+        options={usuarios.map((u) => ({ value: u.id, label: u.nombre_completo }))}
+        selected={filters.asignado}
+        onChange={(v) => set("asignado", v)}
+      />
 
       {/* Limpiar filtros */}
       {hasFilters && (
@@ -129,11 +87,10 @@ export function TaskFilters({
           onClick={() =>
             onFiltersChange({
               search: "",
-              estado: "",
-              prioridad: "",
-              asignado: "",
+              estado: [],
+              prioridad: [],
+              asignado: [],
               modulo_origen: "",
-              mostrar_canceladas: filters.mostrar_canceladas,
             })
           }
         >

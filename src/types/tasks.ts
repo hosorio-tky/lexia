@@ -75,13 +75,13 @@ export interface TaskComment {
 }
 
 // ─── Filtros ──────────────────────────────────────────────────────────────────
+// Estado/prioridad/asignado son de selección múltiple: [] = sin filtro (todos).
 export interface TaskFilters {
   search: string;
-  estado: TaskStatus | "";
-  prioridad: TaskPriority | "";
-  asignado: string;           // user_id o ""
+  estado: TaskStatus[];
+  prioridad: TaskPriority[];
+  asignado: string[];         // user_ids
   modulo_origen: string;
-  mostrar_canceladas: boolean;
 }
 
 // ─── Paginación (tablero + "Cargar más") ───────────────────────────────────────
