@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Save, KeyRound, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -27,12 +28,26 @@ function Field({ label, required, children }: {
 }
 
 export function UserProfileClient({ user, departamentos = [] }: { user: UserProfile; departamentos?: CatalogoItem[] }) {
+  const router = useRouter();
+
   // ── Formulario de perfil ──────────────────────────────────
   const [isPendingProfile, startProfile] = useTransition();
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSuccess, setProfileSuccess] = useState(false);
   const handleProfileSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setProfileError(null);
+    setProfileSuccess(false);
     const fd = new FormData(e.currentTarget);
-    startProfile(() => editarUsuario(user.id, fd));
+    startProfile(async () => {
+      try {
+        await editarUsuario(user.id, fd);
+        setProfileSuccess(true);
+        router.refresh();
+      } catch (err) {
+        setProfileError(err instanceof Error ? err.message : "Error al guardar cambios");
+      }
+    });
   };
 
   // ── Formulario de contraseña ──────────────────────────────
@@ -67,6 +82,16 @@ export function UserProfileClient({ user, departamentos = [] }: { user: UserProf
                 <Input name="telefono" placeholder="Ej. +503 7000-0000" defaultValue={user.telefono} />
               </Field>
             </div>
+            {profileError && (
+              <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-sm text-destructive">
+                {profileError}
+              </div>
+            )}
+            {profileSuccess && (
+              <div className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-700">
+                Perfil actualizado correctamente.
+              </div>
+            )}
             <Button type="submit" disabled={isPendingProfile}>
               <Save className="mr-2 h-4 w-4" />
               {isPendingProfile ? "Guardando…" : "Guardar cambios"}

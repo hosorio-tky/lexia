@@ -43,7 +43,7 @@ export default async function ContratosPage({
     repo.list(filters, caller),
     repo.listStats(caller),
     createConfiguracionRepository(client, session.tenant_id)
-      .getCatalogos("contratos", "tipo")
+      .getCatalogos("contratos", "tipo_contrato")
       .then((items) => items.filter((i) => i.activo))
       .catch(() => []),
   ]);

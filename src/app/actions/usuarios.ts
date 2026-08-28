@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createUsuariosRepository } from "@/lib/repositories/usuarios";
 import { getSession, requireRole } from "@/lib/auth/session";
@@ -268,7 +267,12 @@ export async function editarUsuario(
   revalidatePath(`/usuarios/${id}`);
   revalidatePath("/usuarios");
   revalidatePath("/perfil");
-  redirect(isSelf ? "/perfil" : `/usuarios/${id}`);
+  // Sin redirect() aquí a propósito: ambos llamadores (UserEditClient,
+  // UserProfileClient) invocan esta acción directamente con await/
+  // startTransition en vez de <form action={...}>, así que la señal
+  // interna de redirect() cae en su try/catch y se muestra como error
+  // aunque el guardado sí funcionó. Cada uno maneja su propia
+  // navegación/confirmación después de que esta acción resuelve.
 }
 
 // ─── Desactivar / activar usuario ────────────────────────────

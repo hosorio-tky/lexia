@@ -110,10 +110,6 @@ export async function importarContratos(
   const repo   = createContratosRepository(client, session.tenant_id);
 
   // Catálogos y listas para resolver todas las FKs por nombre.
-  // Nota: el campo de catálogo real usado por crear/editar/listar contratos
-  // hoy es "tipo" (no "tipo_contrato" — hay una inconsistencia preexistente
-  // entre el módulo de Configuración → Catálogos y el flujo real de
-  // contratos; se sigue el que efectivamente usa el sistema en producción).
   const configRepo = createConfiguracionRepository(client, session.tenant_id);
   async function fetchEstadosContrato(): Promise<{ id: string; valor: string }[]> {
     try {
@@ -124,7 +120,7 @@ export async function importarContratos(
     }
   }
   const [tiposCatalogo, responsablesList, estadosRows] = await Promise.all([
-    configRepo.getCatalogos("contratos", "tipo").catch(() => []),
+    configRepo.getCatalogos("contratos", "tipo_contrato").catch(() => []),
     createResponsablesRepository(client, session.tenant_id).list().catch(() => []),
     fetchEstadosContrato(),
   ]);

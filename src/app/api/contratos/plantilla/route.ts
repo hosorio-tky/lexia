@@ -20,9 +20,7 @@ export async function GET() {
   }
 
   const [tipos, responsables, estados] = await Promise.all([
-    // "tipo" es el campo de catálogo que realmente usan crear/editar/listar
-    // contratos hoy (no "tipo_contrato" — ver nota en importar-contratos.ts).
-    createConfiguracionRepository(client, session.tenant_id).getCatalogos("contratos", "tipo").catch(() => []),
+    createConfiguracionRepository(client, session.tenant_id).getCatalogos("contratos", "tipo_contrato").catch(() => []),
     createResponsablesRepository(client, session.tenant_id).list().catch(() => []),
     fetchEstadosContrato(),
   ]);
