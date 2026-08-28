@@ -392,9 +392,9 @@ export function ContratoListClient({
                       disabled={editableVisible.length === 0}
                     />
                   </th>
-                  <SortableTh label="Título"      sortKey="titulo"      sort={sort} onSort={handleSort} />
+                  <SortableTh label="Título"      sortKey="titulo"      sort={sort} onSort={handleSort} className="w-[280px]" />
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground text-xs">N°</th>
-                  <SortableTh label="Tipo"        sortKey="tipo"        sort={sort} onSort={handleSort} />
+                  <SortableTh label="Tipo"        sortKey="tipo"        sort={sort} onSort={handleSort} className="w-[160px]" />
                   <SortableTh label="Estado"      sortKey="estado"      sort={sort} onSort={handleSort} />
                   <SortableTh label="Contraparte" sortKey="contraparte" sort={sort} onSort={handleSort} />
                   <SortableTh label="Valor"       sortKey="valor"       sort={sort} onSort={handleSort} align="right" />
@@ -422,7 +422,7 @@ export function ContratoListClient({
                           />
                         )}
                       </td>
-                      <td className="px-4 py-3 max-w-[200px]">
+                      <td className="px-4 py-3 w-[280px] max-w-[280px]">
                         <div className="flex items-center gap-1.5">
                           <Link href={`/contratos/${c.id}?from=tabla`} className="font-medium hover:underline line-clamp-2">
                             {c.titulo}
@@ -442,7 +442,7 @@ export function ContratoListClient({
                       <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
                         {c.numero ?? "—"}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm">{c.tipo}</td>
+                      <td className="px-4 py-3 w-[160px] max-w-[160px] truncate text-sm" title={c.tipo}>{c.tipo}</td>
                       <td className="px-4 py-3">
                         <ContratoStatusBadge estadoId={c.estado_id} label={c.estado} />
                       </td>
