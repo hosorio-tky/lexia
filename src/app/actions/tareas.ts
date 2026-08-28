@@ -8,7 +8,7 @@ import { createUsuariosRepository } from "@/lib/repositories/usuarios";
 import { getSession } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
 import { sendTareaAsignada } from "@/lib/email/send";
-import type { TaskStatus } from "@/types/tasks";
+import { TASK_STATUS_LABELS, type TaskStatus } from "@/types/tasks";
 
 // ─── Crear tarea ───────────────────────────────────────────────
 export async function crearTarea(
@@ -100,6 +100,7 @@ const TAREA_FIELD_LABELS: Record<string, string> = {
   titulo:          "Título",
   descripcion:     "Descripción",
   prioridad:       "Prioridad",
+  estado:          "Estado",
   asignado_nombre: "Asignado a",
   fecha_limite:    "Fecha límite",
 };
@@ -117,6 +118,7 @@ export async function editarTarea(
   const titulo      = formData.get("titulo")      as string;
   const descripcion = (formData.get("descripcion") as string) || undefined;
   const prioridad   = (formData.get("prioridad")  as string) || "media";
+  const estado      = (formData.get("estado")     as TaskStatus) || undefined;
   const asignado_a  = (formData.get("asignado_a") as string) || null;
   const asignado_nombre = (formData.get("asignado_nombre") as string) || null;
   const fecha_limite    = (formData.get("fecha_limite")    as string) || null;
@@ -129,19 +131,23 @@ export async function editarTarea(
     titulo,
     descripcion,
     prioridad,
+    estado,
     asignado_a,
     asignado_nombre,
     fecha_limite,
   });
 
-  const input: Record<string, unknown> = { titulo, descripcion, prioridad, asignado_nombre, fecha_limite };
+  const input: Record<string, unknown> = { titulo, descripcion, prioridad, estado, asignado_nombre, fecha_limite };
   const cambios: Array<{ campo: string; de: string | null; a: string | null }> = [];
   if (actual) {
-    const toStr = (v: unknown): string | null =>
-      v === "" || v === null || v === undefined ? null : String(v);
+    const toStr = (key: string, v: unknown): string | null => {
+      if (v === "" || v === null || v === undefined) return null;
+      if (key === "estado") return TASK_STATUS_LABELS[v as TaskStatus] ?? String(v);
+      return String(v);
+    };
     for (const key of Object.keys(TAREA_FIELD_LABELS)) {
-      const de = toStr((actual as unknown as Record<string, unknown>)[key]);
-      const a  = toStr(input[key]);
+      const de = toStr(key, (actual as unknown as Record<string, unknown>)[key]);
+      const a  = toStr(key, input[key]);
       if (de !== a) cambios.push({ campo: TAREA_FIELD_LABELS[key], de, a });
     }
   }

@@ -18,6 +18,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { LayoutGrid, List, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -230,6 +231,8 @@ export function TaskBoardClient({
     if (!activeItem || activeItem.estado === targetStatus) return;
     if (!TASK_STATUSES_VALID.includes(targetStatus as TaskStatus)) return;
 
+    const estadoAnterior = activeItem.estado;
+
     setTasks((prev) =>
       prev.map((t) =>
         t.id === activeId ? { ...t, estado: targetStatus as TaskStatus } : t
@@ -237,7 +240,18 @@ export function TaskBoardClient({
     );
 
     startTransition(async () => {
-      await cambiarEstadoTarea(activeId, targetStatus as TaskStatus);
+      try {
+        await cambiarEstadoTarea(activeId, targetStatus as TaskStatus);
+      } catch (err) {
+        // Revertir el movimiento optimista si el guardado falla — antes esto
+        // fallaba en silencio: la tarjeta se veía movida hasta el próximo
+        // refresco de página, sin ningún aviso de que no se guardó.
+        setTasks((prev) =>
+          prev.map((t) => (t.id === activeId ? { ...t, estado: estadoAnterior } : t))
+        );
+        console.error("[TaskBoard] error al cambiar estado:", err);
+        toast.error("No se pudo mover la tarea. Intenta de nuevo.");
+      }
     });
   }
 
