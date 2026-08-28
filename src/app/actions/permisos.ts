@@ -308,16 +308,20 @@ export async function cambiarEstado(
       },
     });
 
-    // Email al responsable
-    if (actual?.responsable_id) {
+    // Email a TODOS los responsables asignados (no solo al principal)
+    const responsableIdsNotificar = actual?.responsable_ids?.length
+      ? actual.responsable_ids
+      : actual?.responsable_id ? [actual.responsable_id] : [];
+
+    for (const rid of responsableIdsNotificar) {
       try {
-        const dest = await resolveResponsableEmail(actual.responsable_id);
+        const dest = await resolveResponsableEmail(rid);
         if (dest) {
           await sendCambioEstado(dest.email, {
             destinatarioNombre: dest.nombre,
             modulo:            "permisos",
-            recursoNombre:     actual.nombre,
-            estadoAnterior:    actual.estado ?? "—",
+            recursoNombre:     actual?.nombre ?? "",
+            estadoAnterior:    actual?.estado ?? "—",
             estadoNuevo:       newLabel,
             cambiadoPorNombre: session.nombre_completo || session.nombre,
             comentario:        comment ?? null,
