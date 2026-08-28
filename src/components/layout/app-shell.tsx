@@ -110,6 +110,11 @@ export default function AppShell({
   const pathname = usePathname();
   const [chatOpen, setChatOpen] = useState(false);
 
+  // "Usuarios" y "Configuración" están bloqueados a nivel de página para
+  // usuario/solo_lectura (devuelven 404 — ver layouts respectivos), así
+  // que tampoco se muestran en el menú para evitar ese enlace muerto.
+  const sinAccesoAdmin = ["usuario", "solo_lectura"].includes(user.rol);
+
   const nav: NavItem[] = [
     { label: "Dashboard",     href: "/dashboard",       icon: <LayoutDashboard className="h-4 w-4" /> },
     { label: "Permisos",      href: "/permisos",        icon: <FileText className="h-4 w-4" /> },
@@ -119,8 +124,10 @@ export default function AppShell({
     { label: "Lexbase",        href: "/lexbase",          icon: <Library className="h-4 w-4" /> },
     { label: "Reportes",      href: "/reportes",         icon: <BarChart2 className="h-4 w-4" /> },
     { label: "Papelera",      href: "/papelera",         icon: <Trash2 className="h-4 w-4" /> },
-    { label: "Usuarios",      href: "/usuarios",        icon: <Users className="h-4 w-4" /> },
-    { label: "Configuración", href: "/configuracion",   icon: <Settings className="h-4 w-4" /> },
+    ...(sinAccesoAdmin ? [] : [
+      { label: "Usuarios",      href: "/usuarios",        icon: <Users className="h-4 w-4" /> },
+      { label: "Configuración", href: "/configuracion",   icon: <Settings className="h-4 w-4" /> },
+    ]),
   ];
 
   const rolLabel = ROLE_LABELS[user.rol as UserRole] ?? user.rol;
