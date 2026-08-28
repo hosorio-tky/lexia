@@ -156,6 +156,7 @@ export function TaskBoardClient({
   const [view, setView]             = useState<"kanban" | "list">("kanban");
   const [filters, setFilters]       = useState<Filters>({
     search:             "",
+    estado:             "",
     prioridad:          "",
     asignado:           "",
     modulo_origen:      "",
@@ -181,7 +182,8 @@ export function TaskBoardClient({
   // ── Filtrado client-side ──────────────────────────────────────
   const visibleTasks = useMemo(() => {
     return tasks.filter((t) => {
-      if (!filters.mostrar_canceladas && t.estado === "cancelada") return false;
+      if (!filters.mostrar_canceladas && filters.estado !== "cancelada" && t.estado === "cancelada") return false;
+      if (filters.estado        && t.estado        !== filters.estado)        return false;
       if (filters.prioridad     && t.prioridad     !== filters.prioridad)     return false;
       if (filters.asignado      && t.asignado_a    !== filters.asignado)      return false;
       if (filters.modulo_origen && t.modulo_origen !== filters.modulo_origen) return false;
@@ -197,18 +199,20 @@ export function TaskBoardClient({
     });
   }, [tasks, filters]);
 
+  const showCanceladaColumn = filters.mostrar_canceladas || filters.estado === "cancelada";
+
   const columnTasks = useMemo(() => {
     const columns: Partial<Record<TaskStatus, Task[]>> = {};
     for (const status of KANBAN_COLUMNS) {
       columns[status] = visibleTasks.filter((t) => t.estado === status);
     }
-    if (filters.mostrar_canceladas) {
+    if (showCanceladaColumn) {
       columns["cancelada"] = visibleTasks.filter((t) => t.estado === "cancelada");
     }
     return columns;
-  }, [visibleTasks, filters.mostrar_canceladas]);
+  }, [visibleTasks, showCanceladaColumn]);
 
-  const displayColumns = filters.mostrar_canceladas
+  const displayColumns = showCanceladaColumn
     ? [...KANBAN_COLUMNS, "cancelada" as TaskStatus]
     : KANBAN_COLUMNS;
 

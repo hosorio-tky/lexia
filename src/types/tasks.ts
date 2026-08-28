@@ -77,6 +77,7 @@ export interface TaskComment {
 // ─── Filtros ──────────────────────────────────────────────────────────────────
 export interface TaskFilters {
   search: string;
+  estado: TaskStatus | "";
   prioridad: TaskPriority | "";
   asignado: string;           // user_id o ""
   modulo_origen: string;

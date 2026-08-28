@@ -14,6 +14,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import {
+  TASK_STATUSES,
+  TASK_STATUS_LABELS,
   TASK_PRIORITIES,
   PRIORITY_LABELS,
   type TaskFilters,
@@ -39,6 +41,7 @@ export function TaskFilters({
 
   const hasFilters =
     filters.search ||
+    filters.estado ||
     filters.prioridad ||
     filters.asignado ||
     filters.modulo_origen;
@@ -55,6 +58,22 @@ export function TaskFilters({
           onChange={(e) => set("search", e.target.value)}
         />
       </div>
+
+      {/* Estado */}
+      <Select
+        value={filters.estado || "_todos"}
+        onValueChange={(v) => set("estado", v === "_todos" ? "" : v as TaskFilters["estado"])}
+      >
+        <SelectTrigger className="w-36">
+          <SelectValue placeholder="Estado" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="_todos">Todos</SelectItem>
+          {TASK_STATUSES.map((s) => (
+            <SelectItem key={s} value={s}>{TASK_STATUS_LABELS[s]}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
       {/* Prioridad */}
       <Select
@@ -110,6 +129,7 @@ export function TaskFilters({
           onClick={() =>
             onFiltersChange({
               search: "",
+              estado: "",
               prioridad: "",
               asignado: "",
               modulo_origen: "",
