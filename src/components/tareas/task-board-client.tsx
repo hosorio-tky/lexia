@@ -26,7 +26,7 @@ import { TaskCard } from "./task-card";
 import { TaskFilters } from "./task-filters";
 import { TaskFormModal } from "./task-form-modal";
 import { TaskListView } from "./task-list-view";
-import { cambiarEstadoTarea } from "@/app/actions/tareas";
+import { cambiarEstadoTarea, listarTareasPaginado } from "@/app/actions/tareas";
 import {
   KANBAN_COLUMNS,
   TASK_STATUS_LABELS,
@@ -97,10 +97,10 @@ function KanbanColumn({
 
   return (
     <div
-      className={`flex flex-col rounded-2xl border border-t-4 bg-muted/30 min-h-[480px] ${COLUMN_STYLES[status]}`}
+      className={`flex flex-col rounded-2xl border border-t-4 bg-muted/30 max-h-[70vh] min-h-[240px] ${COLUMN_STYLES[status]}`}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3">
+      {/* Header — fijo, no se desplaza con el scroll de la columna */}
+      <div className="flex shrink-0 items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold">
             {TASK_STATUS_LABELS[status]}
@@ -130,7 +130,7 @@ function KanbanColumn({
         <div
           ref={setNodeRef}
           className={cn(
-            "flex flex-1 flex-col gap-2 px-3 pb-4 min-h-[64px] rounded-b-2xl transition-colors",
+            "flex flex-1 flex-col gap-2 overflow-y-auto px-3 pb-4 min-h-[64px] rounded-b-2xl transition-colors",
             isOver && "bg-primary/5 ring-1 ring-inset ring-primary/20"
           )}
         >
@@ -146,9 +146,11 @@ function KanbanColumn({
 // ─── Board principal ──────────────────────────────────────────
 export function TaskBoardClient({
   initialTasks,
+  initialHasMore = false,
   usuarios,
 }: {
   initialTasks: Task[];
+  initialHasMore?: boolean;
   usuarios: UserProfile[];
 }) {
   const [tasks, setTasks]           = useState<Task[]>(initialTasks);
@@ -162,6 +164,16 @@ export function TaskBoardClient({
     modulo_origen:      "",
     mostrar_canceladas: false,
   });
+
+  // ── Paginación ──────────────────────────────────────────────
+  // La carga inicial trae un conjunto acotado (ver page.tsx); "Cargar
+  // más" trae más páginas de tareas no-canceladas. Las canceladas se
+  // cargan aparte, bajo demanda, la primera vez que se activa el
+  // switch "Ver canceladas" (no vienen incluidas en la carga inicial).
+  const [page, setPage]               = useState(0);
+  const [hasMore, setHasMore]         = useState(initialHasMore);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [canceladasCargadas, setCanceladasCargadas] = useState(false);
 
   // Estado del modal: null = cerrado, objeto sin id = crear, objeto con id = editar
   const [modalState, setModalState] = useState<{
@@ -259,6 +271,45 @@ export function TaskBoardClient({
     });
   }
 
+  // ── Cargar canceladas bajo demanda ─────────────────────────────
+  // No vienen en la carga inicial (se excluyen para acotar el payload);
+  // se traen la primera vez que se activa "Ver canceladas" (disparado
+  // desde el handler del filtro, no desde un efecto).
+  function handleFiltersChange(next: Filters) {
+    setFilters(next);
+    if (next.mostrar_canceladas && !canceladasCargadas) {
+      setCanceladasCargadas(true);
+      listarTareasPaginado({ estado: "cancelada" }, 0)
+        .then(({ items }) => {
+          setTasks((prev) => [...prev, ...items]);
+        })
+        .catch((err) => {
+          console.error("[TaskBoard] error al cargar canceladas:", err);
+          toast.error("No se pudieron cargar las tareas canceladas.");
+        });
+    }
+  }
+
+  // ── Cargar más tareas (pendiente/en_progreso/completada) ───────
+  async function handleLoadMore() {
+    setLoadingMore(true);
+    try {
+      const nextPage = page + 1;
+      const { items, hasMore: more } = await listarTareasPaginado(
+        { estado: ["pendiente", "en_progreso", "completada"] },
+        nextPage
+      );
+      setTasks((prev) => [...prev, ...items]);
+      setPage(nextPage);
+      setHasMore(more);
+    } catch (err) {
+      console.error("[TaskBoard] error al cargar más tareas:", err);
+      toast.error("No se pudieron cargar más tareas.");
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
   // ── Modal helpers ─────────────────────────────────────────────
   function openCreate(status?: TaskStatus) {
     setModalState({ open: true, defaultStatus: status });
@@ -291,7 +342,7 @@ export function TaskBoardClient({
         <div className="flex-1">
           <TaskFilters
             filters={filters}
-            onFiltersChange={setFilters}
+            onFiltersChange={handleFiltersChange}
             usuarios={usuarios}
             onNewTask={() => openCreate()}
           />
@@ -366,6 +417,15 @@ export function TaskBoardClient({
           }
           onTaskDeleted={handleTaskDeleted}
         />
+      )}
+
+      {/* Cargar más — la carga inicial trae un conjunto acotado, no el histórico completo */}
+      {hasMore && (
+        <div className="flex justify-center">
+          <Button variant="outline" size="sm" onClick={handleLoadMore} disabled={loadingMore}>
+            {loadingMore ? "Cargando…" : "Cargar más tareas"}
+          </Button>
+        </div>
       )}
 
       {/* Modal crear / editar — key fuerza remonte para reinicializar useState */}

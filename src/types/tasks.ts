@@ -83,3 +83,16 @@ export interface TaskFilters {
   modulo_origen: string;
   mostrar_canceladas: boolean;
 }
+
+// ─── Paginación (tablero + "Cargar más") ───────────────────────────────────────
+// Nota: TAREAS_PAGE_SIZE vive aquí (no en actions/tareas.ts) porque los
+// archivos "use server" solo pueden exportar funciones async.
+export const TAREAS_PAGE_SIZE = 200;
+
+export interface TareasFiltrosServidor {
+  estado?: TaskStatus | TaskStatus[];
+  prioridad?: TaskPriority;
+  asignado_a?: string;
+  modulo_origen?: string;
+  search?: string;
+}

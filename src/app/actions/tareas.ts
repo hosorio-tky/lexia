@@ -8,7 +8,24 @@ import { createUsuariosRepository } from "@/lib/repositories/usuarios";
 import { getSession } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
 import { sendTareaAsignada } from "@/lib/email/send";
-import { TASK_STATUS_LABELS, type TaskStatus } from "@/types/tasks";
+import {
+  TASK_STATUS_LABELS,
+  TAREAS_PAGE_SIZE,
+  type TaskStatus,
+  type Task,
+  type TareasFiltrosServidor,
+} from "@/types/tasks";
+
+// ─── Listado paginado (carga inicial acotada + "Cargar más") ──
+export async function listarTareasPaginado(
+  filtros: TareasFiltrosServidor | undefined,
+  page: number
+): Promise<{ items: Task[]; hasMore: boolean }> {
+  const session = await getSession();
+  const client  = createAdminClient();
+  const repo    = createTareasRepository(client, session.tenant_id);
+  return repo.listPaginado(filtros, page, TAREAS_PAGE_SIZE);
+}
 
 // ─── Crear tarea ───────────────────────────────────────────────
 export async function crearTarea(

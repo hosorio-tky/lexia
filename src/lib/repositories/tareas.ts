@@ -104,6 +104,55 @@ export function createTareasRepository(client: SupabaseClient, tenantId: string)
       return (data ?? []).map((r) => mapTarea(r as TareaRow));
     },
 
+    // ── Listado paginado (tablero Kanban / vista Lista) ────────
+    // Trae limit+1 filas para detectar si hay más sin una segunda
+    // consulta de conteo — evita cargar el histórico completo del
+    // tenant de una sola vez cuando hay muchas tareas.
+    async listPaginado(
+      filters: {
+        estado?: TaskStatus | TaskStatus[];
+        prioridad?: TaskPriority;
+        asignado_a?: string;
+        modulo_origen?: string;
+        search?: string;
+      } | undefined,
+      page: number,
+      limit: number
+    ): Promise<{ items: Task[]; hasMore: boolean }> {
+      const from = page * limit;
+      const to   = from + limit; // una fila extra para saber si hay más
+
+      let query = client
+        .from("tareas")
+        .select("*")
+        .eq("tenant_id", tenantId)
+        .order("orden",      { ascending: true })
+        .order("created_at", { ascending: false })
+        .range(from, to);
+
+      if (filters?.estado) {
+        if (Array.isArray(filters.estado)) {
+          query = query.in("estado", filters.estado);
+        } else {
+          query = query.eq("estado", filters.estado);
+        }
+      }
+      if (filters?.prioridad)     query = query.eq("prioridad",     filters.prioridad);
+      if (filters?.asignado_a)    query = query.eq("asignado_a",    filters.asignado_a);
+      if (filters?.modulo_origen) query = query.eq("modulo_origen", filters.modulo_origen);
+      if (filters?.search) {
+        query = query.ilike("titulo", `%${filters.search}%`);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      const rows     = data ?? [];
+      const hasMore  = rows.length > limit;
+      const items    = rows.slice(0, limit).map((r) => mapTarea(r as TareaRow));
+      return { items, hasMore };
+    },
+
     // ── Detalle de una tarea ───────────────────────────────────
     async getById(id: string): Promise<Task | null> {
       const { data, error } = await client
