@@ -2,15 +2,16 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import {
   ArrowLeft, Clock, Edit, ToggleLeft, ToggleRight,
-  Mail, CheckCircle,
+  Mail, CheckCircle, Link2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { UserRoleBadge } from "./user-role-badge";
-import { toggleActivoUsuario, reenviarInvitacion } from "@/app/actions/usuarios";
+import { toggleActivoUsuario, reenviarInvitacion, generarLinkInvitacion } from "@/app/actions/usuarios";
 import type { UserProfile, ActivityEvent, SessionInfo } from "@/types/users";
 
 function formatDate(iso?: string) {
@@ -43,6 +44,7 @@ function ActivityItem({ event }: { event: ActivityEvent }) {
     editar_usuario:   "Editó usuario",
     activar_usuario:  "Activó usuario",
     desactivar_usuario: "Desactivó usuario",
+    generar_link_invitacion: "Generó link de invitación",
   };
 
   return (
@@ -78,6 +80,7 @@ export function UserDetailClient({
   const [isPending, startTransition] = useTransition();
   const [inviteSent, setInviteSent] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
+  const [isGeneratingLink, setIsGeneratingLink] = useState(false);
 
   const isAdmin   = session.rol === "admin";
   const isSelf    = session.user_id === user.id;
@@ -96,6 +99,24 @@ export function UserDetailClient({
       if (result.error) setInviteError(result.error);
       else setInviteSent(true);
     });
+  };
+
+  const handleCopiarLinkInvitacion = async () => {
+    setInviteError(null);
+    setIsGeneratingLink(true);
+    try {
+      const result = await generarLinkInvitacion(user.id);
+      if (result.error || !result.link) {
+        setInviteError(result.error ?? "No se pudo generar el enlace");
+        return;
+      }
+      await navigator.clipboard.writeText(result.link);
+      toast.success("Link de invitación copiado", {
+        description: "Es de un solo uso y expira — compártelo por un canal seguro.",
+      });
+    } finally {
+      setIsGeneratingLink(false);
+    }
   };
 
   return (
@@ -178,6 +199,15 @@ export function UserDetailClient({
                     ? <><CheckCircle className="mr-2 h-4 w-4 text-emerald-500" />Invitación enviada</>
                     : <><Mail className="mr-2 h-4 w-4" />Reenviar invitación</>
                   }
+                </Button>
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleCopiarLinkInvitacion}
+                  disabled={isGeneratingLink}
+                >
+                  <Link2 className="mr-2 h-4 w-4" />
+                  {isGeneratingLink ? "Generando link…" : "Copiar link de invitación"}
                 </Button>
                 {inviteError && (
                   <p className="text-xs text-destructive">{inviteError}</p>

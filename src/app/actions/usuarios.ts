@@ -181,6 +181,70 @@ export async function reenviarInvitacion(
   return { success: true };
 }
 
+// ─── Generar link de invitación sin enviar correo ─────────────
+// Para cuando el correo de invitación no llega (filtros corporativos,
+// cuarentena, etc.) y el admin necesita compartir el enlace por otro medio.
+export async function generarLinkInvitacion(
+  userId: string
+): Promise<{ error?: string; link?: string }> {
+  const session = await getSession();
+  requireRole(session, ["admin"]);
+
+  const admin = createAdminClient();
+
+  const { data: profile, error: profileError } = await admin
+    .from("profiles")
+    .select("email, nombre")
+    .eq("id", userId)
+    .eq("tenant_id", session.tenant_id)
+    .single();
+
+  if (profileError || !profile?.email) {
+    return { error: "Usuario no encontrado" };
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+  // Restaurar flag de pendiente — el middleware redirigirá a /actualizar-contrasena
+  // hasta que el usuario complete el registro con su nueva contraseña.
+  await admin.auth.admin.updateUserById(userId, {
+    app_metadata: { must_change_password: true },
+  });
+
+  const { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
+    type:    "recovery",
+    email:   profile.email,
+    options: { redirectTo: `${appUrl}/auth/confirm` },
+  });
+
+  if (linkError) {
+    return { error: `No se pudo generar el enlace: ${linkError.message}` };
+  }
+
+  let actionLink = linkData?.properties?.action_link;
+  // El SDK devuelve /verify en lugar de /auth/v1/verify — Kong requiere el prefijo
+  if (actionLink?.includes("/verify?") && !actionLink.includes("/auth/v1/verify")) {
+    actionLink = actionLink.replace("/verify?", "/auth/v1/verify?");
+  }
+
+  if (!actionLink) {
+    return { error: "No se pudo generar el enlace de activación" };
+  }
+
+  const repo = createUsuariosRepository(admin, session.tenant_id);
+  await repo.logActivity({
+    tenant_id:    session.tenant_id,
+    user_id:      session.user_id,
+    user_nombre:  session.nombre,
+    accion:       "generar_link_invitacion",
+    modulo:       "usuarios",
+    recurso_id:   userId,
+    recurso_desc: `Generó link de invitación para ${profile.email}`,
+  });
+
+  return { link: actionLink };
+}
+
 /**
  * Envía un email de activación/recuperación de contraseña vía Supabase Auth.
  * Localmente el email llega a Mailpit. En producción usa el SMTP configurado.
