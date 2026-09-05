@@ -5,6 +5,18 @@ const AUTH_ROUTES       = ["/login", "/registro", "/recuperar", "/actualizar-con
 const REDIRECT_IF_AUTHED = ["/login", "/registro", "/recuperar"];
 const PUBLIC_PATHS      = ["/auth/callback", "/auth/confirm", "/_next", "/favicon.ico", "/api/"];
 
+// Lexia es accesible desde varios dominios (histórico), pero las cookies de
+// sesión de Supabase son por-host: iniciar sesión en uno no cuenta en los
+// demás, lo que se siente como un logout aleatorio. Se redirige todo al
+// dominio canónico — excepto /api/ (ya excluido arriba), para no romper
+// invocaciones internas de Vercel (Cron Jobs) que pegan directo a ese host.
+const CANONICAL_HOST     = "app.lex-ia.io";
+const NON_CANONICAL_HOSTS = new Set([
+  "www.lex-ia.io",
+  "lexia-psi.vercel.app",
+  "lexialegal.ai",
+]);
+
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -32,6 +44,15 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) return response;
+
+  const host = request.headers.get("host");
+  if (host && NON_CANONICAL_HOSTS.has(host)) {
+    const url = request.nextUrl.clone();
+    url.protocol = "https:";
+    url.host = CANONICAL_HOST;
+    url.port  = "";
+    return NextResponse.redirect(url, 308);
+  }
 
   const { data: { session } } = await supabase.auth.getSession();
 
