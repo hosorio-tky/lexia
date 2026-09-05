@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo } from "react";
+import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Edit, Eye, MoreHorizontal, Trash2 } from "lucide-react";
+import { ArrowRight, ChevronDown, ChevronRight, Edit, Eye, MoreHorizontal, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -18,8 +18,34 @@ import { calcularVigencia } from "@/types/permits";
 import { SortableTh } from "@/components/ui/sortable-th";
 import { ActivityCell } from "@/components/ui/activity-cell";
 import { AccesoIndicador } from "@/components/shared/acceso-indicador";
+import type { PermitGroupKey } from "./permit-filters";
+import { ESTADOS_PERMISO_OPTIONS } from "@/lib/constants/estados";
 import type { Permit } from "@/types/permits";
 import type { SortState } from "@/lib/sort-utils";
+
+const SIN_VALOR = "Sin asignar";
+
+function groupValue(permit: Permit, groupBy: Exclude<PermitGroupKey, "">): string {
+  switch (groupBy) {
+    case "estado":             return permit.estado || SIN_VALOR;
+    case "tipo":               return permit.tipo || SIN_VALOR;
+    case "ubicacion":          return permit.ubicacion || SIN_VALOR;
+    case "entidad_reguladora": return permit.entidad_reguladora || SIN_VALOR;
+    case "responsable":        return permit.responsable_nombre || SIN_VALOR;
+  }
+}
+
+function sortGroupKeys(keys: string[], groupBy: Exclude<PermitGroupKey, "">): string[] {
+  if (groupBy === "estado") {
+    const order: string[] = ESTADOS_PERMISO_OPTIONS.map((o) => o.valor);
+    return [...keys].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  }
+  return [...keys].sort((a, b) => {
+    if (a === SIN_VALOR) return 1;
+    if (b === SIN_VALOR) return -1;
+    return a.localeCompare(b, "es");
+  });
+}
 
 type PermitSortKey = "nombre" | "tipo" | "estado" | "vencimiento" | "actividad";
 
@@ -79,6 +105,7 @@ export function PermitTable({
   userId,
   userRol,
   editableIds = [],
+  groupBy = "",
 }: {
   permits: Permit[];
   selected: string[];
@@ -90,45 +117,33 @@ export function PermitTable({
   userId?: string;
   userRol?: string;
   editableIds?: string[];
+  groupBy?: PermitGroupKey;
 }) {
   const editableSet = useMemo(() => new Set(editableIds), [editableIds]);
   const editableInView = useMemo(() => permits.filter((p) => editableSet.has(p.id)), [permits, editableSet]);
 
-  return (
-    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
-      <div className="relative w-full overflow-auto">
-        <table className="w-full caption-bottom text-sm">
-          <thead>
-            <tr className="border-b bg-muted/30">
-              <th className="h-10 w-[40px] px-4 align-middle">
-                {userRol === "admin" && (
-                  <Checkbox
-                    checked={editableInView.length > 0 && selected.length === editableInView.length}
-                    onCheckedChange={onToggleAll}
-                    disabled={editableInView.length === 0}
-                  />
-                )}
-              </th>
-              <SortableTh label="Permiso"     sortKey="nombre"     sort={sort} onSort={onSort} />
-              <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground hidden sm:table-cell">Expediente</th>
-              <SortableTh label="Tipo"        sortKey="tipo"       sort={sort} onSort={onSort} />
-              <SortableTh label="Estado"      sortKey="estado"     sort={sort} onSort={onSort} />
-              <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground hidden md:table-cell">Vigencia</th>
-              <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground hidden lg:table-cell">Ubicación</th>
-              <SortableTh label="Vencimiento" sortKey="vencimiento" sort={sort} onSort={onSort} className="hidden xl:table-cell" />
-              <SortableTh label="Actividad"   sortKey="actividad"  sort={sort} onSort={onSort} className="hidden lg:table-cell" />
-              <th className="h-10 w-[80px] px-4 align-middle" />
-            </tr>
-          </thead>
-          <tbody className="[&_tr:last-child]:border-0">
-            {permits.length === 0 && (
-              <tr>
-                <td colSpan={10} className="py-12 text-center text-muted-foreground">
-                  No se encontraron permisos
-                </td>
-              </tr>
-            )}
-            {permits.map((permit) => (
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  function toggleGroup(key: string) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  const groups = useMemo(() => {
+    if (!groupBy) return null;
+    const map = new Map<string, Permit[]>();
+    for (const p of permits) {
+      const key = groupValue(p, groupBy);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(p);
+    }
+    return sortGroupKeys(Array.from(map.keys()), groupBy).map((key) => ({ key, items: map.get(key)! }));
+  }, [permits, groupBy]);
+
+  function renderRow(permit: Permit) {
+    return (
               <tr
                 key={permit.id}
                 className="border-b transition-colors hover:bg-muted/40 group"
@@ -240,6 +255,70 @@ export function PermitTable({
                   </div>
                 </td>
               </tr>
+    );
+  }
+
+  function renderGroupHeader(key: string, count: number) {
+    const isCollapsed = collapsedGroups.has(key);
+    return (
+      <tr key={`group-${key}`} className="border-b bg-muted/40">
+        <td colSpan={10} className="p-0">
+          <button
+            type="button"
+            onClick={() => toggleGroup(key)}
+            className="flex w-full items-center gap-2 px-4 py-2 text-left hover:bg-muted/60 transition"
+          >
+            {isCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            <span className="text-sm font-semibold">{key}</span>
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {count}
+            </span>
+          </button>
+        </td>
+      </tr>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+      <div className="relative w-full overflow-auto">
+        <table className="w-full caption-bottom text-sm">
+          <thead>
+            <tr className="border-b bg-muted/30">
+              <th className="h-10 w-[40px] px-4 align-middle">
+                {userRol === "admin" && (
+                  <Checkbox
+                    checked={editableInView.length > 0 && selected.length === editableInView.length}
+                    onCheckedChange={onToggleAll}
+                    disabled={editableInView.length === 0}
+                  />
+                )}
+              </th>
+              <SortableTh label="Permiso"     sortKey="nombre"     sort={sort} onSort={onSort} />
+              <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground hidden sm:table-cell">Expediente</th>
+              <SortableTh label="Tipo"        sortKey="tipo"       sort={sort} onSort={onSort} />
+              <SortableTh label="Estado"      sortKey="estado"     sort={sort} onSort={onSort} />
+              <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground hidden md:table-cell">Vigencia</th>
+              <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground hidden lg:table-cell">Ubicación</th>
+              <SortableTh label="Vencimiento" sortKey="vencimiento" sort={sort} onSort={onSort} className="hidden xl:table-cell" />
+              <SortableTh label="Actividad"   sortKey="actividad"  sort={sort} onSort={onSort} className="hidden lg:table-cell" />
+              <th className="h-10 w-[80px] px-4 align-middle" />
+            </tr>
+          </thead>
+          <tbody className="[&_tr:last-child]:border-0">
+            {permits.length === 0 && (
+              <tr>
+                <td colSpan={10} className="py-12 text-center text-muted-foreground">
+                  No se encontraron permisos
+                </td>
+              </tr>
+            )}
+            {!groups && permits.map((permit) => renderRow(permit))}
+            {groups && groups.map(({ key, items }) => (
+              <Fragment key={key}>
+                {renderGroupHeader(key, items.length)}
+                {!collapsedGroups.has(key) && items.map((permit) => renderRow(permit))}
+              </Fragment>
             ))}
           </tbody>
         </table>

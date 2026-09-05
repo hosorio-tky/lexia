@@ -18,6 +18,7 @@ export default async function PermisosPage({
     v?: string; page?: string; search?: string;
     estado?: string; tipo?: string; responsable?: string;
     vigencia?: string; ubicacion?: string; sort?: string; dir?: string;
+    group?: string;
   }>;
 }) {
   const params  = await searchParams;
@@ -27,7 +28,7 @@ export default async function PermisosPage({
   const caller  = { userId: session.user_id, userRol: session.rol };
 
   const viewMode    = params.v ?? "table";
-  const isPaginated = viewMode !== "location" && viewMode !== "kanban";
+  const isPaginated = viewMode !== "location" && viewMode !== "kanban" && !params.group;
   const page  = isPaginated ? Math.max(0, parseInt(params.page ?? "0", 10) || 0) : 0;
   const limit = isPaginated ? PAGE_SIZE : 9999;
 

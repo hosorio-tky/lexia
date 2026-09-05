@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback, useTransition } from "react";
+import { useState, useMemo, useEffect, useCallback, useTransition, Fragment } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
@@ -49,6 +49,37 @@ import type { CatalogoItem } from "@/types/settings";
 
 type ViewMode = "tabla" | "kanban";
 type ContratoSortKey = "titulo" | "tipo" | "estado" | "contraparte" | "valor" | "fecha_fin" | "actividad";
+
+type ContratoGroupKey = "" | "estado" | "tipo" | "responsable";
+
+const GROUP_LABELS: Record<ContratoGroupKey, string> = {
+  "":            "Sin agrupar",
+  estado:        "Estado",
+  tipo:          "Tipo",
+  responsable:   "Responsable",
+};
+
+const SIN_VALOR = "Sin asignar";
+
+function groupValue(c: Contrato, groupBy: Exclude<ContratoGroupKey, "">): string {
+  switch (groupBy) {
+    case "estado":      return c.estado || SIN_VALOR;
+    case "tipo":        return c.tipo || SIN_VALOR;
+    case "responsable": return c.responsable_nombre || SIN_VALOR;
+  }
+}
+
+function sortGroupKeys(keys: string[], groupBy: Exclude<ContratoGroupKey, "">): string[] {
+  if (groupBy === "estado") {
+    const order: string[] = ESTADOS_CONTRATO_OPTIONS.map((o) => o.valor);
+    return [...keys].sort((a, b) => order.indexOf(a) - order.indexOf(b));
+  }
+  return [...keys].sort((a, b) => {
+    if (a === SIN_VALOR) return 1;
+    if (b === SIN_VALOR) return -1;
+    return a.localeCompare(b, "es");
+  });
+}
 
 function formatFecha(iso?: string): string {
   if (!iso) return "—";
@@ -108,6 +139,7 @@ export function ContratoListClient({
   const pathname     = usePathname();
 
   const viewMode = (searchParams.get("v") as ViewMode | null) ?? "tabla";
+  const groupBy  = (searchParams.get("group") as ContratoGroupKey | null) ?? "";
 
   // Sort derived from URL
   const sort: SortState<ContratoSortKey> = {
@@ -145,6 +177,13 @@ export function ContratoListClient({
     router.replace(`${pathname}?${params.toString()}`);
   }
 
+  function setGroupBy(key: ContratoGroupKey) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (key) params.set("group", key); else params.delete("group");
+    params.delete("page");
+    router.replace(`${pathname}?${params.toString()}`);
+  }
+
   function handleSort(key: ContratoSortKey) {
     const currentKey = (searchParams.get("sort") as ContratoSortKey) ?? "actividad";
     const currentDir = (searchParams.get("dir") as "asc" | "desc") ?? "desc";
@@ -173,6 +212,26 @@ export function ContratoListClient({
 
   const editableSet = useMemo(() => new Set(editableIds), [editableIds]);
   const editableVisible = useMemo(() => contratos.filter((c) => editableSet.has(c.id)), [contratos, editableSet]);
+
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  function toggleGroup(key: string) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  const groups = useMemo(() => {
+    if (!groupBy) return null;
+    const map = new Map<string, Contrato[]>();
+    for (const c of contratos) {
+      const key = groupValue(c, groupBy);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(c);
+    }
+    return sortGroupKeys(Array.from(map.keys()), groupBy).map((key) => ({ key, items: map.get(key)! }));
+  }, [contratos, groupBy]);
 
   const toggleSelect  = (id: string) => {
     if (!editableSet.has(id)) return;
@@ -236,6 +295,119 @@ export function ContratoListClient({
     } finally {
       setExporting(false);
     }
+  }
+
+  function renderContratoRow(c: Contrato) {
+    return (
+      <tr key={c.id} className={cn("border-b transition-colors hover:bg-muted/30", selected.includes(c.id) && "bg-muted/20")}>
+        <td className="px-4 py-3">
+          {userRol === "admin" && (
+            <Checkbox
+              checked={selected.includes(c.id)}
+              onCheckedChange={() => toggleSelect(c.id)}
+            />
+          )}
+        </td>
+        <td className="px-4 py-3 w-[280px] max-w-[280px]">
+          <div className="flex items-center gap-1.5">
+            <Link href={`/contratos/${c.id}?from=tabla`} className="font-medium hover:underline line-clamp-2">
+              {c.titulo}
+            </Link>
+            <AccesoIndicador
+              resourceType="contrato"
+              resourceId={c.id}
+              resourceName={c.titulo}
+              visibilidad={c.visibilidad ?? "publico"}
+              canManage={userRol === "admin" || c.created_by === userId}
+            />
+          </div>
+          {c.responsable_nombre && (
+            <p className="text-xs text-muted-foreground mt-0.5">{c.responsable_nombre}</p>
+          )}
+        </td>
+        <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
+          {c.numero ?? "—"}
+        </td>
+        <td className="px-4 py-3 w-[160px] max-w-[160px] truncate text-sm" title={c.tipo}>{c.tipo}</td>
+        <td className="px-4 py-3">
+          <ContratoStatusBadge estadoId={c.estado_id} label={c.estado} />
+        </td>
+        <td className="px-4 py-3 max-w-[160px] truncate text-sm text-muted-foreground">
+          {c.contraparte_nombre ?? "—"}
+        </td>
+        <td className="px-4 py-3 text-right text-sm whitespace-nowrap">
+          {formatValor(c.valor, c.moneda)}
+        </td>
+        <td className="px-4 py-3 whitespace-nowrap text-sm">{formatFecha(c.fecha_fin)}</td>
+        <td className="px-4 py-3">
+          <VencimientoCell iso={c.fecha_fin} />
+        </td>
+        <td className="px-4 py-3 hidden lg:table-cell">
+          <ActivityCell createdAt={c.created_at} updatedAt={c.updated_at} />
+        </td>
+        <td className="px-4 py-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel className="text-xs">Acciones</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href={`/contratos/${c.id}?from=tabla`}>
+                  <ArrowRight className="mr-2 h-4 w-4" />
+                  Ver detalle
+                </Link>
+              </DropdownMenuItem>
+              {editableSet.has(c.id) && (
+                <DropdownMenuItem asChild>
+                  <Link href={`/contratos/${c.id}/editar`}>
+                    <Edit className="mr-2 h-4 w-4" />
+                    Editar
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              {userRol === "admin" && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => handleDelete(c.id)}
+                    disabled={isPending}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Eliminar
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </td>
+      </tr>
+    );
+  }
+
+  function renderGroupHeader(key: string, count: number) {
+    const isCollapsed = collapsedGroups.has(key);
+    return (
+      <tr key={`group-${key}`} className="border-b bg-muted/40">
+        <td colSpan={11} className="p-0">
+          <button
+            type="button"
+            onClick={() => toggleGroup(key)}
+            className="flex w-full items-center gap-2 px-4 py-2 text-left hover:bg-muted/60 transition"
+          >
+            {isCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            <span className="text-sm font-semibold">{key}</span>
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+              {count}
+            </span>
+          </button>
+        </td>
+      </tr>
+    );
   }
 
   return (
@@ -321,6 +493,20 @@ export function ContratoListClient({
 
         {/* Right: view toggle + action button */}
         <div className="flex items-center gap-2 shrink-0">
+          {viewMode === "tabla" && (
+            <Select value={groupBy || "__none__"} onValueChange={(v) => setGroupBy(v === "__none__" ? "" : (v as ContratoGroupKey))}>
+              <SelectTrigger className="h-9 w-[180px] bg-background hidden md:flex">
+                <SelectValue placeholder="Agrupar" />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(GROUP_LABELS) as ContratoGroupKey[]).map((key) => (
+                  <SelectItem key={key || "__none__"} value={key || "__none__"}>
+                    {key ? `Agrupar: ${GROUP_LABELS[key]}` : GROUP_LABELS[key]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <div className="flex items-center rounded-lg border bg-background p-1 shadow-sm">
             <button
               onClick={() => setViewMode("tabla")}
@@ -413,95 +599,14 @@ export function ContratoListClient({
                       No hay contratos que coincidan con los filtros.
                     </td>
                   </tr>
+                ) : !groups ? (
+                  contratos.map((c) => renderContratoRow(c))
                 ) : (
-                  contratos.map((c) => (
-                    <tr key={c.id} className={cn("border-b transition-colors hover:bg-muted/30", selected.includes(c.id) && "bg-muted/20")}>
-                      <td className="px-4 py-3">
-                        {userRol === "admin" && (
-                          <Checkbox
-                            checked={selected.includes(c.id)}
-                            onCheckedChange={() => toggleSelect(c.id)}
-                          />
-                        )}
-                      </td>
-                      <td className="px-4 py-3 w-[280px] max-w-[280px]">
-                        <div className="flex items-center gap-1.5">
-                          <Link href={`/contratos/${c.id}?from=tabla`} className="font-medium hover:underline line-clamp-2">
-                            {c.titulo}
-                          </Link>
-                          <AccesoIndicador
-                            resourceType="contrato"
-                            resourceId={c.id}
-                            resourceName={c.titulo}
-                            visibilidad={c.visibilidad ?? "publico"}
-                            canManage={userRol === "admin" || c.created_by === userId}
-                          />
-                        </div>
-                        {c.responsable_nombre && (
-                          <p className="text-xs text-muted-foreground mt-0.5">{c.responsable_nombre}</p>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground whitespace-nowrap">
-                        {c.numero ?? "—"}
-                      </td>
-                      <td className="px-4 py-3 w-[160px] max-w-[160px] truncate text-sm" title={c.tipo}>{c.tipo}</td>
-                      <td className="px-4 py-3">
-                        <ContratoStatusBadge estadoId={c.estado_id} label={c.estado} />
-                      </td>
-                      <td className="px-4 py-3 max-w-[160px] truncate text-sm text-muted-foreground">
-                        {c.contraparte_nombre ?? "—"}
-                      </td>
-                      <td className="px-4 py-3 text-right text-sm whitespace-nowrap">
-                        {formatValor(c.valor, c.moneda)}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm">{formatFecha(c.fecha_fin)}</td>
-                      <td className="px-4 py-3">
-                        <VencimientoCell iso={c.fecha_fin} />
-                      </td>
-                      <td className="px-4 py-3 hidden lg:table-cell">
-                        <ActivityCell createdAt={c.created_at} updatedAt={c.updated_at} />
-                      </td>
-                      <td className="px-4 py-3">
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuLabel className="text-xs">Acciones</DropdownMenuLabel>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem asChild>
-                              <Link href={`/contratos/${c.id}?from=tabla`}>
-                                <ArrowRight className="mr-2 h-4 w-4" />
-                                Ver detalle
-                              </Link>
-                            </DropdownMenuItem>
-                            {editableSet.has(c.id) && (
-                              <DropdownMenuItem asChild>
-                                <Link href={`/contratos/${c.id}/editar`}>
-                                  <Edit className="mr-2 h-4 w-4" />
-                                  Editar
-                                </Link>
-                              </DropdownMenuItem>
-                            )}
-                            {userRol === "admin" && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-destructive focus:text-destructive"
-                                  onClick={() => handleDelete(c.id)}
-                                  disabled={isPending}
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Eliminar
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </td>
-                    </tr>
+                  groups.map(({ key, items }) => (
+                    <Fragment key={key}>
+                      {renderGroupHeader(key, items.length)}
+                      {!collapsedGroups.has(key) && items.map((c) => renderContratoRow(c))}
+                    </Fragment>
                   ))
                 )}
               </tbody>

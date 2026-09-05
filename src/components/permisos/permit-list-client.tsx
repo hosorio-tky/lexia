@@ -25,8 +25,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PermitStatCards } from "./permit-stat-cards";
-import { PermitFiltersBar, type ViewMode } from "./permit-filters";
+import { PermitFiltersBar, type ViewMode, type PermitGroupKey, GROUP_LABELS } from "./permit-filters";
 import { PermitTable } from "./permit-table";
 import { PermitCardsGrid } from "./permit-cards-grid";
 import { PermitKanban } from "./permit-kanban";
@@ -68,6 +75,7 @@ export function PermitListClient({
 
   // Derive view mode + sort from URL (no useState needed)
   const viewMode = (searchParams.get("v") as ViewMode | null) ?? "table";
+  const groupBy  = (searchParams.get("group") as PermitGroupKey | null) ?? "";
   const sort: SortState<PermitSortKey> = {
     key: (searchParams.get("sort") as PermitSortKey) ?? "actividad",
     dir: (searchParams.get("dir") as "asc" | "desc") ?? "desc",
@@ -128,6 +136,13 @@ export function PermitListClient({
   function setViewMode(mode: ViewMode) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("v", mode);
+    params.delete("page");
+    router.replace(`${pathname}?${params.toString()}`);
+  }
+
+  function setGroupBy(key: PermitGroupKey) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (key) params.set("group", key); else params.delete("group");
     params.delete("page");
     router.replace(`${pathname}?${params.toString()}`);
   }
@@ -219,6 +234,20 @@ export function PermitListClient({
           ubicaciones={ubicaciones}
         />
         <div className="flex items-center gap-2 shrink-0">
+          {viewMode === "table" && (
+            <Select value={groupBy || "__none__"} onValueChange={(v) => setGroupBy(v === "__none__" ? "" : (v as PermitGroupKey))}>
+              <SelectTrigger className="h-9 w-[180px] bg-background hidden md:flex">
+                <SelectValue placeholder="Agrupar" />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(GROUP_LABELS) as PermitGroupKey[]).map((key) => (
+                  <SelectItem key={key || "__none__"} value={key || "__none__"}>
+                    {key ? `Agrupar: ${GROUP_LABELS[key]}` : GROUP_LABELS[key]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <div className="hidden md:flex items-center rounded-lg border bg-background p-1 shadow-sm">
             {(["table", "kanban", "location"] as const).map((mode) => {
               const icons = {
@@ -301,6 +330,7 @@ export function PermitListClient({
             userId={userId}
             userRol={userRol}
             editableIds={editableIds}
+            groupBy={groupBy}
           />
         )}
         {viewMode === "kanban" && (

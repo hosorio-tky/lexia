@@ -21,6 +21,17 @@ import { ESTADOS_PERMISO_OPTIONS } from "@/lib/constants/estados";
 
 export type ViewMode = "table" | "kanban" | "location";
 
+export type PermitGroupKey = "" | "estado" | "tipo" | "ubicacion" | "entidad_reguladora" | "responsable";
+
+export const GROUP_LABELS: Record<PermitGroupKey, string> = {
+  "":                   "Sin agrupar",
+  estado:               "Estado",
+  tipo:                 "Tipo",
+  ubicacion:            "Ubicación",
+  entidad_reguladora:   "Entidad reguladora",
+  responsable:          "Responsable",
+};
+
 const VIGENCIA_OPTIONS: VigenciaStatus[] = ["Vigente", "Por vencer", "Vencido"];
 
 interface PermitFiltersBarProps {
