@@ -44,6 +44,12 @@ import type { Permit, PermitFilters, VigenciaStatus } from "@/types/permits";
 
 type PermitSortKey = "nombre" | "tipo" | "estado" | "vencimiento" | "actividad";
 
+// Agrupamiento elegido — persiste durante la sesión del navegador
+// (sessionStorage), igual que la visibilidad de columnas en Kanban:
+// si el usuario navega a otra pantalla y regresa a Permisos, encuentra
+// el mismo agrupamiento activo.
+const GROUPBY_STORAGE_KEY = "lexia:permisos:tabla:groupBy";
+
 export function PermitListClient({
   permits,
   statsData,
@@ -145,7 +151,26 @@ export function PermitListClient({
     if (key) params.set("group", key); else params.delete("group");
     params.delete("page");
     router.replace(`${pathname}?${params.toString()}`);
+    try {
+      window.sessionStorage.setItem(GROUPBY_STORAGE_KEY, key);
+    } catch {
+      // sessionStorage no disponible (modo privado, etc.) — no es crítico
+    }
   }
+
+  // Restaura el agrupamiento de la sesión si la URL llegó sin uno explícito
+  // (navegación normal desde el menú, no un link con ?group= compartido).
+  useEffect(() => {
+    if (searchParams.get("group")) return;
+    try {
+      const saved = window.sessionStorage.getItem(GROUPBY_STORAGE_KEY) as PermitGroupKey | null;
+      if (saved) setGroupBy(saved);
+    } catch {
+      // sessionStorage no disponible
+    }
+    // Solo al montar
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleSort(key: PermitSortKey) {
     const currentKey = (searchParams.get("sort") as PermitSortKey) ?? "actividad";

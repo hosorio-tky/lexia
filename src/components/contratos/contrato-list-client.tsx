@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback, useTransition, Fragment } from "react";
+import { useState, useMemo, useEffect, useCallback, useTransition, useRef, Fragment } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
@@ -79,6 +79,35 @@ function sortGroupKeys(keys: string[], groupBy: Exclude<ContratoGroupKey, "">): 
     if (b === SIN_VALOR) return -1;
     return a.localeCompare(b, "es");
   });
+}
+
+// Agrupamiento elegido — persiste durante la sesión del navegador
+// (sessionStorage): si el usuario navega a otra pantalla y regresa a
+// Contratos, encuentra el mismo agrupamiento activo.
+const GROUPBY_STORAGE_KEY = "lexia:contratos:tabla:groupBy";
+
+// Grupos expandidos — también persiste durante la sesión. Por default
+// todos arrancan contraídos (ausentes de este set); al cambiar el campo
+// de agrupamiento se reinicia a "todos contraídos".
+const EXPANDED_GROUPS_STORAGE_KEY = "lexia:contratos:tabla:expandedGroups";
+
+function leerExpandedGroups(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.sessionStorage.getItem(EXPANDED_GROUPS_STORAGE_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+function guardarExpandedGroups(s: Set<string>) {
+  try {
+    window.sessionStorage.setItem(EXPANDED_GROUPS_STORAGE_KEY, JSON.stringify(Array.from(s)));
+  } catch {
+    // sessionStorage no disponible (modo privado, etc.) — no es crítico
+  }
 }
 
 function formatFecha(iso?: string): string {
@@ -182,7 +211,26 @@ export function ContratoListClient({
     if (key) params.set("group", key); else params.delete("group");
     params.delete("page");
     router.replace(`${pathname}?${params.toString()}`);
+    try {
+      window.sessionStorage.setItem(GROUPBY_STORAGE_KEY, key);
+    } catch {
+      // sessionStorage no disponible (modo privado, etc.) — no es crítico
+    }
   }
+
+  // Restaura el agrupamiento de la sesión si la URL llegó sin uno explícito
+  // (navegación normal desde el menú, no un link con ?group= compartido).
+  useEffect(() => {
+    if (searchParams.get("group")) return;
+    try {
+      const saved = window.sessionStorage.getItem(GROUPBY_STORAGE_KEY) as ContratoGroupKey | null;
+      if (saved) setGroupBy(saved);
+    } catch {
+      // sessionStorage no disponible
+    }
+    // Solo al montar
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleSort(key: ContratoSortKey) {
     const currentKey = (searchParams.get("sort") as ContratoSortKey) ?? "actividad";
@@ -213,11 +261,24 @@ export function ContratoListClient({
   const editableSet = useMemo(() => new Set(editableIds), [editableIds]);
   const editableVisible = useMemo(() => contratos.filter((c) => editableSet.has(c.id)), [contratos, editableSet]);
 
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(leerExpandedGroups);
+
+  // Al cambiar el campo de agrupamiento (no en el montaje inicial), todos
+  // los grupos vuelven a arrancar contraídos.
+  const prevGroupByRef = useRef(groupBy);
+  useEffect(() => {
+    if (prevGroupByRef.current !== groupBy) {
+      prevGroupByRef.current = groupBy;
+      setExpandedGroups(new Set());
+      guardarExpandedGroups(new Set());
+    }
+  }, [groupBy]);
+
   function toggleGroup(key: string) {
-    setCollapsedGroups((prev) => {
+    setExpandedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key); else next.add(key);
+      guardarExpandedGroups(next);
       return next;
     });
   }
@@ -390,7 +451,7 @@ export function ContratoListClient({
   }
 
   function renderGroupHeader(key: string, count: number) {
-    const isCollapsed = collapsedGroups.has(key);
+    const isCollapsed = !expandedGroups.has(key);
     return (
       <tr key={`group-${key}`} className="border-b bg-muted/40">
         <td colSpan={11} className="p-0">
@@ -605,7 +666,7 @@ export function ContratoListClient({
                   groups.map(({ key, items }) => (
                     <Fragment key={key}>
                       {renderGroupHeader(key, items.length)}
-                      {!collapsedGroups.has(key) && items.map((c) => renderContratoRow(c))}
+                      {expandedGroups.has(key) && items.map((c) => renderContratoRow(c))}
                     </Fragment>
                   ))
                 )}

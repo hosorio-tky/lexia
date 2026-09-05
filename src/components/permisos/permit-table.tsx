@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, ChevronDown, ChevronRight, Edit, Eye, MoreHorizontal, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,30 @@ import type { Permit } from "@/types/permits";
 import type { SortState } from "@/lib/sort-utils";
 
 const SIN_VALOR = "Sin asignar";
+
+// Grupos expandidos — persiste durante la sesión del navegador. Por
+// default todos los grupos arrancan contraídos (ausentes de este set);
+// al cambiar el campo de agrupamiento se reinicia a "todos contraídos".
+const EXPANDED_GROUPS_STORAGE_KEY = "lexia:permisos:tabla:expandedGroups";
+
+function leerExpandedGroups(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.sessionStorage.getItem(EXPANDED_GROUPS_STORAGE_KEY);
+    if (!raw) return new Set();
+    return new Set(JSON.parse(raw) as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+function guardarExpandedGroups(s: Set<string>) {
+  try {
+    window.sessionStorage.setItem(EXPANDED_GROUPS_STORAGE_KEY, JSON.stringify(Array.from(s)));
+  } catch {
+    // sessionStorage no disponible (modo privado, etc.) — no es crítico
+  }
+}
 
 function groupValue(permit: Permit, groupBy: Exclude<PermitGroupKey, "">): string {
   switch (groupBy) {
@@ -122,11 +146,24 @@ export function PermitTable({
   const editableSet = useMemo(() => new Set(editableIds), [editableIds]);
   const editableInView = useMemo(() => permits.filter((p) => editableSet.has(p.id)), [permits, editableSet]);
 
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(leerExpandedGroups);
+
+  // Al cambiar el campo de agrupamiento (no en el montaje inicial), todos
+  // los grupos vuelven a arrancar contraídos.
+  const prevGroupByRef = useRef(groupBy);
+  useEffect(() => {
+    if (prevGroupByRef.current !== groupBy) {
+      prevGroupByRef.current = groupBy;
+      setExpandedGroups(new Set());
+      guardarExpandedGroups(new Set());
+    }
+  }, [groupBy]);
+
   function toggleGroup(key: string) {
-    setCollapsedGroups((prev) => {
+    setExpandedGroups((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key); else next.add(key);
+      guardarExpandedGroups(next);
       return next;
     });
   }
@@ -259,7 +296,7 @@ export function PermitTable({
   }
 
   function renderGroupHeader(key: string, count: number) {
-    const isCollapsed = collapsedGroups.has(key);
+    const isCollapsed = !expandedGroups.has(key);
     return (
       <tr key={`group-${key}`} className="border-b bg-muted/40">
         <td colSpan={10} className="p-0">
@@ -317,7 +354,7 @@ export function PermitTable({
             {groups && groups.map(({ key, items }) => (
               <Fragment key={key}>
                 {renderGroupHeader(key, items.length)}
-                {!collapsedGroups.has(key) && items.map((permit) => renderRow(permit))}
+                {expandedGroups.has(key) && items.map((permit) => renderRow(permit))}
               </Fragment>
             ))}
           </tbody>
