@@ -19,7 +19,7 @@ import {
 } from "@/types/permits";
 import { ESTADOS_PERMISO_OPTIONS } from "@/lib/constants/estados";
 
-export type ViewMode = "table" | "grid" | "location";
+export type ViewMode = "table" | "kanban" | "location";
 
 const VIGENCIA_OPTIONS: VigenciaStatus[] = ["Vigente", "Por vencer", "Vencido"];
 

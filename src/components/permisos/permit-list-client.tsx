@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useCallback, useTransition } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { Plus, Trash2, Upload, ChevronDown, ChevronLeft, ChevronRight, LayoutList, LayoutGrid, MapPin, FileDown } from "lucide-react";
+import { Plus, Trash2, Upload, ChevronDown, ChevronLeft, ChevronRight, LayoutList, KanbanSquare, MapPin, FileDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { obtenerPermisosParaExportar } from "@/app/actions/permisos";
 import { descargarExcel } from "@/lib/export-excel";
@@ -29,6 +29,7 @@ import { PermitStatCards } from "./permit-stat-cards";
 import { PermitFiltersBar, type ViewMode } from "./permit-filters";
 import { PermitTable } from "./permit-table";
 import { PermitCardsGrid } from "./permit-cards-grid";
+import { PermitKanban } from "./permit-kanban";
 import { PermitLocationView } from "./permit-location-view";
 import { PermitImportDialog } from "./permit-import-dialog";
 import { eliminarPermiso } from "@/app/actions/permisos";
@@ -219,13 +220,13 @@ export function PermitListClient({
         />
         <div className="flex items-center gap-2 shrink-0">
           <div className="hidden md:flex items-center rounded-lg border bg-background p-1 shadow-sm">
-            {(["table", "grid", "location"] as const).map((mode) => {
+            {(["table", "kanban", "location"] as const).map((mode) => {
               const icons = {
                 table:    <LayoutList className="h-4 w-4" />,
-                grid:     <LayoutGrid className="h-4 w-4" />,
+                kanban:   <KanbanSquare className="h-4 w-4" />,
                 location: <MapPin className="h-4 w-4" />,
               };
-              const titles = { table: "Vista lista", grid: "Vista tarjetas", location: "Por ubicación" };
+              const titles = { table: "Vista lista", kanban: "Vista Kanban", location: "Por ubicación" };
               return (
                 <button
                   key={mode}
@@ -302,16 +303,16 @@ export function PermitListClient({
             editableIds={editableIds}
           />
         )}
-        {viewMode === "grid" && (
-          <PermitCardsGrid permits={permits} />
+        {viewMode === "kanban" && (
+          <PermitKanban permits={permits} editableIds={editableIds} />
         )}
         {viewMode === "location" && (
           <PermitLocationView permits={permits} userId={userId} userRol={userRol} />
         )}
       </div>
 
-      {/* Paginación */}
-      {totalPages > 1 && viewMode !== "location" && (
+      {/* Paginación — solo en vista tabla; Kanban y Ubicación traen el conjunto completo */}
+      {totalPages > 1 && viewMode === "table" && (
         <div className="flex items-center justify-between">
           <Button
             variant="outline"
