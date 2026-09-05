@@ -130,7 +130,7 @@ function KanbanColumn({
 
   return (
     <div
-      className={`flex flex-col rounded-2xl border border-t-4 bg-muted/30 max-h-[70vh] min-h-[240px] ${COLUMN_STYLES[status]}`}
+      className={`flex w-[300px] shrink-0 flex-col rounded-2xl border border-t-4 bg-muted/30 max-h-[70vh] min-h-[240px] ${COLUMN_STYLES[status]}`}
     >
       {/* Header — fijo, no se desplaza con el scroll de la columna */}
       <div className="flex shrink-0 items-center justify-between px-4 py-3">
@@ -417,12 +417,6 @@ export function TaskBoardClient({
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }
 
-  const gridColsClass =
-    visibleStatuses.length >= 4 ? "lg:grid-cols-4" :
-    visibleStatuses.length === 3 ? "lg:grid-cols-3" :
-    visibleStatuses.length === 2 ? "lg:grid-cols-2" :
-    "lg:grid-cols-1";
-
   return (
     <div className="flex flex-col gap-5">
       {/* Filtros + toggle de vista */}
@@ -483,7 +477,7 @@ export function TaskBoardClient({
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
           >
-            <div className={`grid gap-4 ${gridColsClass} grid-cols-1 md:grid-cols-2`}>
+            <div className="flex gap-4 overflow-x-auto pb-2">
               {visibleStatuses.map((status) => (
                 <KanbanColumn
                   key={status}
