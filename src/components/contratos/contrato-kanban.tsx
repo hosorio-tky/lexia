@@ -1,14 +1,15 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Eye, EyeOff } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import { ContratoStatusBadge } from "./contrato-status-badge";
 import { cambiarEstadoContrato } from "@/app/actions/contratos";
 import { diasRestantes, type Contrato } from "@/types/contratos";
@@ -19,11 +20,46 @@ import {
 } from "@/lib/constants/estados";
 
 const COLUMNAS: { estadoId: string; label: string; colorClass: string }[] = [
-  { estadoId: ESTADOS_CONTRATO.EN_REVISION,    label: "En Revisión",     colorClass: "border-t-slate-400" },
-  { estadoId: ESTADOS_CONTRATO.PENDIENTE_FIRMA,label: "Pendiente Firma", colorClass: "border-t-amber-400" },
-  { estadoId: ESTADOS_CONTRATO.VIGENTE,        label: "Vigente",          colorClass: "border-t-emerald-400" },
-  { estadoId: ESTADOS_CONTRATO.VENCIDO,        label: "Vencido",          colorClass: "border-t-red-400" },
+  { estadoId: ESTADOS_CONTRATO.EN_REVISION,     label: "En Revisión",     colorClass: "border-t-slate-400" },
+  { estadoId: ESTADOS_CONTRATO.PENDIENTE_FIRMA, label: "Pendiente Firma", colorClass: "border-t-amber-400" },
+  { estadoId: ESTADOS_CONTRATO.VIGENTE,         label: "Vigente",         colorClass: "border-t-emerald-400" },
+  { estadoId: ESTADOS_CONTRATO.VENCIDO,         label: "Vencido",         colorClass: "border-t-red-400" },
+  { estadoId: ESTADOS_CONTRATO.TERMINADO,       label: "Terminado",       colorClass: "border-t-blue-400" },
+  { estadoId: ESTADOS_CONTRATO.CANCELADO,       label: "Cancelado",       colorClass: "border-t-gray-400" },
 ];
+
+// Columnas visibles por defecto — Terminado y Cancelado arrancan ocultas,
+// igual que el criterio ya usado en el Kanban de Tareas.
+const DEFAULT_COLUMNAS_VISIBLES: Record<string, boolean> = {
+  [ESTADOS_CONTRATO.EN_REVISION]:     true,
+  [ESTADOS_CONTRATO.PENDIENTE_FIRMA]: true,
+  [ESTADOS_CONTRATO.VIGENTE]:         true,
+  [ESTADOS_CONTRATO.VENCIDO]:         true,
+  [ESTADOS_CONTRATO.TERMINADO]:       false,
+  [ESTADOS_CONTRATO.CANCELADO]:       false,
+};
+
+const COLUMNAS_STORAGE_KEY = "lexia:contratos:kanban:columnasVisibles";
+
+function leerColumnasVisibles(): Record<string, boolean> {
+  if (typeof window === "undefined") return DEFAULT_COLUMNAS_VISIBLES;
+  try {
+    const raw = window.sessionStorage.getItem(COLUMNAS_STORAGE_KEY);
+    if (!raw) return DEFAULT_COLUMNAS_VISIBLES;
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_COLUMNAS_VISIBLES, ...parsed };
+  } catch {
+    return DEFAULT_COLUMNAS_VISIBLES;
+  }
+}
+
+function guardarColumnasVisibles(v: Record<string, boolean>) {
+  try {
+    window.sessionStorage.setItem(COLUMNAS_STORAGE_KEY, JSON.stringify(v));
+  } catch {
+    // sessionStorage no disponible (modo privado, etc.) — no es crítico
+  }
+}
 
 function formatValor(valor?: number, moneda?: string): string | null {
   if (valor == null) return null;
@@ -101,31 +137,107 @@ function ContratoCard({ contrato, canEdit }: { contrato: Contrato; canEdit: bool
   );
 }
 
+// ─── Chip de columna oculta ─────────────────────────────────────
+function HiddenColumnChip({
+  label,
+  count,
+  onShow,
+}: {
+  label: string;
+  count: number;
+  onShow: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onShow}
+      className="flex items-center gap-2 rounded-full border bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted transition"
+      title={`Mostrar columna ${label}`}
+    >
+      <Eye className="h-3.5 w-3.5" />
+      {label}
+      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+        {count}
+      </span>
+    </button>
+  );
+}
+
 export function ContratoKanban({ contratos, editableIds = [] }: { contratos: Contrato[]; editableIds?: string[] }) {
   const editableSet = new Set(editableIds);
+
+  // Visibilidad de columnas — persiste durante la sesión del navegador
+  // (sessionStorage): si el usuario navega a otra pantalla y regresa a
+  // Contratos, o hace refresh, encuentra el tablero como lo dejó.
+  const [columnasVisibles, setColumnasVisibles] = useState<Record<string, boolean>>(
+    leerColumnasVisibles
+  );
+
+  function toggleColumna(estadoId: string, visible: boolean) {
+    const next = { ...columnasVisibles, [estadoId]: visible };
+    setColumnasVisibles(next);
+    guardarColumnasVisibles(next);
+  }
+
+  const visibleColumnas = COLUMNAS.filter((c) => columnasVisibles[c.estadoId]);
+  const hiddenColumnas  = COLUMNAS.filter((c) => !columnasVisibles[c.estadoId]);
+
+  const gridColsClass =
+    visibleColumnas.length >= 4 ? "lg:grid-cols-4" :
+    visibleColumnas.length === 3 ? "lg:grid-cols-3" :
+    visibleColumnas.length === 2 ? "lg:grid-cols-2" :
+    "lg:grid-cols-1";
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {COLUMNAS.map(({ estadoId, label, colorClass }) => {
-        const items = contratos.filter((c) => c.estado_id === estadoId);
-        return (
-          <div
-            key={estadoId}
-            className={`flex flex-col gap-2 rounded-xl border border-t-4 bg-muted/20 p-3 ${colorClass}`}
-          >
-            <div className="flex items-center justify-between px-1 mb-1">
-              <span className="text-sm font-semibold">{label}</span>
-              <span className="grid h-5 min-w-5 place-items-center rounded-full bg-muted px-1.5 text-[11px] font-medium text-muted-foreground">
-                {items.length}
-              </span>
+    <div className="flex flex-col gap-3">
+      {hiddenColumnas.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">Columnas ocultas:</span>
+          {hiddenColumnas.map((col) => (
+            <HiddenColumnChip
+              key={col.estadoId}
+              label={col.label}
+              count={contratos.filter((c) => c.estado_id === col.estadoId).length}
+              onShow={() => toggleColumna(col.estadoId, true)}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className={`grid gap-4 sm:grid-cols-2 ${gridColsClass}`}>
+        {visibleColumnas.map(({ estadoId, label, colorClass }) => {
+          const items = contratos.filter((c) => c.estado_id === estadoId);
+          return (
+            <div
+              key={estadoId}
+              className={`flex flex-col gap-2 rounded-xl border border-t-4 bg-muted/20 p-3 ${colorClass}`}
+            >
+              <div className="flex items-center justify-between px-1 mb-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">{label}</span>
+                  <span className="grid h-5 min-w-5 place-items-center rounded-full bg-muted px-1.5 text-[11px] font-medium text-muted-foreground">
+                    {items.length}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => toggleColumna(estadoId, false)}
+                  title={`Ocultar columna ${label}`}
+                >
+                  <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                </Button>
+              </div>
+              {items.length === 0 ? (
+                <p className="px-1 text-xs text-muted-foreground italic">Sin contratos</p>
+              ) : (
+                items.map((c) => <ContratoCard key={c.id} contrato={c} canEdit={editableSet.has(c.id)} />)
+              )}
             </div>
-            {items.length === 0 ? (
-              <p className="px-1 text-xs text-muted-foreground italic">Sin contratos</p>
-            ) : (
-              items.map((c) => <ContratoCard key={c.id} contrato={c} canEdit={editableSet.has(c.id)} />)
-            )}
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
