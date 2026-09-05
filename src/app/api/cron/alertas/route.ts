@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendAlertaVencimiento } from "@/lib/email/send";
+import { sendResumenAlertas } from "@/lib/email/send";
+import type { ResumenAlertasItem } from "@/lib/email/templates/resumen-alertas";
 import { createSuscripcionesRepository } from "@/lib/repositories/suscripciones";
 import { logError } from "@/lib/logger";
 import type { ResourceType } from "@/types/access-control";
@@ -13,8 +14,39 @@ import { ESTADOS_PERMISO, ESTADOS_CONTRATO } from "@/lib/constants/estados";
  * - In-app: recursos que vencen dentro de los próximos `dias_antes` días
  * - Email:  recursos que vencen EXACTAMENTE en `dias_antes` días
  *
- * Corre vía Vercel Cron (vercel.json: 0 8 * * *) o manualmente.
+ * Los emails se agrupan en un solo resumen por destinatario (por tenant) en
+ * vez de un correo por recurso — evita saturar la bandeja de quien tiene
+ * varios permisos/contratos por vencer el mismo día.
+ *
+ * Corre vía Vercel Cron (vercel.json: 0 14 * * *) o manualmente.
  */
+
+interface DigestEntry {
+  destinatarioNombre: string;
+  items: ResumenAlertasItem[];
+}
+
+/** Agrega una alerta al resumen del destinatario, evitando duplicar el mismo recurso. */
+function agregarAlDigest(
+  digest: Map<string, DigestEntry>,
+  email: string,
+  nombre: string,
+  item: ResumenAlertasItem,
+): void {
+  let entry = digest.get(email);
+  if (!entry) {
+    entry = { destinatarioNombre: nombre, items: [] };
+    digest.set(email, entry);
+  } else if (entry.destinatarioNombre === email && nombre !== email) {
+    // Si antes solo teníamos el email como nombre (suscriptor), y ahora
+    // conocemos el nombre real (responsable), lo actualizamos.
+    entry.destinatarioNombre = nombre;
+  }
+  const yaExiste = entry.items.some(
+    (i) => i.recursoId === item.recursoId && i.modulo === item.modulo
+  );
+  if (!yaExiste) entry.items.push(item);
+}
 
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
@@ -44,10 +76,15 @@ export async function GET(request: Request) {
       byTenant.get(p.tenant_id)!.push(p);
     }
 
-    let inAppTotal   = 0;
-    let emailsTotal  = 0;
+    let inAppTotal      = 0;
+    let emailsTotal     = 0;
+    let alertasEnEmails = 0;
 
     for (const [tenantId, plantillas] of byTenant) {
+      // Resumen de email de este tenant — se llena en las secciones de abajo
+      // y se envía como un solo correo por destinatario al final.
+      const digest: Map<string, DigestEntry> = new Map();
+
       const inAppPlantillas  = plantillas.filter((p) => p.canal === "in_app"  && p.evento === "vencimiento_proximo");
       const emailPlantillas  = plantillas.filter((p) => p.canal === "email"   && p.evento === "vencimiento_proximo");
       const ocurridoPlantillas = plantillas.filter((p) => p.evento === "vencimiento_ocurrido");
@@ -154,16 +191,16 @@ export async function GET(request: Request) {
         for (const recurso of recursos) {
           const nombre      = recurso[nombreKey] as string;
           const restantes   = diasRestantes(hoy, recurso.fecha!);
-          const payload = {
-            modulo:           plantilla.modulo,
+          const item: ResumenAlertasItem = {
+            modulo:           plantilla.modulo as "permisos" | "contratos",
             recursoNombre:    nombre,
             recursoId:        recurso.id,
             fechaVencimiento: recurso.fecha!,
             diasRestantes:    restantes,
           };
 
-          // Emails ya enviados en este recurso (dedup)
-          const emailsEnviados = new Set<string>();
+          // Direcciones ya agregadas para este recurso (dedup)
+          const emailsAgregados = new Set<string>();
 
           // Responsable (tabla responsables, no profiles)
           if (recurso.responsable_id) {
@@ -173,25 +210,17 @@ export async function GET(request: Request) {
               .eq("id", recurso.responsable_id)
               .single();
             if (resp?.email) {
-              emailsEnviados.add(resp.email);
-              await sendAlertaVencimiento(resp.email, {
-                destinatarioNombre: resp.nombre,
-                ...payload,
-              }).catch((e) => console.error("[cron/alertas] email responsable:", e));
-              emailsTotal++;
+              emailsAgregados.add(resp.email);
+              agregarAlDigest(digest, resp.email, resp.nombre, item);
             }
           }
 
           // Suscriptores (sin duplicar al responsable)
           const suscEmails = await suscRepo.getSuscriptoresEmail(resourceType, recurso.id);
           for (const email of suscEmails) {
-            if (emailsEnviados.has(email)) continue;
-            emailsEnviados.add(email);
-            await sendAlertaVencimiento(email, {
-              destinatarioNombre: email,
-              ...payload,
-            }).catch((e) => console.error("[cron/alertas] email suscriptor:", e));
-            emailsTotal++;
+            if (emailsAgregados.has(email)) continue;
+            emailsAgregados.add(email);
+            agregarAlDigest(digest, email, email, item);
           }
         }
       }
@@ -265,14 +294,14 @@ export async function GET(request: Request) {
 
           for (const recurso of recursos) {
             const nombre = recurso[nombreKey] as string;
-            const payload = {
-              modulo:           plantilla.modulo,
+            const item: ResumenAlertasItem = {
+              modulo:           plantilla.modulo as "permisos" | "contratos",
               recursoNombre:    nombre,
               recursoId:        recurso.id,
               fechaVencimiento: recurso.fecha!,
               diasRestantes:    0,
             };
-            const emailsEnviados = new Set<string>();
+            const emailsAgregados = new Set<string>();
 
             if (recurso.responsable_id) {
               const { data: profile } = await client
@@ -281,29 +310,32 @@ export async function GET(request: Request) {
                 .eq("id", recurso.responsable_id)
                 .single();
               if (profile?.email) {
-                emailsEnviados.add(profile.email);
-                await sendAlertaVencimiento(profile.email, {
-                  destinatarioNombre: profile.apellido
-                    ? `${profile.nombre} ${profile.apellido}`
-                    : profile.nombre,
-                  ...payload,
-                }).catch((e) => console.error("[cron/alertas] ocurrido email:", e));
-                emailsTotal++;
+                emailsAgregados.add(profile.email);
+                const nombreCompleto = profile.apellido
+                  ? `${profile.nombre} ${profile.apellido}`
+                  : profile.nombre;
+                agregarAlDigest(digest, profile.email, nombreCompleto, item);
               }
             }
 
             const suscEmails = await suscRepo.getSuscriptoresEmail(resourceType, recurso.id);
             for (const email of suscEmails) {
-              if (emailsEnviados.has(email)) continue;
-              emailsEnviados.add(email);
-              await sendAlertaVencimiento(email, {
-                destinatarioNombre: email,
-                ...payload,
-              }).catch((e) => console.error("[cron/alertas] ocurrido email suscriptor:", e));
-              emailsTotal++;
+              if (emailsAgregados.has(email)) continue;
+              emailsAgregados.add(email);
+              agregarAlDigest(digest, email, email, item);
             }
           }
         }
+      }
+
+      // ── Envío del resumen ───────────────────────────────────────────
+      for (const [email, entry] of digest) {
+        await sendResumenAlertas(email, {
+          destinatarioNombre: entry.destinatarioNombre,
+          items:              entry.items,
+        }).catch((e) => console.error("[cron/alertas] resumen email:", e));
+        emailsTotal++;
+        alertasEnEmails += entry.items.length;
       }
     }
 
@@ -311,6 +343,7 @@ export async function GET(request: Request) {
       ok:                    true,
       notificaciones_in_app: inAppTotal,
       emails_enviados:       emailsTotal,
+      alertas_en_emails:     alertasEnEmails,
       tenants_procesados:    byTenant.size,
       timestamp:             new Date().toISOString(),
     });

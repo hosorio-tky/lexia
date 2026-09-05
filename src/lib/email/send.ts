@@ -7,6 +7,7 @@ import { temasTareaAsignada,     htmlTareaAsignada,     type TareaAsignadaData  
 import { temaCambioEstado,       htmlCambioEstado,       type CambioEstadoData       } from "./templates/cambio-estado";
 import { temaMencion,            htmlMencion,            type MencionData            } from "./templates/mencion";
 import { temaAlertaVencimiento,  htmlAlertaVencimiento,  type AlertaVencimientoData  } from "./templates/alerta-vencimiento";
+import { temaResumenAlertas,     htmlResumenAlertas,     type ResumenAlertasData     } from "./templates/resumen-alertas";
 import { temaResponsableAsignado, htmlResponsableAsignado, type ResponsableAsignadoData } from "./templates/responsable-asignado";
 
 async function send(to: string, subject: string, html: string): Promise<void> {
@@ -103,4 +104,12 @@ export async function sendAlertaVencimiento(
   data: AlertaVencimientoData
 ): Promise<void> {
   await send(toEmail, temaAlertaVencimiento(data), htmlAlertaVencimiento(data));
+}
+
+/** Resumen diario de alertas de vencimiento (varios permisos/contratos en un solo correo) */
+export async function sendResumenAlertas(
+  toEmail: string,
+  data: ResumenAlertasData
+): Promise<void> {
+  await send(toEmail, temaResumenAlertas(data), htmlResumenAlertas(data));
 }
