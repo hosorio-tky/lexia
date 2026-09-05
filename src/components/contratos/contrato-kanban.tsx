@@ -182,12 +182,6 @@ export function ContratoKanban({ contratos, editableIds = [] }: { contratos: Con
   const visibleColumnas = COLUMNAS.filter((c) => columnasVisibles[c.estadoId]);
   const hiddenColumnas  = COLUMNAS.filter((c) => !columnasVisibles[c.estadoId]);
 
-  const gridColsClass =
-    visibleColumnas.length >= 4 ? "lg:grid-cols-4" :
-    visibleColumnas.length === 3 ? "lg:grid-cols-3" :
-    visibleColumnas.length === 2 ? "lg:grid-cols-2" :
-    "lg:grid-cols-1";
-
   return (
     <div className="flex flex-col gap-3">
       {hiddenColumnas.length > 0 && (
@@ -204,15 +198,16 @@ export function ContratoKanban({ contratos, editableIds = [] }: { contratos: Con
         </div>
       )}
 
-      <div className={`grid gap-4 sm:grid-cols-2 ${gridColsClass}`}>
+      <div className="flex gap-4 overflow-x-auto pb-2">
         {visibleColumnas.map(({ estadoId, label, colorClass }) => {
           const items = contratos.filter((c) => c.estado_id === estadoId);
           return (
             <div
               key={estadoId}
-              className={`flex flex-col gap-2 rounded-xl border border-t-4 bg-muted/20 p-3 ${colorClass}`}
+              className={`flex w-[300px] shrink-0 flex-col max-h-[70vh] min-h-[240px] rounded-xl border border-t-4 bg-muted/20 ${colorClass}`}
             >
-              <div className="flex items-center justify-between px-1 mb-1">
+              {/* Header — fijo, no se desplaza con el scroll de la columna */}
+              <div className="flex shrink-0 items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-semibold">{label}</span>
                   <span className="grid h-5 min-w-5 place-items-center rounded-full bg-muted px-1.5 text-[11px] font-medium text-muted-foreground">
@@ -229,11 +224,15 @@ export function ContratoKanban({ contratos, editableIds = [] }: { contratos: Con
                   <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
                 </Button>
               </div>
-              {items.length === 0 ? (
-                <p className="px-1 text-xs text-muted-foreground italic">Sin contratos</p>
-              ) : (
-                items.map((c) => <ContratoCard key={c.id} contrato={c} canEdit={editableSet.has(c.id)} />)
-              )}
+
+              {/* Área de cards — con scroll propio, para que el alto del tablero no dependa de cuántos contratos haya */}
+              <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 pb-4 min-h-[64px]">
+                {items.length === 0 ? (
+                  <p className="px-1 text-xs text-muted-foreground italic">Sin contratos</p>
+                ) : (
+                  items.map((c) => <ContratoCard key={c.id} contrato={c} canEdit={editableSet.has(c.id)} />)
+                )}
+              </div>
             </div>
           );
         })}
