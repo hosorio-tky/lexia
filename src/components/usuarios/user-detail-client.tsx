@@ -81,6 +81,7 @@ export function UserDetailClient({
   const [inviteSent, setInviteSent] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [isGeneratingLink, setIsGeneratingLink] = useState(false);
+  const [manualLink, setManualLink] = useState<string | null>(null);
 
   const isAdmin   = session.rol === "admin";
   const isSelf    = session.user_id === user.id;
@@ -101,21 +102,64 @@ export function UserDetailClient({
     });
   };
 
-  const handleCopiarLinkInvitacion = async () => {
+  const handleCopiarLinkInvitacion = () => {
     setInviteError(null);
+    setManualLink(null);
     setIsGeneratingLink(true);
-    try {
-      const result = await generarLinkInvitacion(user.id);
+
+    // La generación del link requiere un round-trip al servidor. Si
+    // esperamos (`await`) esa respuesta antes de tocar el portapapeles,
+    // Safari (y otros navegadores estrictos) ya no consideran la escritura
+    // parte del gesto de clic original y la rechazan en silencio — el botón
+    // "parece" funcionar pero no copia nada. Por eso el link se resuelve
+    // como una promesa que se pasa directo a clipboard.write(), sin ningún
+    // await previo: el navegador espera esa promesa manteniendo vivo el
+    // permiso del gesto.
+    const linkPromise = generarLinkInvitacion(user.id).then((result) => {
       if (result.error || !result.link) {
-        setInviteError(result.error ?? "No se pudo generar el enlace");
-        return;
+        throw new Error(result.error ?? "No se pudo generar el enlace");
       }
-      await navigator.clipboard.writeText(result.link);
+      return result.link;
+    });
+
+    const finish = () => setIsGeneratingLink(false);
+    const onSuccess = () => {
       toast.success("Link de invitación copiado", {
         description: "Es de un solo uso y expira — compártelo por un canal seguro.",
       });
-    } finally {
-      setIsGeneratingLink(false);
+      finish();
+    };
+    const onFailure = async () => {
+      // El portapapeles falló (permiso denegado, navegador sin soporte,
+      // etc.) — igual mostramos el link para que se pueda copiar a mano,
+      // así la invitación nunca queda inaccesible.
+      try {
+        setManualLink(await linkPromise);
+      } catch (err) {
+        setInviteError(err instanceof Error ? err.message : "No se pudo generar el enlace");
+      } finally {
+        finish();
+      }
+    };
+
+    if (navigator.clipboard && "write" in navigator.clipboard && typeof ClipboardItem !== "undefined") {
+      navigator.clipboard
+        .write([
+          new ClipboardItem({
+            "text/plain": linkPromise.then((link) => new Blob([link], { type: "text/plain" })),
+          }),
+        ])
+        .then(onSuccess, onFailure);
+    } else {
+      // Fallback para navegadores sin soporte de ClipboardItem — no hay
+      // forma de diferir la escritura, así que se acepta el riesgo de que
+      // el gesto ya haya expirado y se muestra el link igual si falla.
+      linkPromise
+        .then((link) => navigator.clipboard.writeText(link).then(onSuccess, onFailure))
+        .catch((err) => {
+          setInviteError(err instanceof Error ? err.message : "No se pudo generar el enlace");
+          finish();
+        });
     }
   };
 
@@ -211,6 +255,19 @@ export function UserDetailClient({
                 </Button>
                 {inviteError && (
                   <p className="text-xs text-destructive">{inviteError}</p>
+                )}
+                {manualLink && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      No se pudo copiar automáticamente — selecciona y copia el link:
+                    </p>
+                    <input
+                      readOnly
+                      value={manualLink}
+                      onFocus={(e) => e.currentTarget.select()}
+                      className="w-full rounded-md border bg-muted/40 px-2 py-1.5 text-xs font-mono"
+                    />
+                  </div>
                 )}
               </>
             )}
