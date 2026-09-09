@@ -5,10 +5,13 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { SessionInfo } from "@/types/users";
 
-// tenant_id/rol/nombre casi no cambian — se cachean 30s (admin client, no depende
-// de cookies de request) para evitar un segundo round-trip de red en cada
-// navegación del dashboard. getUser() (la verificación real de auth) sigue
-// yendo a red siempre, sin caché.
+// tenant_id/rol/nombre/mfa_required casi no cambian — se cachean 30s (admin
+// client, no depende de cookies de request) para evitar un segundo round-trip
+// de red en cada navegación del dashboard. getUser() (la verificación real de
+// auth) sigue yendo a red siempre, sin caché. La tag "session-profile" se
+// invalida explícitamente (updateTag) cada vez que se actualiza un perfil —
+// sin eso, cambios de seguridad (ej. mfa_required) podrían tardar hasta 30s
+// en aplicar.
 const getCachedProfile = unstable_cache(
   async (userId: string) => {
     const admin = createAdminClient();
@@ -20,7 +23,7 @@ const getCachedProfile = unstable_cache(
     return profile;
   },
   ["session-profile"],
-  { revalidate: 30 }
+  { revalidate: 30, tags: ["session-profile"] }
 );
 
 /**

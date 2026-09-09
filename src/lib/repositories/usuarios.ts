@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { updateTag } from "next/cache";
 import type { UserProfile, ActivityEvent, UserRole } from "@/types/users";
 
 // ─── Tipos de filas DB ────────────────────────────────────────
@@ -131,6 +132,13 @@ export function createUsuariosRepository(client: SupabaseClient, tenantId: strin
         .eq("id", id)
         .eq("tenant_id", tenantId);         // ← evita edición cross-tenant
       if (updateError) throw updateError;
+
+      // Invalida el caché de getSession() (30s) — sin esto, cambios de
+      // seguridad como mfa_required o activo podrían tardar hasta 30s en
+      // aplicarse en el siguiente login/navegación del usuario afectado.
+      // updateTag (no revalidateTag) porque esto corre dentro de una Server
+      // Action y necesitamos semántica read-your-own-writes inmediata.
+      updateTag("session-profile");
 
       const { data, error } = await client
         .from("profiles")
