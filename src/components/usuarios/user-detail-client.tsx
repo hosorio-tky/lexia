@@ -5,13 +5,13 @@ import Link from "next/link";
 import { toast } from "sonner";
 import {
   ArrowLeft, Clock, Edit, ToggleLeft, ToggleRight,
-  Mail, CheckCircle, Link2,
+  Mail, CheckCircle, Link2, ShieldCheck, ShieldOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { UserRoleBadge } from "./user-role-badge";
-import { toggleActivoUsuario, reenviarInvitacion, generarLinkInvitacion } from "@/app/actions/usuarios";
+import { toggleActivoUsuario, reenviarInvitacion, generarLinkInvitacion, actualizarMfaRequerido } from "@/app/actions/usuarios";
 import type { UserProfile, ActivityEvent, SessionInfo } from "@/types/users";
 
 function formatDate(iso?: string) {
@@ -45,6 +45,8 @@ function ActivityItem({ event }: { event: ActivityEvent }) {
     activar_usuario:  "Activó usuario",
     desactivar_usuario: "Desactivó usuario",
     generar_link_invitacion: "Generó link de invitación",
+    activar_mfa_requerido:   "Activó el requisito de MFA",
+    desactivar_mfa_requerido: "Desactivó el requisito de MFA",
   };
 
   return (
@@ -91,6 +93,12 @@ export function UserDetailClient({
     const newActivo = !user.activo;
     setUser((u) => ({ ...u, activo: newActivo }));
     startTransition(() => toggleActivoUsuario(user.id, newActivo));
+  };
+
+  const handleToggleMfaRequerido = () => {
+    const newMfaRequired = !user.mfa_required;
+    setUser((u) => ({ ...u, mfa_required: newMfaRequired }));
+    startTransition(() => actualizarMfaRequerido(user.id, newMfaRequired));
   };
 
   const handleReenviarInvitacion = () => {
@@ -200,6 +208,7 @@ export function UserDetailClient({
             <InfoRow label="Correo"        value={user.email} />
             <InfoRow label="Miembro desde" value={formatDate(user.created_at)} />
             <InfoRow label="Último acceso" value={formatDate(user.ultimo_acceso)} />
+            <InfoRow label="MFA requerido" value={user.mfa_required ? "Sí" : "No"} />
           </Card>
 
           {/* Actividad */}
@@ -281,6 +290,20 @@ export function UserDetailClient({
                 {user.activo
                   ? <><ToggleLeft  className="mr-2 h-4 w-4" />Desactivar</>
                   : <><ToggleRight className="mr-2 h-4 w-4" />Activar</>
+                }
+              </Button>
+            )}
+            {isAdmin && (
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleToggleMfaRequerido}
+                disabled={isPending}
+                title={isSelf ? "Cambia el requisito de MFA para tu propia cuenta" : undefined}
+              >
+                {user.mfa_required
+                  ? <><ShieldOff  className="mr-2 h-4 w-4" />Desactivar MFA requerido</>
+                  : <><ShieldCheck className="mr-2 h-4 w-4" />Activar MFA requerido</>
                 }
               </Button>
             )}

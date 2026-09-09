@@ -14,7 +14,7 @@ const getCachedProfile = unstable_cache(
     const admin = createAdminClient();
     const { data: profile } = await admin
       .from("profiles")
-      .select("tenant_id, rol, nombre, apellido, tenants(nombre)")
+      .select("tenant_id, rol, nombre, apellido, mfa_required, tenants(nombre)")
       .eq("id", userId)
       .single();
     return profile;
@@ -52,6 +52,7 @@ export const getSession = cache(async (): Promise<SessionInfo> => {
     rol:            profile.rol as SessionInfo["rol"],
     nombre:         profile.nombre,
     nombre_completo,
+    mfa_required:   profile.mfa_required,
   };
 });
 

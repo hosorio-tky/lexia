@@ -369,6 +369,35 @@ export async function toggleActivoUsuario(
   revalidatePath("/usuarios");
 }
 
+// ─── Activar / desactivar requisito de MFA por usuario ────────
+// Solo un admin puede tocar este flag — de cualquier usuario, incluyendo
+// otros admins y a sí mismo. A diferencia de activar/desactivar cuenta,
+// aquí sí se permite el toggle sobre uno mismo.
+export async function actualizarMfaRequerido(
+  id: string,
+  mfaRequired: boolean
+): Promise<void> {
+  const session = await getSession();
+  requireRole(session, ["admin"]);
+
+  const admin = createAdminClient();
+  const repo  = createUsuariosRepository(admin, session.tenant_id);
+
+  await repo.update(id, { mfa_required: mfaRequired });
+
+  await repo.logActivity({
+    tenant_id:    session.tenant_id,
+    user_id:      session.user_id,
+    user_nombre:  session.nombre,
+    accion:       mfaRequired ? "activar_mfa_requerido" : "desactivar_mfa_requerido",
+    modulo:       "usuarios",
+    recurso_id:   id,
+  });
+
+  revalidatePath(`/usuarios/${id}`);
+  revalidatePath("/usuarios");
+}
+
 // ─── Actualizar contraseña desde perfil ──────────────────────
 export async function cambiarContrasena(
   _prevState: unknown,

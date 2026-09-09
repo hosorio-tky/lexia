@@ -18,6 +18,7 @@ interface ProfileRow {
   depto_cat: CatalogoRef | null;
   telefono: string | null;
   ultimo_acceso: string | null;
+  mfa_required: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -59,6 +60,7 @@ function mapProfile(row: ProfileRow): UserProfile {
     departamento:     row.depto_cat?.valor ?? undefined,
     telefono:         row.telefono ?? undefined,
     ultimo_acceso: row.ultimo_acceso ?? undefined,
+    mfa_required:  row.mfa_required,
     created_at:    row.created_at,
     updated_at:    row.updated_at,
     nombre_completo,
@@ -120,6 +122,7 @@ export function createUsuariosRepository(client: SupabaseClient, tenantId: strin
         telefono: string | null;
         rol: UserRole;
         activo: boolean;
+        mfa_required: boolean;
       }>
     ): Promise<UserProfile> {
       const { error: updateError } = await client

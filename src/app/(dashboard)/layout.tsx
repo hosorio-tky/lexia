@@ -14,23 +14,27 @@ export default async function DashboardLayout({
   const [session, supabase] = await Promise.all([getSession(), createClient()]);
 
   // Check MFA aquí (Node.js serverless, sin límite de Edge).
-  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal) {
-    const hasMfaEnrolled = aal.nextLevel === "aal2";
-    const mfaVerified    = aal.currentLevel === "aal2";
+  // Un admin puede desactivar el requisito de MFA por usuario (profiles.mfa_required) —
+  // si está desactivado, se omite todo el chequeo sin importar si ya tiene un factor enrolado.
+  if (session.mfa_required) {
+    const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aal) {
+      const hasMfaEnrolled = aal.nextLevel === "aal2";
+      const mfaVerified    = aal.currentLevel === "aal2";
 
-    if (hasMfaEnrolled && !mfaVerified) {
-      // Verificar dispositivo de confianza
-      const cookieStore = await cookies();
-      const trustedToken = cookieStore.get(TRUSTED_DEVICE_COOKIE)?.value;
-      if (trustedToken && session.user_id) {
-        const confiado = await verifyTrustedDeviceToken(trustedToken, session.user_id);
-        if (!confiado) redirect("/mfa/challenge");
-      } else {
-        redirect("/mfa/challenge");
+      if (hasMfaEnrolled && !mfaVerified) {
+        // Verificar dispositivo de confianza
+        const cookieStore = await cookies();
+        const trustedToken = cookieStore.get(TRUSTED_DEVICE_COOKIE)?.value;
+        if (trustedToken && session.user_id) {
+          const confiado = await verifyTrustedDeviceToken(trustedToken, session.user_id);
+          if (!confiado) redirect("/mfa/challenge");
+        } else {
+          redirect("/mfa/challenge");
+        }
+      } else if (!hasMfaEnrolled) {
+        redirect("/mfa/setup");
       }
-    } else if (!hasMfaEnrolled) {
-      redirect("/mfa/setup");
     }
   }
 

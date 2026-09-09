@@ -31,6 +31,7 @@ export interface UserProfile {
   departamento?: string;
   telefono?: string;
   ultimo_acceso?: string;
+  mfa_required: boolean;
   created_at: string;
   updated_at: string;
   // Calculados
@@ -68,4 +69,5 @@ export interface SessionInfo {
   rol: UserRole;
   nombre: string;
   nombre_completo: string;
+  mfa_required: boolean;
 }
