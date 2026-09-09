@@ -5,6 +5,7 @@ import { after } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendRecuperarContrasena } from "@/lib/email/send";
 import {
   createTrustedDeviceToken,
   TRUSTED_DEVICE_COOKIE,
@@ -218,11 +219,20 @@ export async function solicitarRecuperacion(
   const email = formData.get("email") as string;
   if (!email) return { error: "El correo es obligatorio" };
 
-  const supabase = await createClient();
   const siteUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const admin   = createAdminClient();
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${siteUrl}/auth/callback?next=/actualizar-contrasena`,
+  // No usamos supabase.auth.resetPasswordForEmail() — genera links con flujo
+  // PKCE, que exigen abrirse en el MISMO navegador que solicitó la
+  // recuperación (usan una cookie code_verifier). Eso rompe el caso normal
+  // de abrir el correo desde otro dispositivo/navegador (o modo incógnito).
+  // generateLink() produce un link por hash (#access_token=...),
+  // autocontenido, que /auth/confirm ya sabe manejar sin ese requisito —
+  // el mismo mecanismo que usamos para invitaciones.
+  const { data: linkData, error } = await admin.auth.admin.generateLink({
+    type:  "recovery",
+    email,
+    options: { redirectTo: `${siteUrl}/auth/confirm` },
   });
 
   if (error) {
@@ -230,8 +240,28 @@ export async function solicitarRecuperacion(
     if (msg.includes("security purposes") || msg.includes("after") || msg.includes("rate")) {
       return { error: "Por seguridad, espera unos segundos antes de volver a intentarlo." };
     }
-    return { error: error.message };
+    // No revelar si el correo existe o no en el sistema.
+    return { success: true };
   }
+
+  let actionLink = linkData?.properties?.action_link;
+  if (actionLink?.includes("/verify?") && !actionLink.includes("/auth/v1/verify")) {
+    actionLink = actionLink.replace("/verify?", "/auth/v1/verify?");
+  }
+
+  if (actionLink) {
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("nombre")
+      .eq("email", email)
+      .maybeSingle();
+
+    await sendRecuperarContrasena(email, {
+      destinatarioNombre: profile?.nombre || email,
+      actionLink,
+    });
+  }
+
   return { success: true };
 }
 

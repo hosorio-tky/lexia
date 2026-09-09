@@ -8,6 +8,7 @@ import { temaCambioEstado,       htmlCambioEstado,       type CambioEstadoData  
 import { temaMencion,            htmlMencion,            type MencionData            } from "./templates/mencion";
 import { temaAlertaVencimiento,  htmlAlertaVencimiento,  type AlertaVencimientoData  } from "./templates/alerta-vencimiento";
 import { temaResumenAlertas,     htmlResumenAlertas,     type ResumenAlertasData     } from "./templates/resumen-alertas";
+import { temaRecuperarContrasena, htmlRecuperarContrasena, type RecuperarContrasenaData } from "./templates/recuperar-contrasena";
 import { temaResponsableAsignado, htmlResponsableAsignado, type ResponsableAsignadoData } from "./templates/responsable-asignado";
 
 async function send(to: string, subject: string, html: string): Promise<void> {
@@ -112,4 +113,12 @@ export async function sendResumenAlertas(
   data: ResumenAlertasData
 ): Promise<void> {
   await send(toEmail, temaResumenAlertas(data), htmlResumenAlertas(data));
+}
+
+/** Link para restablecer contraseña (flujo "olvidé mi contraseña") */
+export async function sendRecuperarContrasena(
+  toEmail: string,
+  data: RecuperarContrasenaData
+): Promise<void> {
+  await send(toEmail, temaRecuperarContrasena(), htmlRecuperarContrasena(data));
 }
