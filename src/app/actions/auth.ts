@@ -278,15 +278,25 @@ export async function actualizarContrasena(
   if (wasForcedChange) {
     // 1. Limpiar flag — usar false (no null) para garantizar que GoTrue lo
     //    persista correctamente en el JSONB y no lo ignore como "sin cambio".
+    //    Se hace merge (no reemplazo) del app_metadata existente: updateUserById
+    //    reemplaza el objeto completo, y este usuario ya trae tenant_id/rol ahí
+    //    desde la invitación — sobreescribirlo los borraría.
     if (currentUser) {
       const admin = createAdminClient();
       await admin.auth.admin.updateUserById(currentUser.id, {
-        app_metadata: { must_change_password: false },
+        app_metadata: { ...currentUser.app_metadata, must_change_password: false },
       });
     }
-    // 2. Eliminar la cookie — el middleware la usa como fuente de verdad
+    // 2. Refrescar la sesión actual — el admin update de arriba cambia la fila
+    //    en la base de datos, pero el access token YA EMITIDO para esta sesión
+    //    sigue trayendo el app_metadata viejo (must_change_password: true)
+    //    hasta su próximo refresh natural. Sin este refresh explícito, el
+    //    middleware seguiría viendo must_change_password: true en el JWT y
+    //    rebotaría de vuelta a esta misma pantalla en un loop.
+    await supabase.auth.refreshSession();
+    // 3. Eliminar la cookie — el middleware la usa como respaldo
     cookieStore.delete("lexia_force_pwd");
-    // 3. Redirect
+    // 4. Redirect
     redirect("/dashboard");
   }
 
