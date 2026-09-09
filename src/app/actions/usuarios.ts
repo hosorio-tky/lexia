@@ -22,6 +22,12 @@ export async function invitarUsuario(
   const rol      = (formData.get("rol") as UserRole) ?? "usuario";
   const cargo           = (formData.get("cargo")           as string) || undefined;
   const departamento_id = (formData.get("departamento_id") as string) || undefined;
+  // Solo un admin puede elegir si el usuario invitado requiere MFA — si quien
+  // invita es supervisor, se ignora cualquier valor enviado y queda en true
+  // (el default seguro).
+  const mfaRequired = session.rol === "admin"
+    ? formData.get("mfa_required") === "true"
+    : true;
 
   if (!email || !nombre) return { error: "Email y nombre son obligatorios" };
 
@@ -59,7 +65,8 @@ export async function invitarUsuario(
     departamento_id: departamento_id ?? null,
     email,
     rol,
-    invited_by:  session.user_id,
+    invited_by:   session.user_id,
+    mfa_required: mfaRequired,
   });
 
   // Actualizar app_metadata para las RLS helpers.

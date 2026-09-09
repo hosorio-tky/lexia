@@ -6,6 +6,7 @@ import { ArrowLeft, Mail, UserPlus } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -43,9 +44,11 @@ function InviteFormInner({
   onInviteAnother,
 }: Props & { onInviteAnother: () => void }) {
   const [rol, setRol] = useState("usuario");
+  const [mfaRequired, setMfaRequired] = useState(true);
 
   const actionWithRol = async (_prev: unknown, formData: FormData) => {
     formData.set("rol", rol);
+    formData.set("mfa_required", String(mfaRequired));
     return invitarUsuario(_prev, formData);
   };
 
@@ -143,6 +146,25 @@ function InviteFormInner({
             <DepartamentoField departamentos={departamentos ?? []} />
           </div>
         </div>
+
+        {rolInvitador === "admin" && (
+          <div className="flex items-start gap-2.5 rounded-lg border bg-muted/20 p-3">
+            <Checkbox
+              id="mfa_required"
+              checked={mfaRequired}
+              onCheckedChange={(checked) => setMfaRequired(checked === true)}
+            />
+            <div className="space-y-0.5">
+              <Label htmlFor="mfa_required" className="cursor-pointer">
+                Requiere autenticación en dos pasos (MFA)
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Si lo desmarcas, este usuario podrá iniciar sesión solo con su contraseña.
+                Puedes cambiarlo después desde su perfil.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Preview del rol */}
         <div className="rounded-lg border bg-muted/20 p-3 flex items-center gap-3 text-sm">
