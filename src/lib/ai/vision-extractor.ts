@@ -8,8 +8,7 @@
  * (proponer_permiso/proponer_tareas) como para indexarlo en permiso_chunks
  * — un solo esfuerzo de extracción, dos usos.
  */
-import { dirname } from "node:path";
-import { createRequire } from "node:module";
+import { join } from "node:path";
 import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { createCanvas } from "@napi-rs/canvas";
@@ -26,14 +25,16 @@ import { extractTextFromPDF, extractTextFromDOCX } from "./document-processor";
 // indiquemos dónde están sus binarios .wasm/cmaps/fuentes: en Node los busca
 // con `fs.readFile(url + filename)` (rutas de archivo, no URLs).
 //
-// Se resuelve de forma perezosa (no al cargar el módulo) para que un fallo
-// de resolución de rutas en el entorno serverless quede acotado a la propia
-// extracción, en vez de poder tumbar cualquier render de Server Component
-// que importe este archivo transitivamente (p. ej. vía las Server Actions
-// del chat).
-let pdfjsDirCache: string | undefined;
+// Se resuelve vía process.cwd() (no import.meta.url + createRequire) porque
+// Turbopack reemplaza `import.meta` por un shim propio en el bundle de
+// servidor: `.url` deja de ser el string real del módulo (en pruebas devolvió
+// un ID numérico interno), lo que hacía fallar con
+// "TypeError: The path argument must be of type string" — silencioso en
+// local con tsx (Node real), pero no en el build de producción con
+// Turbopack. process.cwd() es la raíz del proyecto tanto en Next dev/build
+// como en la función serverless de Vercel.
 function getPdfjsDir(): string {
-  return (pdfjsDirCache ??= dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")));
+  return join(process.cwd(), "node_modules", "pdfjs-dist");
 }
 
 // Límite de páginas procesadas con visión — cubre la portada/resolución de
