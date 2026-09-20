@@ -20,6 +20,11 @@ const MAX_PAGINAS_VISION  = 12;
 // Debajo de este promedio de caracteres por página, se asume que el PDF es
 // escaneado (imagen) y no tiene una capa de texto real aprovechable.
 const MIN_CHARS_POR_PAGINA = 80;
+// Máximo de páginas transcritas en paralelo. Probado contra el límite real de
+// tokens/minuto de la organización en OpenAI: procesar las 12 páginas a la vez
+// (con su reintento) agota el TPM y la llamada falla con 429. 3 en paralelo
+// sigue siendo mucho más rápido que secuencial sin gatillar el rate limit.
+const CONCURRENCIA_VISION = 3;
 
 export interface ExtraccionResultado {
   texto:                    string;
@@ -76,6 +81,11 @@ async function transcribirPagina(dataUrl: string): Promise<string> {
         },
       ],
       maxOutputTokens: 1500,
+      // Cada imagen de página consume bastante del TPM (tokens/minuto) de la
+      // organización en OpenAI — en pruebas reales, 3 páginas en paralelo ya
+      // agotan el límite por unos segundos. El reintento por defecto del SDK
+      // (2) no alcanza a esperar a que se libere cupo; con 5 sí se recupera.
+      maxRetries: 5,
     });
     if (!pareceRechazo(text)) return text;
   }
@@ -88,17 +98,28 @@ async function transcribirConVision(
   totalPaginas: number
 ): Promise<{ texto: string; paginasProcesadas: number }> {
   const paginasAProcesar = Math.min(totalPaginas, MAX_PAGINAS_VISION);
-  const partes: string[] = [];
 
+  // Renderizar es secuencial (pdf.js no es thread-safe entre páginas del mismo
+  // documento), pero la transcripción con el modelo de visión sí puede correr
+  // en paralelo — es la parte lenta (hasta 2 llamadas por página con reintento)
+  // y no depende de las demás páginas. Bajó de ~3 min a segundos en pruebas.
+  const dataUrls: string[] = [];
   for (let i = 1; i <= paginasAProcesar; i++) {
-    const dataUrl = await renderPageAsImage(pdf, i, {
-      canvasImport: () => import("@napi-rs/canvas"),
-      scale: 1.5,
-      toDataURL: true,
-    });
-    const texto = await transcribirPagina(dataUrl);
-    partes.push(`[Página ${i}]\n${texto}`);
+    dataUrls.push(
+      await renderPageAsImage(pdf, i, {
+        canvasImport: () => import("@napi-rs/canvas"),
+        scale: 1.5,
+        toDataURL: true,
+      })
+    );
   }
+
+  const textos: string[] = [];
+  for (let inicio = 0; inicio < dataUrls.length; inicio += CONCURRENCIA_VISION) {
+    const lote = dataUrls.slice(inicio, inicio + CONCURRENCIA_VISION);
+    textos.push(...(await Promise.all(lote.map((dataUrl) => transcribirPagina(dataUrl)))));
+  }
+  const partes = textos.map((texto, idx) => `[Página ${idx + 1}]\n${texto}`);
 
   return { texto: partes.join("\n\n"), paginasProcesadas: paginasAProcesar };
 }

@@ -6,6 +6,12 @@ import { getSession } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { verifyTrustedDeviceToken, TRUSTED_DEVICE_COOKIE } from "@/lib/trusted-device";
 
+// El chat de IA vive en todo el dashboard y su Server Action subirArchivoChat
+// (extracción con visión de PDFs escaneados) puede tardar bastante en un
+// documento con varias páginas — sube el límite por defecto de Vercel para
+// evitar que se corte a mitad de camino.
+export const maxDuration = 60;
+
 export default async function DashboardLayout({
   children,
 }: {
