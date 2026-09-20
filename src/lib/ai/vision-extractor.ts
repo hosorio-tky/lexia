@@ -8,10 +8,24 @@
  * (proponer_permiso/proponer_tareas) como para indexarlo en permiso_chunks
  * — un solo esfuerzo de extracción, dos usos.
  */
+import { dirname } from "node:path";
+import { createRequire } from "node:module";
 import { generateText } from "ai";
 import { openai } from "@ai-sdk/openai";
-import { getDocumentProxy, renderPageAsImage } from "unpdf";
+import { createCanvas } from "@napi-rs/canvas";
+import { getDocument, type PDFDocumentProxy } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { extractTextFromPDF, extractTextFromDOCX } from "./document-processor";
+
+// Se usa pdfjs-dist directamente (no el wrapper `unpdf`) para renderizar
+// páginas a imagen: unpdf empaqueta su propia copia interna de pdf.js con el
+// decodificador JBIG2/OpenJPEG completamente deshabilitado (su `_getModule`
+// devuelve `null` siempre, sin importar la configuración), lo que dejaba en
+// blanco cualquier página con sellos o firmas escaneadas — sin importar qué
+// tan bueno fuera el modelo de IA usado después para leerla. La copia real
+// de pdfjs-dist sí decodifica JBIG2 correctamente, pero necesita que le
+// indiquemos dónde están sus binarios .wasm/cmaps/fuentes: en Node los busca
+// con `fs.readFile(url + filename)` (rutas de archivo, no URLs).
+const pdfjsDir = dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json"));
 
 // Límite de páginas procesadas con visión — cubre la portada/resolución de
 // un documento típico (donde vive la metadata) sin disparar costo/latencia
@@ -102,9 +116,21 @@ async function transcribirPagina(dataUrl: string): Promise<string> {
   return "[No se pudo leer esta página automáticamente — revísala manualmente]";
 }
 
+/** Renderiza una página del PDF a un data URL PNG usando @napi-rs/canvas. */
+async function renderizarPagina(pdf: PDFDocumentProxy, numeroPagina: number): Promise<string> {
+  const page = await pdf.getPage(numeroPagina);
+  const viewport = page.getViewport({ scale: 1.5 });
+  const canvas = createCanvas(viewport.width, viewport.height);
+  // @napi-rs/canvas's Canvas es compatible en tiempo de ejecución con lo que
+  // pdf.js espera de un HTMLCanvasElement (incluye getContext("2d")), pero no
+  // comparte el tipo exacto del DOM que pdf.js declara en su firma.
+  await page.render({ canvas: canvas as unknown as HTMLCanvasElement, viewport }).promise;
+  return canvas.toDataURL("image/png");
+}
+
 /** Transcribe con visión las páginas de un PDF que resultaron ser imágenes. */
 async function transcribirConVision(
-  pdf: Awaited<ReturnType<typeof getDocumentProxy>>,
+  pdf: PDFDocumentProxy,
   totalPaginas: number
 ): Promise<{ texto: string; paginasProcesadas: number }> {
   const paginasAProcesar = Math.min(totalPaginas, MAX_PAGINAS_VISION);
@@ -115,13 +141,7 @@ async function transcribirConVision(
   // y no depende de las demás páginas. Bajó de ~3 min a segundos en pruebas.
   const dataUrls: string[] = [];
   for (let i = 1; i <= paginasAProcesar; i++) {
-    dataUrls.push(
-      await renderPageAsImage(pdf, i, {
-        canvasImport: () => import("@napi-rs/canvas"),
-        scale: 1.5,
-        toDataURL: true,
-      })
-    );
+    dataUrls.push(await renderizarPagina(pdf, i));
   }
 
   const textos: string[] = [];
@@ -147,9 +167,21 @@ export async function extraerTextoDocumento(
 
   // extractTextFromPDF (unpdf → pdfjs-dist) puede dejar el ArrayBuffer
   // "detached" tras usarlo — se le pasa una copia para no inutilizar el
-  // buffer original que getDocumentProxy necesita justo después.
+  // buffer original que getDocument necesita justo después.
   const textoPlano = await extractTextFromPDF(buffer.slice(0));
-  const pdf = await getDocumentProxy(new Uint8Array(buffer));
+  // unpdf empaqueta su propia copia de pdf.js (versión 6.1.200, fija en su
+  // build) y, al usarla arriba, la autoregistra en `globalThis.pdfjsWorker`
+  // — la misma convención que usa pdf.js para su "fake worker" en Node. Si no
+  // se limpia, nuestro pdfjs-dist real (6.2.108) reutiliza ese worker
+  // desactualizado y falla con "API version does not match Worker version".
+  delete (globalThis as Record<string, unknown>).pdfjsWorker;
+  const pdf = await getDocument({
+    data: new Uint8Array(buffer),
+    wasmUrl: `${pdfjsDir}/wasm/`,
+    standardFontDataUrl: `${pdfjsDir}/standard_fonts/`,
+    cMapUrl: `${pdfjsDir}/cmaps/`,
+    cMapPacked: true,
+  }).promise;
   const totalPaginas = pdf.numPages;
 
   const promedioCharsPorPagina = totalPaginas > 0 ? textoPlano.trim().length / totalPaginas : 0;

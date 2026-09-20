@@ -5,7 +5,11 @@ const nextConfig: NextConfig = {
   // deben quedar fuera del bundle de webpack para funcionar en Vercel serverless.
   // @napi-rs/canvas es un binario nativo (.node) — Turbopack no puede
   // empaquetarlo como asset de ESM, así que también debe quedar externo.
-  serverExternalPackages: ["pdf-parse", "mammoth", "unpdf", "@napi-rs/canvas"],
+  // pdfjs-dist se usa directamente (no solo vía unpdf) para renderizar
+  // páginas con soporte real de JBIG2 — necesita quedar externo para que
+  // sus rutas relativas a wasm/cmaps/standard_fonts sigan resolviendo bien
+  // en el sistema de archivos real en producción.
+  serverExternalPackages: ["pdf-parse", "mammoth", "unpdf", "pdfjs-dist", "@napi-rs/canvas"],
   experimental: {
     serverActions: {
       bodySizeLimit: "20mb",
