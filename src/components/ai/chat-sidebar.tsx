@@ -6,6 +6,7 @@ import {
   X, Send, Bot, User, Loader2, Sparkles, RotateCcw,
   Maximize2, Minimize2, CheckCircle2, XCircle,
   FileText, ListTodo, ExternalLink, AlertCircle,
+  Paperclip, AlertTriangle,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -14,8 +15,10 @@ import { Button } from "@/components/ui/button";
 import {
   crearPermisoDesdeChat,
   crearTareasDesdeChat,
+  subirArchivoChat,
   type PropuestaPermiso,
   type PropuestaTareas,
+  type ArchivoOrigen,
 } from "@/app/actions/agente";
 
 interface ChatSidebarProps {
@@ -31,7 +34,8 @@ interface ToolCallPermiso {
   tool: "proponer_permiso";
   args: PropuestaPermiso;
   status: ToolCallStatus;
-  result?: { permisoId?: string; error?: string };
+  result?: { permisoId?: string; error?: string; advertencias?: string[] };
+  archivoOrigen?: ArchivoOrigen;
 }
 interface ToolCallTareas {
   tool: "proponer_tareas";
@@ -46,6 +50,7 @@ interface Msg {
   role: "user" | "assistant" | "tool-call";
   text: string;
   toolCall?: ToolCall;
+  archivoNombre?: string;
 }
 
 function uid() {
@@ -102,15 +107,23 @@ function CardPermiso({
           </div>
         )}
         {status === "confirmed" && result?.permisoId && (
-          <div className="flex items-center gap-2 text-emerald-700">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            <span className="text-xs font-medium">Permiso creado.</span>
-            <Link
-              href={`/permisos/${result.permisoId}`}
-              className="flex items-center gap-1 text-xs font-semibold underline hover:no-underline"
-            >
-              Ver permiso <ExternalLink className="h-3 w-3" />
-            </Link>
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-emerald-700">
+              <CheckCircle2 className="h-4 w-4 shrink-0" />
+              <span className="text-xs font-medium">Permiso creado.</span>
+              <Link
+                href={`/permisos/${result.permisoId}`}
+                className="flex items-center gap-1 text-xs font-semibold underline hover:no-underline"
+              >
+                Ver permiso <ExternalLink className="h-3 w-3" />
+              </Link>
+            </div>
+            {result.advertencias?.map((a, i) => (
+              <div key={i} className="flex items-start gap-1.5 text-amber-700">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span className="text-xs">{a}</span>
+              </div>
+            ))}
           </div>
         )}
         {status === "cancelled" && (
@@ -237,6 +250,7 @@ function Campo({ label, value }: { label: string; value: string }) {
 export function ChatSidebar({ open, onClose }: ChatSidebarProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef       = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef   = useRef<HTMLInputElement>(null);
   const abortRef       = useRef<AbortController | null>(null);
 
   const [expanded,  setExpanded]  = useState(false);
@@ -245,6 +259,43 @@ export function ChatSidebar({ open, onClose }: ChatSidebarProps) {
   const [streaming, setStreaming] = useState(false);
   const [error,     setError]     = useState<string | null>(null);
   const [, startTransition] = useTransition();
+
+  // ── Archivo adjunto pendiente (PDF/Word) ─────────────────────────────────
+  // Se sube y extrae de inmediato al seleccionarlo; su texto viaja en el
+  // siguiente mensaje al chat, y su referencia se guarda para adjuntarla al
+  // permiso si la IA propone crear uno a partir de este documento.
+  const [pendingFile, setPendingFile] = useState<{
+    archivo: ArchivoOrigen;
+    texto: string;
+  } | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadError,   setUploadError]   = useState<string | null>(null);
+
+  async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // permite volver a seleccionar el mismo archivo después
+    if (!file) return;
+
+    setUploadError(null);
+    setUploadingFile(true);
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      const res = await subirArchivoChat(formData);
+      if (res.error && !res.archivo) {
+        setUploadError(res.error);
+        return;
+      }
+      if (res.archivo) {
+        setPendingFile({ archivo: res.archivo, texto: res.extraccion?.texto ?? "" });
+        if (res.error) setUploadError(res.error); // subió pero no se pudo extraer
+      }
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "No se pudo subir el archivo");
+    } finally {
+      setUploadingFile(false);
+    }
+  }
 
   // Cargar historial desde localStorage (evita hydration mismatch)
   useEffect(() => {
@@ -297,11 +348,14 @@ export function ChatSidebar({ open, onClose }: ChatSidebarProps) {
   function handleConfirmPermiso(id: string, tc: ToolCallPermiso) {
     updateToolCall(id, { status: "confirmed" });
     startTransition(async () => {
-      const res = await crearPermisoDesdeChat(tc.args);
+      const res = await crearPermisoDesdeChat(tc.args, tc.archivoOrigen);
       if (res.error) {
         updateToolCall(id, { status: "error", result: { error: res.error } });
       } else {
-        updateToolCall(id, { status: "confirmed", result: { permisoId: res.permisoId } });
+        updateToolCall(id, {
+          status: "confirmed",
+          result: { permisoId: res.permisoId, advertencias: res.advertencias },
+        });
       }
     });
   }
@@ -324,7 +378,15 @@ export function ChatSidebar({ open, onClose }: ChatSidebarProps) {
     if (!text.trim() || streaming) return;
     setError(null);
 
-    const userMsg: Msg = { id: uid(), role: "user", text: text.trim() };
+    // El archivo pendiente (si hay) viaja solo en este turno — se limpia
+    // después de enviarlo, para no volver a adjuntarlo en mensajes futuros.
+    const archivoEnviado = pendingFile;
+    setPendingFile(null);
+
+    const userMsg: Msg = {
+      id: uid(), role: "user", text: text.trim(),
+      archivoNombre: archivoEnviado?.archivo.nombre,
+    };
     const asstId = uid();
     const asstMsg: Msg = { id: asstId, role: "assistant", text: "" };
 
@@ -348,7 +410,12 @@ export function ChatSidebar({ open, onClose }: ChatSidebarProps) {
       const res = await fetch("/api/chat", {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ messages: payload }),
+        body:    JSON.stringify({
+          messages: payload,
+          archivo: archivoEnviado
+            ? { nombre: archivoEnviado.archivo.nombre, texto: archivoEnviado.texto }
+            : undefined,
+        }),
         signal:  ctrl.signal,
       });
 
@@ -394,6 +461,9 @@ export function ChatSidebar({ open, onClose }: ChatSidebarProps) {
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   args:   parsed.toolArgs as any,
                   status: "pending",
+                  ...(parsed.toolName === "proponer_permiso" && archivoEnviado
+                    ? { archivoOrigen: { ...archivoEnviado.archivo, texto: archivoEnviado.texto } }
+                    : {}),
                 } as ToolCall,
               };
               pendingToolCalls.push(tcMsg);
@@ -422,7 +492,7 @@ export function ChatSidebar({ open, onClose }: ChatSidebarProps) {
       setStreaming(false);
       abortRef.current = null;
     }
-  }, [messages, streaming]);
+  }, [messages, streaming, pendingFile]);
 
   async function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault();
@@ -608,6 +678,15 @@ export function ChatSidebar({ open, onClose }: ChatSidebarProps) {
                   ) : (
                     msg.text
                   )}
+                  {msg.archivoNombre && (
+                    <div className={cn(
+                      "mt-1.5 flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px]",
+                      msg.role === "user" ? "bg-primary-foreground/15" : "bg-background/60"
+                    )}>
+                      <Paperclip className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{msg.archivoNombre}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -624,7 +703,56 @@ export function ChatSidebar({ open, onClose }: ChatSidebarProps) {
 
         {/* Input */}
         <div className="border-t p-3 shrink-0">
+          {(pendingFile || uploadingFile || uploadError) && (
+            <div className="mb-2 flex items-center gap-2 rounded-lg border bg-muted/40 px-2.5 py-1.5 text-xs">
+              {uploadingFile ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-muted-foreground" />
+                  <span className="text-muted-foreground">Procesando archivo…</span>
+                </>
+              ) : uploadError && !pendingFile ? (
+                <>
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+                  <span className="flex-1 text-destructive">{uploadError}</span>
+                  <button type="button" onClick={() => setUploadError(null)} className="text-muted-foreground hover:text-foreground">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              ) : pendingFile ? (
+                <>
+                  <Paperclip className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  <span className="flex-1 truncate font-medium">{pendingFile.archivo.nombre}</span>
+                  {uploadError && (
+                    <span title={uploadError}><AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" /></span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => { setPendingFile(null); setUploadError(null); }}
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </>
+              ) : null}
+            </div>
+          )}
           <form onSubmit={handleSubmit} className="flex gap-2 items-end">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              className="hidden"
+              onChange={handleFileSelected}
+            />
+            <button
+              type="button"
+              title="Adjuntar PDF o Word"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={streaming || uploadingFile}
+              className="shrink-0 grid h-9 w-9 place-items-center rounded-xl border text-muted-foreground hover:bg-muted disabled:opacity-50 transition-colors"
+            >
+              <Paperclip className="h-4 w-4" />
+            </button>
             <textarea
               ref={inputRef}
               value={input}

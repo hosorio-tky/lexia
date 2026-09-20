@@ -8,6 +8,11 @@ import { logError } from "@/lib/logger";
 
 type CoreMessage = { role: "user" | "assistant" | "system"; content: string };
 
+interface ArchivoAdjunto {
+  nombre: string;
+  texto:  string;
+}
+
 const SUPABASE_URL  = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
@@ -90,11 +95,15 @@ export async function POST(req: Request) {
       return new Response(JSON.stringify({ error: "No autenticado" }), { status: 401 });
     }
 
-    const body = await req.json() as { messages: { role: string; content: string }[] };
+    const body = await req.json() as {
+      messages: { role: string; content: string }[];
+      archivo?: ArchivoAdjunto;
+    };
     const incoming = body.messages ?? [];
+    const archivo  = body.archivo;
 
     const lastUser = [...incoming].reverse().find((m) => m.role === "user");
-    const query = lastUser?.content ?? "";
+    const query = [lastUser?.content, archivo?.texto].filter(Boolean).join("\n").slice(0, 4000) || "";
 
     const { documentContext, structuredContext } = await assembleContext(
       session.tenant_id,
@@ -123,9 +132,19 @@ Puedes proponer crear registros en el sistema. Cuando el usuario lo solicite:
 - Para crear tareas de un permiso: usa la herramienta \`proponer_tareas\` con los pasos requeridos.
 Después de llamar la herramienta, confirma al usuario que has propuesto la acción y que puede revisar y confirmar en la tarjeta que aparece.
 
+## Crear un permiso a partir de un documento cargado (PDF/Word)
+Cuando el usuario adjunte un documento y pida crear un permiso con su información:
+- Extrae todos los campos que puedas de "Documento cargado por el usuario" abajo y llama \`proponer_permiso\`.
+- **Nunca inventes un dato que el documento no tenga.** Si un campo requerido (ej. fecha de vencimiento) no aparece explícitamente pero hay un dato relacionado y ambiguo (ej. vencimiento de una fianza, garantía o auditoría en vez del permiso mismo), NO lo asumas como si fuera el campo pedido — explícaselo al usuario en tu respuesta de texto ("El documento no indica una fecha de vencimiento del permiso; sí encontré que la Fianza de Cumplimiento vence el [fecha] — ¿la uso como fecha de vencimiento del permiso, o prefieres dejarlo sin fecha?") y aun así propone el permiso, dejando ese campo vacío hasta que el usuario confirme qué hacer.
+- Si el "tipo" o la "entidad reguladora" que menciona el documento no aparecen en "Catálogos válidos de Permisos", dilo explícitamente en tu respuesta (ej. "El documento menciona la entidad 'X', que no está en el catálogo — puedes crearla desde Configuración → Catálogos antes de confirmar, o decirme cuál de las existentes usar") — no elijas un valor del catálogo por tu cuenta como si fuera correcto.
+- **Revisa el documento buscando obligaciones de seguimiento** (auditorías, renovaciones, notificaciones previas al vencimiento, entrega de informes, etc.) y, si encuentras alguna con fecha o plazo calculable, propón también \`proponer_tareas\` en la misma respuesta — son requisitos reales de cumplimiento que el usuario necesita rastrear, no opcionales.
+- El usuario puede iterar: puede pedirte que ajustes cualquier campo antes de confirmar la tarjeta.
+
 ${structuredContext ? `## Datos actuales del sistema\n${structuredContext}` : ""}
 
 ${documentContext ? `## Fragmentos de documentos indexados (usa esta información para responder)\n${documentContext}` : ""}
+
+${archivo ? `## Documento cargado por el usuario ahora ("${archivo.nombre}")\n${archivo.texto || "(no se pudo extraer texto de este archivo)"}` : ""}
 `.trim();
 
     const coreMessages: CoreMessage[] = incoming
@@ -138,7 +157,7 @@ ${documentContext ? `## Fragmentos de documentos indexados (usa esta informació
       messages: coreMessages,
       tools: agentTools,
       stopWhen: stepCountIs(3),
-      maxOutputTokens: 1024,
+      maxOutputTokens: 2048,
       temperature: 0.3,
     });
 

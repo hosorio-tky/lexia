@@ -3,7 +3,7 @@
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import {
-  FileText, Globe, Lock, MessageSquare, Pencil, Plus,
+  Bot, FileText, Globe, ListTodo, Lock, MessageSquare, Pencil, Plus,
   RefreshCw, RotateCcw, ShieldCheck, ShieldOff, Trash2, Upload, User,
 } from "lucide-react";
 import type { ActividadEntry } from "@/lib/repositories/actividad";
@@ -16,6 +16,7 @@ const ACCION_CONFIG: Record<string, {
 }> = {
   // ── Permisos ──────────────────────────────────────────────────
   crear_permiso:              { label: "Permiso creado",          icon: Plus,        color: "text-emerald-600 bg-emerald-50" },
+  crear_tareas:               { label: "Tareas creadas",          icon: ListTodo,    color: "text-emerald-600 bg-emerald-50" },
   editar_permiso:             { label: "Permiso editado",         icon: Pencil,      color: "text-blue-600 bg-blue-50" },
   cambiar_estado:             { label: "Estado cambiado",         icon: RefreshCw,   color: "text-indigo-600 bg-indigo-50" },
   eliminar_permiso:           { label: "Permiso eliminado",       icon: Trash2,      color: "text-red-600 bg-red-50" },
@@ -165,6 +166,16 @@ function ActionDetail({ accion, metadata }: { accion: string; metadata: Record<s
     );
   }
 
+  if (accion === "crear_tareas") {
+    const { cantidad } = metadata as { cantidad?: number };
+    if (!cantidad) return null;
+    return (
+      <p className="mt-1 text-xs text-muted-foreground">
+        {cantidad} tarea{cantidad !== 1 ? "s" : ""}
+      </p>
+    );
+  }
+
   if (accion === "subir_documento") {
     const { nombre, tamano } = metadata as { nombre?: string; tamano?: number };
     if (!nombre) return null;
@@ -296,6 +307,15 @@ function AuditRow({ entry }: { entry: ActividadEntry }) {
               {entry.user_nombre ?? "Sistema"}
             </span>
           </span>
+          {entry.metadata?.origen === "agente_ia" && (
+            <span
+              title="Generado por Lexia AI a partir de una instrucción o documento en el chat"
+              className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+            >
+              <Bot className="h-2.5 w-2.5" />
+              IA
+            </span>
+          )}
           <span
             className="text-xs text-muted-foreground ml-auto shrink-0"
             title={absTime}

@@ -148,10 +148,67 @@ export async function searchContratoChunks(
   }));
 }
 
+/** Espejo de searchContratoChunks para documentos fuente de permisos (permiso_chunks). */
+export async function searchPermisoChunks(
+  tenantId: string,
+  query: string,
+  matchCount = 6
+): Promise<ChunkResult[]> {
+  const client = createAdminClient();
+  const embedding = await generateEmbedding(query);
+  const embStr = JSON.stringify(embedding);
+
+  const { data, error } = await client.rpc("match_permiso_chunks", {
+    p_tenant_id:   tenantId,
+    p_embedding:   embStr,
+    p_match_count: matchCount,
+    p_threshold:   0.10,
+  });
+
+  if (!error && data && (data as ChunkResult[]).length > 0) {
+    return (data as (ChunkResult & { fuente?: string })[]).map((row) => ({
+      contenido:  row.contenido,
+      similarity: row.similarity,
+    }));
+  }
+
+  const { data: fallback } = await client.rpc("match_permiso_chunks", {
+    p_tenant_id:   tenantId,
+    p_embedding:   embStr,
+    p_match_count: matchCount,
+    p_threshold:   0.0,
+  });
+
+  if (!fallback) return [];
+  return (fallback as (ChunkResult & { fuente?: string })[]).map((row) => ({
+    contenido:  row.contenido,
+    similarity: row.similarity,
+  }));
+}
+
 /** Obtiene contexto estructurado completo de la BD */
 export async function getStructuredContext(tenantId: string): Promise<string> {
   const client = createAdminClient();
   const sections: string[] = [];
+
+  // ── Catálogos válidos (para detectar tipo/entidad inexistentes) ──
+  const { data: catalogos } = await client
+    .from("catalogos")
+    .select("tipo, valor")
+    .eq("tenant_id", tenantId)
+    .eq("modulo", "permisos")
+    .in("tipo", ["tipo_permiso", "entidad_reguladora"])
+    .eq("activo", true);
+
+  if (catalogos && catalogos.length > 0) {
+    const tipos = catalogos.filter((c) => c.tipo === "tipo_permiso").map((c) => c.valor);
+    const entidades = catalogos.filter((c) => c.tipo === "entidad_reguladora").map((c) => c.valor);
+    sections.push(
+      "## Catálogos válidos de Permisos (usa EXACTAMENTE estos valores; si el usuario/documento menciona uno que no está aquí, dilo explícitamente y pregunta si quiere usar el más parecido o agregarlo al catálogo)\n" +
+      `- Tipos de permiso: ${tipos.join(", ") || "(ninguno registrado)"}\n` +
+      `- Entidades reguladoras: ${entidades.join(", ") || "(ninguna registrada)"}`
+    );
+  }
 
   // ── Permisos ───────────────────────────────────────────────
   const { data: permisos, error: permisosError } = await client
@@ -425,10 +482,11 @@ export async function assembleContext(
   tenantId: string,
   query: string
 ): Promise<{ documentContext: string; structuredContext: string }> {
-  const [chunks, lexbaseChunks, contratoChunks, structured] = await Promise.all([
+  const [chunks, lexbaseChunks, contratoChunks, permisoChunks, structured] = await Promise.all([
     searchDocumentChunks(tenantId, query),
     searchLexbaseChunks(tenantId, query),
     searchContratoChunks(tenantId, query),
+    searchPermisoChunks(tenantId, query),
     getStructuredContext(tenantId),
   ]);
 
@@ -441,6 +499,9 @@ export async function assembleContext(
     ),
     ...contratoChunks.map((c, i) =>
       `[Contrato — fragmento ${i + 1}, relevancia ${(c.similarity * 100).toFixed(0)}%]\n${c.contenido}`
+    ),
+    ...permisoChunks.map((c, i) =>
+      `[Documento fuente de permiso — fragmento ${i + 1}, relevancia ${(c.similarity * 100).toFixed(0)}%]\n${c.contenido}`
     ),
   ];
 
