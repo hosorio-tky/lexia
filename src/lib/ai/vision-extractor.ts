@@ -70,7 +70,13 @@ const PROMPT_TRANSCRIPCION_ALT =
 async function transcribirPagina(dataUrl: string): Promise<string> {
   for (const prompt of [PROMPT_TRANSCRIPCION, PROMPT_TRANSCRIPCION_ALT]) {
     const { text } = await generateText({
-      model: openai("gpt-4o-mini"),
+      // gpt-5.6-terra: 500k TPM en el mismo Tier 1 (vs. 200k de gpt-4o-mini).
+      // Con gpt-4o-mini, 12 páginas en detail:"high" agotaban el TPM en <1min;
+      // con este modelo no hay rate limit y además lee mejor las páginas con
+      // sellos dañados (JBIG2) — probado con el mismo documento, dos corridas
+      // dieron texto idéntico en detail:"high" (con "low" salía inconsistente,
+      // inventando datos distintos en cada corrida).
+      model: openai("gpt-5.6-terra"),
       messages: [
         {
           role: "user",
@@ -79,11 +85,7 @@ async function transcribirPagina(dataUrl: string): Promise<string> {
             {
               type: "image",
               image: dataUrl,
-              // "low" fija el costo en tokens de la imagen independientemente
-              // de su resolución (en vez de escalar con el tamaño) — con
-              // "high" (por defecto), 12 páginas agotan el TPM del Tier 1 de
-              // OpenAI (200k) en menos de un minuto, aun en lotes pequeños.
-              providerOptions: { openai: { imageDetail: "low" } },
+              providerOptions: { openai: { imageDetail: "high" } },
             },
           ],
         },
