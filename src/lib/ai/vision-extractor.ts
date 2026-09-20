@@ -76,7 +76,15 @@ async function transcribirPagina(dataUrl: string): Promise<string> {
           role: "user",
           content: [
             { type: "text", text: prompt },
-            { type: "image", image: dataUrl },
+            {
+              type: "image",
+              image: dataUrl,
+              // "low" fija el costo en tokens de la imagen independientemente
+              // de su resolución (en vez de escalar con el tamaño) — con
+              // "high" (por defecto), 12 páginas agotan el TPM del Tier 1 de
+              // OpenAI (200k) en menos de un minuto, aun en lotes pequeños.
+              providerOptions: { openai: { imageDetail: "low" } },
+            },
           ],
         },
       ],
