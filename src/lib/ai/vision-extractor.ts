@@ -25,7 +25,16 @@ import { extractTextFromPDF, extractTextFromDOCX } from "./document-processor";
 // de pdfjs-dist sí decodifica JBIG2 correctamente, pero necesita que le
 // indiquemos dónde están sus binarios .wasm/cmaps/fuentes: en Node los busca
 // con `fs.readFile(url + filename)` (rutas de archivo, no URLs).
-const pdfjsDir = dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json"));
+//
+// Se resuelve de forma perezosa (no al cargar el módulo) para que un fallo
+// de resolución de rutas en el entorno serverless quede acotado a la propia
+// extracción, en vez de poder tumbar cualquier render de Server Component
+// que importe este archivo transitivamente (p. ej. vía las Server Actions
+// del chat).
+let pdfjsDirCache: string | undefined;
+function getPdfjsDir(): string {
+  return (pdfjsDirCache ??= dirname(createRequire(import.meta.url).resolve("pdfjs-dist/package.json")));
+}
 
 // Límite de páginas procesadas con visión — cubre la portada/resolución de
 // un documento típico (donde vive la metadata) sin disparar costo/latencia
@@ -175,6 +184,7 @@ export async function extraerTextoDocumento(
   // se limpia, nuestro pdfjs-dist real (6.2.108) reutiliza ese worker
   // desactualizado y falla con "API version does not match Worker version".
   delete (globalThis as Record<string, unknown>).pdfjsWorker;
+  const pdfjsDir = getPdfjsDir();
   const pdf = await getDocument({
     data: new Uint8Array(buffer),
     wasmUrl: `${pdfjsDir}/wasm/`,
