@@ -6,7 +6,7 @@ import {
   X, Send, Bot, User, Loader2, Sparkles, RotateCcw,
   Maximize2, Minimize2, CheckCircle2, XCircle,
   FileText, ListTodo, ExternalLink, AlertCircle,
-  Paperclip, AlertTriangle,
+  Paperclip, AlertTriangle, Square,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -439,51 +439,61 @@ export function ChatSidebar({ open, onClose }: ChatSidebarProps) {
           const raw = line.slice(5).trim();
           if (raw === "[DONE]") continue;
 
+          let parsed: {
+            type: string;
+            textDelta?: string;
+            toolName?: string;
+            toolArgs?: Record<string, unknown>;
+            error?: string;
+          };
           try {
-            const parsed = JSON.parse(raw) as {
-              type: string;
-              textDelta?: string;
-              toolName?: string;
-              toolArgs?: Record<string, unknown>;
-            };
+            parsed = JSON.parse(raw);
+          } catch { continue; /* non-JSON line */ }
 
-            if (parsed.type === "text-delta" && parsed.textDelta) {
-              setMessages(prev =>
-                prev.map(m => m.id === asstId ? { ...m, text: m.text + parsed.textDelta } : m)
-              );
-            } else if (parsed.type === "tool-call" && parsed.toolName && parsed.toolArgs) {
-              const tcMsg: Msg = {
-                id:   uid(),
-                role: "tool-call",
-                text: "",
-                toolCall: {
-                  tool:   parsed.toolName as "proponer_permiso" | "proponer_tareas",
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  args:   parsed.toolArgs as any,
-                  status: "pending",
-                  ...(parsed.toolName === "proponer_permiso" && archivoEnviado
-                    ? { archivoOrigen: { ...archivoEnviado.archivo, texto: archivoEnviado.texto } }
-                    : {}),
-                } as ToolCall,
-              };
-              pendingToolCalls.push(tcMsg);
-            }
-          } catch { /* non-JSON line */ }
+          if (parsed.type === "text-delta" && parsed.textDelta) {
+            setMessages(prev =>
+              prev.map(m => m.id === asstId ? { ...m, text: m.text + parsed.textDelta } : m)
+            );
+          } else if (parsed.type === "error") {
+            // Sin esto, un error del servidor (ej. rate limit de OpenAI) se
+            // descartaba en silencio y el mensaje del asistente se quedaba
+            // vacío para siempre — mostrando el spinner de "pensando"
+            // indefinidamente sin que el usuario supiera qué pasó.
+            throw new Error(parsed.error || "Error al generar la respuesta");
+          } else if (parsed.type === "tool-call" && parsed.toolName && parsed.toolArgs) {
+            const tcMsg: Msg = {
+              id:   uid(),
+              role: "tool-call",
+              text: "",
+              toolCall: {
+                tool:   parsed.toolName as "proponer_permiso" | "proponer_tareas",
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                args:   parsed.toolArgs as any,
+                status: "pending",
+                ...(parsed.toolName === "proponer_permiso" && archivoEnviado
+                  ? { archivoOrigen: { ...archivoEnviado.archivo, texto: archivoEnviado.texto } }
+                  : {}),
+              } as ToolCall,
+            };
+            pendingToolCalls.push(tcMsg);
+          }
         }
       }
 
-      // Insertar tarjetas de confirmación después del mensaje del asistente
-      if (pendingToolCalls.length > 0) {
-        setMessages(prev => {
-          const idx = prev.findIndex(m => m.id === asstId);
-          if (idx === -1) return [...prev, ...pendingToolCalls];
-          return [
-            ...prev.slice(0, idx + 1),
-            ...pendingToolCalls,
-            ...prev.slice(idx + 1),
-          ];
-        });
-      }
+      // Insertar tarjetas de confirmación después del mensaje del asistente.
+      // Si el modelo respondió solo con una llamada a herramienta (o con nada,
+      // sin texto acompañante), la burbuja del asistente queda vacía — se
+      // elimina en vez de dejarla, porque el spinner de "pensando" se basa en
+      // texto vacío y se quedaría girando para siempre aunque ya terminó.
+      setMessages(prev => {
+        const idx = prev.findIndex(m => m.id === asstId);
+        if (idx === -1) return pendingToolCalls.length > 0 ? [...prev, ...pendingToolCalls] : prev;
+        const asstVacio = !prev[idx].text.trim();
+        const base = asstVacio ? [...prev.slice(0, idx), ...prev.slice(idx + 1)] : prev;
+        if (pendingToolCalls.length === 0) return base;
+        const insertAt = asstVacio ? idx : idx + 1;
+        return [...base.slice(0, insertAt), ...pendingToolCalls, ...base.slice(insertAt)];
+      });
     } catch (err) {
       if ((err as Error).name === "AbortError") return;
       setError(err instanceof Error ? err.message : String(err));
@@ -768,13 +778,24 @@ export function ChatSidebar({ open, onClose }: ChatSidebarProps) {
                 el.style.height = Math.min(el.scrollHeight, 128) + "px";
               }}
             />
-            <button
-              type="submit"
-              disabled={streaming || !input.trim()}
-              className="shrink-0 grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground disabled:opacity-50 transition-opacity"
-            >
-              <Send className="h-4 w-4" />
-            </button>
+            {streaming ? (
+              <button
+                type="button"
+                title="Detener"
+                onClick={() => abortRef.current?.abort()}
+                className="shrink-0 grid h-9 w-9 place-items-center rounded-xl bg-destructive text-destructive-foreground transition-opacity"
+              >
+                <Square className="h-3.5 w-3.5 fill-current" />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!input.trim()}
+                className="shrink-0 grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground disabled:opacity-50 transition-opacity"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            )}
           </form>
           <p className="mt-1.5 text-center text-[10px] text-muted-foreground">
             Shift+Enter para nueva línea · Esc para cerrar

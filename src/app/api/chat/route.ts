@@ -6,6 +6,12 @@ import { createServerClient } from "@supabase/ssr";
 import { assembleContext } from "@/lib/ai/rag";
 import { logError } from "@/lib/logger";
 
+// Igual que las demás rutas de IA pesadas del sistema (contratos/extract,
+// lexbase/extract, etc.) — sin esto, el default de Vercel puede cortar la
+// respuesta antes de que el modelo termine (ej. bajo rate limit, cuando los
+// reintentos internos del SDK toman más tiempo de lo normal).
+export const maxDuration = 60;
+
 type CoreMessage = { role: "user" | "assistant" | "system"; content: string };
 
 interface ArchivoAdjunto {
