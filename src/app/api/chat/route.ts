@@ -206,8 +206,13 @@ ${archivo ? `## Documento cargado por el usuario ahora ("${archivo.nombre}")\n${
               // El SDK puede entregar un error como parte normal del stream
               // (sin lanzar excepción) — sin este caso, se ignoraba en
               // silencio y el cliente se quedaba sin nada, sin saber que algo
-              // falló.
-              const msg = chunk.error instanceof Error ? chunk.error.message : String(chunk.error);
+              // falló. El error de OpenAI llega como objeto plano con
+              // `.message` (ej. {type, code, message, param}), no como
+              // instancia de Error — String(objeto) da "[object Object]".
+              const errObj = chunk.error as { message?: string; error?: { message?: string } } | undefined;
+              const msg = chunk.error instanceof Error
+                ? chunk.error.message
+                : errObj?.message ?? errObj?.error?.message ?? JSON.stringify(chunk.error);
               console.error("[/api/chat] error chunk en fullStream:", msg);
               emit({ type: "error", error: msg });
               huboContenido = true;

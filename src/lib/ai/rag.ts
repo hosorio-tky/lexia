@@ -5,6 +5,20 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { generateEmbedding } from "./embeddings";
 
+// Un "chunk" para RAG debería ser un fragmento acotado (unos cientos a pocos
+// miles de caracteres). En la práctica, se encontraron filas de
+// lexbase_chunks con hasta ~940,000 caracteres (un documento completo mal
+// indexado en una sola fila) — un solo chunk así desborda el límite de
+// contexto del modelo sin importar nada más del prompt. Se trunca cada
+// fragmento como defensa, independientemente de qué tan mal esté indexado
+// un tenant.
+const MAX_CHARS_POR_CHUNK = 3000;
+
+function truncarChunk(texto: string): string {
+  if (texto.length <= MAX_CHARS_POR_CHUNK) return texto;
+  return texto.slice(0, MAX_CHARS_POR_CHUNK) + "\n[…fragmento truncado por longitud…]";
+}
+
 interface ChunkResult {
   contenido: string;
   similarity: number;
@@ -492,16 +506,16 @@ export async function assembleContext(
 
   const allChunks = [
     ...chunks.map((c, i) =>
-      `[Documento interno — fragmento ${i + 1}, relevancia ${(c.similarity * 100).toFixed(0)}%]\n${c.contenido}`
+      `[Documento interno — fragmento ${i + 1}, relevancia ${(c.similarity * 100).toFixed(0)}%]\n${truncarChunk(c.contenido)}`
     ),
     ...lexbaseChunks.map((c, i) =>
-      `[Lexbase legal — fragmento ${i + 1}, relevancia ${(c.similarity * 100).toFixed(0)}%]\n${c.contenido}`
+      `[Lexbase legal — fragmento ${i + 1}, relevancia ${(c.similarity * 100).toFixed(0)}%]\n${truncarChunk(c.contenido)}`
     ),
     ...contratoChunks.map((c, i) =>
-      `[Contrato — fragmento ${i + 1}, relevancia ${(c.similarity * 100).toFixed(0)}%]\n${c.contenido}`
+      `[Contrato — fragmento ${i + 1}, relevancia ${(c.similarity * 100).toFixed(0)}%]\n${truncarChunk(c.contenido)}`
     ),
     ...permisoChunks.map((c, i) =>
-      `[Documento fuente de permiso — fragmento ${i + 1}, relevancia ${(c.similarity * 100).toFixed(0)}%]\n${c.contenido}`
+      `[Documento fuente de permiso — fragmento ${i + 1}, relevancia ${(c.similarity * 100).toFixed(0)}%]\n${truncarChunk(c.contenido)}`
     ),
   ];
 
