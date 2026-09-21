@@ -15,12 +15,31 @@ export function chunkText(
 
   let current = "";
 
+  // Red de seguridad: el fallback de división por oraciones (abajo) usa una
+  // regex que exige puntuación (.!?). Texto sin ningún punto/exclamación/
+  // interrogación (ej. índices de referencias de página tipo "103-104\n104-
+  // 121\n..." en resoluciones del Diario Oficial) no matchea nada, y sin
+  // esto el párrafo completo se colaba como un solo chunk sin límite de
+  // tamaño — se vieron chunks de más de 900,000 caracteres en producción.
+  // pushChunk garantiza que ningún chunk salga nunca más grande de lo
+  // esperado, sin importar cómo se haya generado.
+  const pushChunk = (piece: string) => {
+    if (piece.length <= targetSize * 1.5) {
+      chunks.push(piece.trim());
+      return;
+    }
+    for (let i = 0; i < piece.length; i += targetSize - overlap) {
+      const slice = piece.slice(i, i + targetSize).trim();
+      if (slice.length > 0) chunks.push(slice);
+    }
+  };
+
   for (const para of paragraphs) {
     if ((current + "\n\n" + para).length <= targetSize) {
       current = current ? current + "\n\n" + para : para;
     } else {
       if (current.length > 0) {
-        chunks.push(current.trim());
+        pushChunk(current);
         // Overlap: conservar los últimos `overlap` caracteres del chunk anterior
         const tail = current.slice(-overlap);
         current = tail + "\n\n" + para;
@@ -31,7 +50,7 @@ export function chunkText(
           if ((current + " " + sent).length <= targetSize) {
             current = current ? current + " " + sent : sent;
           } else {
-            if (current) chunks.push(current.trim());
+            if (current) pushChunk(current);
             current = sent;
           }
         }
@@ -39,7 +58,7 @@ export function chunkText(
     }
   }
 
-  if (current.trim().length > 0) chunks.push(current.trim());
+  if (current.trim().length > 0) pushChunk(current);
 
   return chunks.filter((c) => c.length > 30); // descartar fragmentos muy cortos
 }

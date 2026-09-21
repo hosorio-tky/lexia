@@ -8,6 +8,7 @@ import { getSession, requireRole } from "@/lib/auth/session";
 import { logActivity } from "@/lib/activity";
 import { indexDocument } from "@/lib/ai/indexer";
 import { indexContrato } from "@/lib/ai/contrato-indexer";
+import { indexLexbaseDocument } from "@/lib/ai/lexbase-indexer";
 import type { PlantillaAlerta, CatalogoItem } from "@/types/settings";
 
 // ─── T06-F03: Personalización empresa ─────────────────────────
@@ -498,4 +499,59 @@ export async function reindexarContratos(): Promise<{
   }
 
   return { total: toIndex.length, indexed, errors };
+}
+
+// ─── Re-indexar documentos de Lexbase para RAG ───────────────
+export async function reindexarLexbase(): Promise<{
+  total: number;
+  indexed: number;
+  errors: string[];
+}> {
+  const session = await getSession();
+  const client  = createAdminClient();
+
+  // Documentos de Lexbase del tenant con storage_path válido
+  const { data: docs } = await client
+    .from("lexbase_documentos")
+    .select("id, storage_path, tipo_mime")
+    .eq("tenant_id", session.tenant_id)
+    .is("deleted_at", null)
+    .not("storage_path", "is", null)
+    .not("storage_path", "eq", "");
+
+  // Sólo los que todavía no tienen chunks
+  const { data: existing } = await client
+    .from("lexbase_chunks")
+    .select("documento_id")
+    .eq("tenant_id", session.tenant_id);
+
+  const indexedIds = new Set((existing ?? []).map((r: { documento_id: string }) => r.documento_id));
+  const toIndex = (docs ?? []).filter((d: { id: string }) => !indexedIds.has(d.id)) as Array<{
+    id: string; storage_path: string; tipo_mime: string;
+  }>;
+
+  let indexed = 0;
+  const errors: string[] = [];
+  const indexable = toIndex.filter((d) => d.tipo_mime && d.tipo_mime.trim() !== "");
+
+  for (const doc of indexable) {
+    try {
+      const result = await indexLexbaseDocument({
+        documentoId: doc.id,
+        tenantId:    session.tenant_id,
+        storagePath: doc.storage_path,
+        mimeType:    doc.tipo_mime,
+      });
+      if (result.skipped) {
+        errors.push(`[${doc.tipo_mime}] ${result.skipped}`);
+      } else {
+        indexed++;
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push(`${doc.id.slice(0, 8)}… (${doc.tipo_mime}): ${msg}`);
+    }
+  }
+
+  return { total: indexable.length, indexed, errors };
 }

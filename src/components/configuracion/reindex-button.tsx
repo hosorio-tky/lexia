@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Database, FileText, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Database, FileText, Scale, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { reindexarDocumentos, reindexarContratos } from "@/app/actions/configuracion";
+import { reindexarDocumentos, reindexarContratos, reindexarLexbase } from "@/app/actions/configuracion";
 
 type ReindexState =
   | { status: "idle" }
@@ -48,6 +48,7 @@ function ReindexResult({ state }: { state: ReindexState }) {
 export function ReindexButton() {
   const [docState,      setDocState]      = useState<ReindexState>({ status: "idle" });
   const [contratoState, setContratoState] = useState<ReindexState>({ status: "idle" });
+  const [lexbaseState,  setLexbaseState]  = useState<ReindexState>({ status: "idle" });
 
   async function handleDocumentos() {
     setDocState({ status: "loading" });
@@ -66,6 +67,16 @@ export function ReindexButton() {
       setContratoState({ status: "done", ...result });
     } catch (e) {
       setContratoState({ status: "error", message: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  async function handleLexbase() {
+    setLexbaseState({ status: "loading" });
+    try {
+      const result = await reindexarLexbase();
+      setLexbaseState({ status: "done", ...result });
+    } catch (e) {
+      setLexbaseState({ status: "error", message: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -125,6 +136,34 @@ export function ReindexButton() {
           )}
         </Button>
         <ReindexResult state={contratoState} />
+      </div>
+
+      {/* ── Lexbase ── */}
+      <div className="rounded-xl border bg-card p-5 shadow-sm space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="grid h-9 w-9 place-items-center rounded-lg bg-amber-500/10 text-amber-600">
+            <Scale className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">Índice de Lexbase (RAG)</p>
+            <p className="text-xs text-muted-foreground">
+              Vectoriza leyes y resoluciones oficiales para búsqueda semántica.
+            </p>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={handleLexbase}
+          disabled={lexbaseState.status === "loading"}
+        >
+          {lexbaseState.status === "loading" ? (
+            <><Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />Indexando…</>
+          ) : (
+            <><Scale className="mr-2 h-3.5 w-3.5" />Re-indexar Lexbase</>
+          )}
+        </Button>
+        <ReindexResult state={lexbaseState} />
       </div>
     </div>
   );
