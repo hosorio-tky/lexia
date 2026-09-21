@@ -398,12 +398,44 @@ export async function togglePlantilla(id: string, activo: boolean): Promise<void
   revalidatePath("/configuracion/alertas");
 }
 
+// Procesar todos los pendientes de una sola vez en una Server Action puede
+// exceder el límite de duración de la función serverless (60s) si hay más
+// de un puñado de documentos — cada uno implica descarga + extracción +
+// embeddings + escritura en BD. Se procesa un lote acotado por invocación,
+// con algo de concurrencia, y se reporta cuántos quedan pendientes para que
+// el usuario pueda volver a hacer clic y continuar.
+const LOTE_MAX_REINDEX    = 15;
+const LOTE_CONCURRENCIA   = 5;
+
+async function procesarLote<T>(
+  items: T[],
+  procesar: (item: T) => Promise<{ ok: boolean; error?: string }>
+): Promise<{ indexed: number; errors: string[]; procesados: number }> {
+  const lote = items.slice(0, LOTE_MAX_REINDEX);
+  let indexed = 0;
+  const errors: string[] = [];
+
+  for (let i = 0; i < lote.length; i += LOTE_CONCURRENCIA) {
+    const grupo = lote.slice(i, i + LOTE_CONCURRENCIA);
+    const resultados = await Promise.all(grupo.map(procesar));
+    for (const r of resultados) {
+      if (r.ok) indexed++;
+      else if (r.error) errors.push(r.error);
+    }
+  }
+
+  return { indexed, errors, procesados: lote.length };
+}
+
+interface ReindexResult {
+  total:     number; // pendientes antes de este lote
+  indexed:   number;
+  errors:    string[];
+  restantes: number; // pendientes después de este lote (0 = ya terminó)
+}
+
 // ─── Re-indexar documentos para RAG ──────────────────────────
-export async function reindexarDocumentos(): Promise<{
-  total: number;
-  indexed: number;
-  errors: string[];
-}> {
+export async function reindexarDocumentos(): Promise<ReindexResult> {
   const session = await getSession();
   const client  = createAdminClient();
 
@@ -425,13 +457,10 @@ export async function reindexarDocumentos(): Promise<{
   const toIndex = (docs ?? []).filter((d: { id: string }) => !indexedIds.has(d.id)) as Array<{
     id: string; storage_path: string; tipo_mime: string;
   }>;
-
-  let indexed = 0;
-  const errors: string[] = [];
   // Excluir documentos sin mime type (test.pdf, imágenes sin tipo, etc.)
   const indexable = toIndex.filter((d) => d.tipo_mime && d.tipo_mime.trim() !== "");
 
-  for (const doc of indexable) {
+  const { indexed, errors, procesados } = await procesarLote(indexable, async (doc) => {
     try {
       const result = await indexDocument({
         documentoId: doc.id,
@@ -439,26 +468,20 @@ export async function reindexarDocumentos(): Promise<{
         storagePath: doc.storage_path,
         mimeType:    doc.tipo_mime,
       });
-      if (result.skipped) {
-        errors.push(`[${doc.tipo_mime}] ${result.skipped}`);
-      } else {
-        indexed++;
-      }
+      return result.skipped
+        ? { ok: false, error: `[${doc.tipo_mime}] ${result.skipped}` }
+        : { ok: true };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      errors.push(`${doc.id.slice(0, 8)}… (${doc.tipo_mime}): ${msg}`);
+      return { ok: false, error: `${doc.id.slice(0, 8)}… (${doc.tipo_mime}): ${msg}` };
     }
-  }
+  });
 
-  return { total: indexable.length, indexed, errors };
+  return { total: indexable.length, indexed, errors, restantes: indexable.length - procesados };
 }
 
 // ─── Re-indexar contratos para RAG ───────────────────────────
-export async function reindexarContratos(): Promise<{
-  total: number;
-  indexed: number;
-  errors: string[];
-}> {
+export async function reindexarContratos(): Promise<ReindexResult> {
   const session = await getSession();
   const client  = createAdminClient();
 
@@ -480,10 +503,7 @@ export async function reindexarContratos(): Promise<{
       !indexedIds.has(c.id) && (c.contenido_html || c.storage_path)
   ) as Array<{ id: string; contenido_html: string | null; storage_path: string | null }>;
 
-  let indexed = 0;
-  const errors: string[] = [];
-
-  for (const contrato of toIndex) {
+  const { indexed, errors, procesados } = await procesarLote(toIndex, async (contrato) => {
     try {
       await indexContrato({
         contratoId:  contrato.id,
@@ -491,22 +511,18 @@ export async function reindexarContratos(): Promise<{
         html:        contrato.contenido_html,
         storagePath: contrato.storage_path,
       });
-      indexed++;
+      return { ok: true };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      errors.push(`${contrato.id.slice(0, 8)}…: ${msg}`);
+      return { ok: false, error: `${contrato.id.slice(0, 8)}…: ${msg}` };
     }
-  }
+  });
 
-  return { total: toIndex.length, indexed, errors };
+  return { total: toIndex.length, indexed, errors, restantes: toIndex.length - procesados };
 }
 
 // ─── Re-indexar documentos de Lexbase para RAG ───────────────
-export async function reindexarLexbase(): Promise<{
-  total: number;
-  indexed: number;
-  errors: string[];
-}> {
+export async function reindexarLexbase(): Promise<ReindexResult> {
   const session = await getSession();
   const client  = createAdminClient();
 
@@ -529,12 +545,9 @@ export async function reindexarLexbase(): Promise<{
   const toIndex = (docs ?? []).filter((d: { id: string }) => !indexedIds.has(d.id)) as Array<{
     id: string; storage_path: string; tipo_mime: string;
   }>;
-
-  let indexed = 0;
-  const errors: string[] = [];
   const indexable = toIndex.filter((d) => d.tipo_mime && d.tipo_mime.trim() !== "");
 
-  for (const doc of indexable) {
+  const { indexed, errors, procesados } = await procesarLote(indexable, async (doc) => {
     try {
       const result = await indexLexbaseDocument({
         documentoId: doc.id,
@@ -542,16 +555,14 @@ export async function reindexarLexbase(): Promise<{
         storagePath: doc.storage_path,
         mimeType:    doc.tipo_mime,
       });
-      if (result.skipped) {
-        errors.push(`[${doc.tipo_mime}] ${result.skipped}`);
-      } else {
-        indexed++;
-      }
+      return result.skipped
+        ? { ok: false, error: `[${doc.tipo_mime}] ${result.skipped}` }
+        : { ok: true };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      errors.push(`${doc.id.slice(0, 8)}… (${doc.tipo_mime}): ${msg}`);
+      return { ok: false, error: `${doc.id.slice(0, 8)}… (${doc.tipo_mime}): ${msg}` };
     }
-  }
+  });
 
-  return { total: indexable.length, indexed, errors };
+  return { total: indexable.length, indexed, errors, restantes: indexable.length - procesados };
 }

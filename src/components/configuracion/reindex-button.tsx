@@ -8,10 +8,10 @@ import { reindexarDocumentos, reindexarContratos, reindexarLexbase } from "@/app
 type ReindexState =
   | { status: "idle" }
   | { status: "loading" }
-  | { status: "done"; total: number; indexed: number; errors: string[] }
+  | { status: "done"; total: number; indexed: number; errors: string[]; restantes: number }
   | { status: "error"; message: string };
 
-function ReindexResult({ state }: { state: ReindexState }) {
+function ReindexResult({ state, onContinuar }: { state: ReindexState; onContinuar: () => void }) {
   if (state.status === "done") {
     return (
       <div className="space-y-2">
@@ -29,6 +29,14 @@ function ReindexResult({ state }: { state: ReindexState }) {
             {state.errors.map((err, i) => (
               <p key={i} className="font-mono break-all">{err}</p>
             ))}
+          </div>
+        )}
+        {state.restantes > 0 && (
+          <div className="flex items-center justify-between gap-2 rounded-lg bg-muted px-3 py-2 text-xs">
+            <span>Quedan {state.restantes} pendiente{state.restantes !== 1 ? "s" : ""} (se procesa por lotes).</span>
+            <Button size="sm" variant="outline" className="h-6 px-2 text-xs" onClick={onContinuar}>
+              Continuar
+            </Button>
           </div>
         )}
       </div>
@@ -107,7 +115,7 @@ export function ReindexButton() {
             <><Database className="mr-2 h-3.5 w-3.5" />Re-indexar documentos</>
           )}
         </Button>
-        <ReindexResult state={docState} />
+        <ReindexResult state={docState} onContinuar={handleDocumentos} />
       </div>
 
       {/* ── Contratos ── */}
@@ -135,7 +143,7 @@ export function ReindexButton() {
             <><FileText className="mr-2 h-3.5 w-3.5" />Re-indexar contratos</>
           )}
         </Button>
-        <ReindexResult state={contratoState} />
+        <ReindexResult state={contratoState} onContinuar={handleContratos} />
       </div>
 
       {/* ── Lexbase ── */}
@@ -163,7 +171,7 @@ export function ReindexButton() {
             <><Scale className="mr-2 h-3.5 w-3.5" />Re-indexar Lexbase</>
           )}
         </Button>
-        <ReindexResult state={lexbaseState} />
+        <ReindexResult state={lexbaseState} onContinuar={handleLexbase} />
       </div>
     </div>
   );
