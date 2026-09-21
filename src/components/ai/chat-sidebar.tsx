@@ -252,6 +252,10 @@ export function ChatSidebar({ open, onClose }: ChatSidebarProps) {
   const inputRef       = useRef<HTMLTextAreaElement>(null);
   const fileInputRef   = useRef<HTMLInputElement>(null);
   const abortRef       = useRef<AbortController | null>(null);
+  // storagePath del último archivo cuyo chip ya se mostró en un mensaje —
+  // el archivo sigue viajando en los siguientes turnos, pero el chip de
+  // "adjuntó X.pdf" solo debe aparecer una vez, no en cada mensaje.
+  const archivoMostradoRef = useRef<string | null>(null);
 
   const [expanded,  setExpanded]  = useState(false);
   const [input,     setInput]     = useState("");
@@ -378,14 +382,21 @@ export function ChatSidebar({ open, onClose }: ChatSidebarProps) {
     if (!text.trim() || streaming) return;
     setError(null);
 
-    // El archivo pendiente (si hay) viaja solo en este turno — se limpia
-    // después de enviarlo, para no volver a adjuntarlo en mensajes futuros.
+    // El archivo adjunto se sigue mandando en los mensajes siguientes del
+    // mismo hilo (no se limpia tras el primer envío) — si se limpiaba de
+    // inmediato, preguntas de seguimiento como "¿hay tareas relacionadas a
+    // ese permiso?" o "busca en el PDF" perdían por completo el texto del
+    // documento (la IA respondía que no tenía esa información, aunque sí
+    // estuviera en el archivo). El usuario lo quita manualmente con la X
+    // cuando ya no lo necesita, o lo reemplaza adjuntando otro.
     const archivoEnviado = pendingFile;
-    setPendingFile(null);
+    const esPrimerEnvioDeEsteArchivo =
+      !!archivoEnviado && archivoMostradoRef.current !== archivoEnviado.archivo.storagePath;
+    if (archivoEnviado) archivoMostradoRef.current = archivoEnviado.archivo.storagePath;
 
     const userMsg: Msg = {
       id: uid(), role: "user", text: text.trim(),
-      archivoNombre: archivoEnviado?.archivo.nombre,
+      archivoNombre: esPrimerEnvioDeEsteArchivo ? archivoEnviado.archivo.nombre : undefined,
     };
     const asstId = uid();
     const asstMsg: Msg = { id: asstId, role: "assistant", text: "" };
