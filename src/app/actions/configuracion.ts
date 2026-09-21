@@ -399,32 +399,37 @@ export async function togglePlantilla(id: string, activo: boolean): Promise<void
 }
 
 // Procesar todos los pendientes de una sola vez en una Server Action puede
-// exceder el límite de duración de la función serverless (60s) si hay más
-// de un puñado de documentos — cada uno implica descarga + extracción +
-// embeddings + escritura en BD. Se procesa un lote acotado por invocación,
-// con algo de concurrencia, y se reporta cuántos quedan pendientes para que
-// el usuario pueda volver a hacer clic y continuar.
-const LOTE_MAX_REINDEX    = 15;
-const LOTE_CONCURRENCIA   = 5;
+// exceder el límite de duración de la función serverless — algunos
+// documentos de Lexbase son ediciones completas del Diario Oficial (varios
+// MB, miles de fragmentos a generar embeddings), así que ni un tamaño de
+// lote fijo (15 documentos) ni subir el límite a 300s fueron suficientes:
+// la suma de varios documentos pesados en el mismo lote lo sigue superando.
+//
+// En vez de adivinar cuántos documentos "caben", se limita por tiempo
+// transcurrido real: se procesa uno a la vez y, antes de empezar el
+// siguiente, se verifica que quede margen suficiente en el presupuesto de
+// la función. Lo que no alcance a procesarse queda como pendiente para el
+// siguiente clic en "Continuar".
+const PRESUPUESTO_MS = 260_000; // margen bajo los 300s configurados en el layout
 
 async function procesarLote<T>(
   items: T[],
   procesar: (item: T) => Promise<{ ok: boolean; error?: string }>
 ): Promise<{ indexed: number; errors: string[]; procesados: number }> {
-  const lote = items.slice(0, LOTE_MAX_REINDEX);
+  const inicio = Date.now();
   let indexed = 0;
   const errors: string[] = [];
+  let procesados = 0;
 
-  for (let i = 0; i < lote.length; i += LOTE_CONCURRENCIA) {
-    const grupo = lote.slice(i, i + LOTE_CONCURRENCIA);
-    const resultados = await Promise.all(grupo.map(procesar));
-    for (const r of resultados) {
-      if (r.ok) indexed++;
-      else if (r.error) errors.push(r.error);
-    }
+  for (const item of items) {
+    if (Date.now() - inicio > PRESUPUESTO_MS) break;
+    const r = await procesar(item);
+    procesados++;
+    if (r.ok) indexed++;
+    else if (r.error) errors.push(r.error);
   }
 
-  return { indexed, errors, procesados: lote.length };
+  return { indexed, errors, procesados };
 }
 
 interface ReindexResult {
