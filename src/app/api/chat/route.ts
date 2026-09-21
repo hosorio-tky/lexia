@@ -189,21 +189,43 @@ ${archivo ? `## Documento cargado por el usuario ahora ("${archivo.nombre}")\n${
         const emit = (obj: Record<string, unknown>) =>
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
 
+        let huboContenido = false;
         try {
           for await (const chunk of result.fullStream) {
             if (chunk.type === "text-delta") {
+              huboContenido = true;
               emit({ type: "text-delta", textDelta: chunk.text });
             } else if (chunk.type === "tool-call") {
+              huboContenido = true;
               emit({
                 type:     "tool-call",
                 toolName: chunk.toolName,
                 toolArgs: chunk.input,
               });
+            } else if (chunk.type === "error") {
+              // El SDK puede entregar un error como parte normal del stream
+              // (sin lanzar excepción) — sin este caso, se ignoraba en
+              // silencio y el cliente se quedaba sin nada, sin saber que algo
+              // falló.
+              const msg = chunk.error instanceof Error ? chunk.error.message : String(chunk.error);
+              console.error("[/api/chat] error chunk en fullStream:", msg);
+              emit({ type: "error", error: msg });
+              huboContenido = true;
+            } else {
+              // Diagnóstico temporal: registrar cualquier tipo de chunk no
+              // manejado para poder identificar por qué una respuesta puede
+              // terminar sin texto ni tool-call visibles para el usuario.
+              console.error("[/api/chat] chunk no manejado:", chunk.type, JSON.stringify(chunk).slice(0, 500));
             }
+          }
+          if (!huboContenido) {
+            const finishReason = await Promise.resolve(result.finishReason).catch(() => "desconocido");
+            console.error("[/api/chat] stream terminó sin texto, tool-call ni error — finishReason:", finishReason);
           }
           emit({ type: "done" });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
+          console.error("[/api/chat] excepción en fullStream:", msg);
           emit({ type: "error", error: msg });
         } finally {
           controller.close();
