@@ -10,7 +10,14 @@ import { verifyTrustedDeviceToken, TRUSTED_DEVICE_COOKIE } from "@/lib/trusted-d
 // (extracción con visión de PDFs escaneados) puede tardar bastante en un
 // documento con varias páginas — sube el límite por defecto de Vercel para
 // evitar que se corte a mitad de camino.
-export const maxDuration = 60;
+//
+// Las Server Actions de re-indexar (Configuración → Alertas) también viven
+// bajo este layout y pueden tardar mucho más: algunos documentos de Lexbase
+// son ediciones completas del Diario Oficial (varios MB, cientos de páginas)
+// importadas por el cron diario — extraer + generar embeddings de uno solo
+// ya puede superar 60s. /api/debug/reindex-all ya usa 300s para el mismo
+// tipo de trabajo ("indexing is slow"); se usa el mismo valor aquí.
+export const maxDuration = 300;
 
 export default async function DashboardLayout({
   children,
