@@ -51,6 +51,12 @@ interface Msg {
   text: string;
   toolCall?: ToolCall;
   archivoNombre?: string;
+  // Mensaje "assistant" que viaja al modelo en el historial (para que sepa,
+  // p. ej., el ID real de un permiso recién creado) pero no se muestra en
+  // el chat — las tarjetas de confirmación son puramente visuales y nunca
+  // llegan al modelo, así que sin esto la IA no tenía forma de conocer el
+  // ID real al proponer tareas relacionadas en un turno posterior.
+  hidden?: boolean;
 }
 
 function uid() {
@@ -360,6 +366,18 @@ export function ChatSidebar({ open, onClose }: ChatSidebarProps) {
           status: "confirmed",
           result: { permisoId: res.permisoId, advertencias: res.advertencias },
         });
+        // La tarjeta de confirmación es solo visual y nunca llega al modelo
+        // — sin este mensaje oculto, la IA no tiene forma de saber el ID
+        // real del permiso al proponer tareas relacionadas más adelante en
+        // la misma conversación (y termina inventando un placeholder).
+        if (res.permisoId) {
+          setMessages(prev => [...prev, {
+            id: uid(),
+            role: "assistant",
+            text: `[Contexto interno: el permiso "${tc.args.nombre}" fue creado con ID ${res.permisoId}. Usa este ID exacto como permiso_id si el usuario pide crear tareas relacionadas a este permiso.]`,
+            hidden: true,
+          }]);
+        }
       }
     });
   }
@@ -619,6 +637,7 @@ export function ChatSidebar({ open, onClose }: ChatSidebarProps) {
           )}
 
           {messages.map((msg) => {
+            if (msg.hidden) return null;
             // ── Tarjeta de herramienta ──
             if (msg.role === "tool-call" && msg.toolCall) {
               const tc = msg.toolCall;

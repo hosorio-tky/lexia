@@ -278,6 +278,35 @@ async function adjuntarEIndexarArchivo(input: {
 
 // ─── Crear tareas desde el agente ────────────────────────────────────────────
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Resuelve un permiso_id "confiable" a partir de lo que propuso la IA.
+ * El modelo a veces inventa un placeholder (ej. "permiso_id_placeholder")
+ * en vez de dejar el campo vacío cuando no conoce el ID real — sin esto,
+ * ese texto se colaba directo a una columna uuid y tronaba con un error
+ * crudo de Postgres. Si no es un UUID válido, se intenta resolver por
+ * nombre exacto antes de descartarlo.
+ */
+async function resolverPermisoId(
+  client: ReturnType<typeof createAdminClient>,
+  tenantId: string,
+  permisoId: string | undefined,
+  permisoNombre: string
+): Promise<string | undefined> {
+  if (permisoId && UUID_RE.test(permisoId)) return permisoId;
+
+  const { data } = await client
+    .from("permisos")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("nombre", permisoNombre)
+    .is("deleted_at", null)
+    .maybeSingle();
+
+  return data?.id;
+}
+
 export async function crearTareasDesdeChat(
   propuesta: PropuestaTareas
 ): Promise<{ count: number; error?: string }> {
@@ -288,6 +317,10 @@ export async function crearTareasDesdeChat(
     const client = createAdminClient();
     const repo   = createTareasRepository(client, session.tenant_id);
 
+    const permisoId = await resolverPermisoId(
+      client, session.tenant_id, propuesta.permiso_id, propuesta.permiso_nombre
+    );
+
     let count = 0;
     for (const t of propuesta.tareas) {
       await repo.create({
@@ -295,8 +328,8 @@ export async function crearTareasDesdeChat(
         descripcion:       t.descripcion,
         prioridad:         t.prioridad,
         estado:            "pendiente",
-        modulo_origen:     propuesta.permiso_id ? "permisos" : undefined,
-        recurso_id:        propuesta.permiso_id ?? undefined,
+        modulo_origen:     permisoId ? "permisos" : undefined,
+        recurso_id:        permisoId,
         recurso_desc:      propuesta.permiso_nombre,
         fecha_limite:      t.fecha_limite,
         asignado_a:        session.user_id,
@@ -313,13 +346,13 @@ export async function crearTareasDesdeChat(
       user_nombre:  session.nombre,
       accion:       "crear_tareas",
       modulo:       "tareas",
-      recurso_id:   propuesta.permiso_id,
+      recurso_id:   permisoId,
       recurso_desc: propuesta.permiso_nombre,
       metadata:     { origen: "agente_ia", cantidad: count },
     });
 
     revalidatePath("/tareas");
-    if (propuesta.permiso_id) revalidatePath(`/permisos/${propuesta.permiso_id}`);
+    if (permisoId) revalidatePath(`/permisos/${permisoId}`);
 
     return { count };
   } catch (err) {
