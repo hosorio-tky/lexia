@@ -19,6 +19,22 @@ interface ArchivoAdjunto {
   texto:  string;
 }
 
+// El texto extraído de un documento adjunto se inyecta completo en el
+// system prompt de cada turno de la conversación (no solo una vez). Con el
+// fix de renderizado de PDFs escaneados, un documento típico pasó de ~4,000
+// a ~30,000+ caracteres extraídos — sin límite, eso infla mucho el prompt en
+// cada mensaje (costo, latencia, y riesgo de exceder límites del modelo).
+const MAX_CHARS_ARCHIVO_EN_PROMPT = 12000;
+
+function truncarTextoArchivo(texto: string): string {
+  if (!texto) return "(no se pudo extraer texto de este archivo)";
+  if (texto.length <= MAX_CHARS_ARCHIVO_EN_PROMPT) return texto;
+  return (
+    texto.slice(0, MAX_CHARS_ARCHIVO_EN_PROMPT) +
+    `\n\n[Nota para la IA: el documento tiene más contenido del que se muestra aquí (se truncó a ${MAX_CHARS_ARCHIVO_EN_PROMPT} caracteres). Si necesitas datos que no aparecen arriba, dile al usuario que no los revisaste y pídele que los describa.]`
+  );
+}
+
 const SUPABASE_URL  = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
@@ -150,7 +166,7 @@ ${structuredContext ? `## Datos actuales del sistema\n${structuredContext}` : ""
 
 ${documentContext ? `## Fragmentos de documentos indexados (usa esta información para responder)\n${documentContext}` : ""}
 
-${archivo ? `## Documento cargado por el usuario ahora ("${archivo.nombre}")\n${archivo.texto || "(no se pudo extraer texto de este archivo)"}` : ""}
+${archivo ? `## Documento cargado por el usuario ahora ("${archivo.nombre}")\n${truncarTextoArchivo(archivo.texto)}` : ""}
 `.trim();
 
     const coreMessages: CoreMessage[] = incoming
