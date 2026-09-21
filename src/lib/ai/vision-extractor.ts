@@ -44,11 +44,12 @@ const MAX_PAGINAS_VISION  = 12;
 // Debajo de este promedio de caracteres por página, se asume que el PDF es
 // escaneado (imagen) y no tiene una capa de texto real aprovechable.
 const MIN_CHARS_POR_PAGINA = 80;
-// Máximo de páginas transcritas en paralelo. Probado contra el límite real de
-// tokens/minuto de la organización en OpenAI: procesar las 12 páginas a la vez
-// (con su reintento) agota el TPM y la llamada falla con 429. 3 en paralelo
-// sigue siendo mucho más rápido que secuencial sin gatillar el rate limit.
-const CONCURRENCIA_VISION = 3;
+// Máximo de páginas transcritas en paralelo. El límite de 3 era necesario
+// con gpt-4o-mini (200k TPM de Tier 1 en OpenAI, se agotaba con más). Con
+// gpt-5.6-terra (500k TPM) no se ha topado rate limit ni con las 12 páginas
+// a la vez — se sube la concurrencia para entrar cómodo dentro del límite
+// de duración de la función serverless en Vercel (60s en el plan actual).
+const CONCURRENCIA_VISION = MAX_PAGINAS_VISION;
 
 export interface ExtraccionResultado {
   texto:                    string;
