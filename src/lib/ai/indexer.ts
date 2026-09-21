@@ -66,7 +66,9 @@ export async function indexDocument(input: {
     .eq("documento_id", input.documentoId);
 
   // 6. Insertar nuevos chunks con embeddings
-  // pgvector acepta el formato "[n1,n2,...]" como string
+  // pgvector acepta el formato "[n1,n2,...]" como string. Documentos con
+  // muchos chunks pueden superar el statement_timeout de Postgres si se
+  // insertan todos en una sola sentencia — se inserta en lotes pequeños.
   const rows = chunks.map((contenido, i) => ({
     tenant_id:    input.tenantId,
     documento_id: input.documentoId,
@@ -75,9 +77,13 @@ export async function indexDocument(input: {
     embedding:    `[${embeddings[i].join(",")}]`,
   }));
 
-  const { error } = await client.from("document_chunks").insert(rows);
-  if (error) {
-    throw new Error(`INSERT falló: ${error.message} (code: ${error.code})`);
+  const INSERT_BATCH = 100;
+  for (let i = 0; i < rows.length; i += INSERT_BATCH) {
+    const lote = rows.slice(i, i + INSERT_BATCH);
+    const { error } = await client.from("document_chunks").insert(lote);
+    if (error) {
+      throw new Error(`INSERT falló (fila ${i}-${i + lote.length}): ${error.message} (code: ${error.code})`);
+    }
   }
 
   console.log(`[indexer] ${input.storagePath}: ${chunks.length} chunks insertados`);

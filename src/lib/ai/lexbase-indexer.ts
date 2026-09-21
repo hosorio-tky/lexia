@@ -149,6 +149,10 @@ export async function indexLexbaseDocument(input: {
     .eq("documento_id", input.documentoId);
 
   // 7. Insertar nuevos chunks con embeddings
+  // Documentos grandes (ediciones completas del Diario Oficial) pueden
+  // generar miles de chunks — insertarlos todos en una sola sentencia
+  // supera el statement_timeout de Postgres ("canceling statement due to
+  // statement timeout"). Se inserta en lotes pequeños.
   const rows = chunks.map((contenido, i) => ({
     tenant_id:    input.tenantId,
     documento_id: input.documentoId,
@@ -157,9 +161,13 @@ export async function indexLexbaseDocument(input: {
     embedding: `[${embeddings[i].join(",")}]`,
   }));
 
-  const { error } = await client.from("lexbase_chunks").insert(rows);
-  if (error) {
-    throw new Error(`INSERT lexbase_chunks falló: ${error.message} (code: ${error.code})`);
+  const INSERT_BATCH = 100;
+  for (let i = 0; i < rows.length; i += INSERT_BATCH) {
+    const lote = rows.slice(i, i + INSERT_BATCH);
+    const { error } = await client.from("lexbase_chunks").insert(lote);
+    if (error) {
+      throw new Error(`INSERT lexbase_chunks falló (fila ${i}-${i + lote.length}): ${error.message} (code: ${error.code})`);
+    }
   }
 
   // 8. Actualizar documento con indexed_at, total_chunks y toc

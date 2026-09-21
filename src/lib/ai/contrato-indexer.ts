@@ -53,9 +53,15 @@ async function saveChunks(
     embedding:   `[${embeddings[i].join(",")}]`,
   }));
 
-  const { error } = await client.from("contrato_chunks").insert(rows);
-  if (error) {
-    throw new Error(`contrato_chunks INSERT falló: ${error.message}`);
+  // Documentos con muchos chunks pueden superar el statement_timeout de
+  // Postgres si se insertan todos en una sola sentencia.
+  const INSERT_BATCH = 100;
+  for (let i = 0; i < rows.length; i += INSERT_BATCH) {
+    const lote = rows.slice(i, i + INSERT_BATCH);
+    const { error } = await client.from("contrato_chunks").insert(lote);
+    if (error) {
+      throw new Error(`contrato_chunks INSERT falló (fila ${i}-${i + lote.length}): ${error.message}`);
+    }
   }
 }
 
